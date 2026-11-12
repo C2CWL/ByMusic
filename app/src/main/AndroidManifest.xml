@@ -24,10 +24,10 @@
         android:name=".app.App"
         android:appCategory="audio"
         android:enableOnBackInvokedCallback="true"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@mipmap/bymusic_04_geometric_light"
         android:label="@string/app_name"
         android:resizeableActivity="true"
-        android:roundIcon="@mipmap/ic_launcher_round"
+        android:roundIcon="@mipmap/bymusic_04_geometric_light"
         android:supportsRtl="true"
         android:theme="@style/Theme.CuteSplash"
         tools:targetApi="tiramisu">
@@ -58,7 +58,6 @@
                 <action android:name="android.intent.action.MAIN" />
                 <action android:name="android.intent.action.MUSIC_PLAYER" />
 
-                <category android:name="android.intent.category.LAUNCHER" />
                 <category android:name="android.intent.category.APP_MUSIC" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
@@ -69,6 +68,42 @@
 
         </activity>
 
+        <activity-alias android:name=".Icon01MinimalDark" android:targetActivity=".app.MainActivity" android:enabled="false" android:exported="true" android:icon="@mipmap/bymusic_01_minimal_dark" android:roundIcon="@mipmap/bymusic_01_minimal_dark" android:label="@string/app_name">
+            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".Icon01MinimalLight" android:targetActivity=".app.MainActivity" android:enabled="false" android:exported="true" android:icon="@mipmap/bymusic_01_minimal_light" android:roundIcon="@mipmap/bymusic_01_minimal_light" android:label="@string/app_name">
+            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".Icon02GradientDark" android:targetActivity=".app.MainActivity" android:enabled="false" android:exported="true" android:icon="@mipmap/bymusic_02_gradient_dark" android:roundIcon="@mipmap/bymusic_02_gradient_dark" android:label="@string/app_name">
+            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".Icon02GradientLight" android:targetActivity=".app.MainActivity" android:enabled="false" android:exported="true" android:icon="@mipmap/bymusic_02_gradient_light" android:roundIcon="@mipmap/bymusic_02_gradient_light" android:label="@string/app_name">
+            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".Icon03GlassDark" android:targetActivity=".app.MainActivity" android:enabled="false" android:exported="true" android:icon="@mipmap/bymusic_03_glass_dark" android:roundIcon="@mipmap/bymusic_03_glass_dark" android:label="@string/app_name">
+            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".Icon03GlassLight" android:targetActivity=".app.MainActivity" android:enabled="false" android:exported="true" android:icon="@mipmap/bymusic_03_glass_light" android:roundIcon="@mipmap/bymusic_03_glass_light" android:label="@string/app_name">
+            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".Icon04GeometricDark" android:targetActivity=".app.MainActivity" android:enabled="false" android:exported="true" android:icon="@mipmap/bymusic_04_geometric_dark" android:roundIcon="@mipmap/bymusic_04_geometric_dark" android:label="@string/app_name">
+            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".Icon04GeometricLight" android:targetActivity=".app.MainActivity" android:enabled="true" android:exported="true" android:icon="@mipmap/bymusic_04_geometric_light" android:roundIcon="@mipmap/bymusic_04_geometric_light" android:label="@string/app_name">
+            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".Icon05WarmDark" android:targetActivity=".app.MainActivity" android:enabled="false" android:exported="true" android:icon="@mipmap/bymusic_05_warm_dark" android:roundIcon="@mipmap/bymusic_05_warm_dark" android:label="@string/app_name">
+            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".Icon05WarmLight" android:targetActivity=".app.MainActivity" android:enabled="false" android:exported="true" android:icon="@mipmap/bymusic_05_warm_light" android:roundIcon="@mipmap/bymusic_05_warm_light" android:label="@string/app_name">
+            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".Icon06WaveDark" android:targetActivity=".app.MainActivity" android:enabled="false" android:exported="true" android:icon="@mipmap/bymusic_06_wave_dark" android:roundIcon="@mipmap/bymusic_06_wave_dark" android:label="@string/app_name">
+            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".Icon06WaveLight" android:targetActivity=".app.MainActivity" android:enabled="false" android:exported="true" android:icon="@mipmap/bymusic_06_wave_light" android:roundIcon="@mipmap/bymusic_06_wave_light" android:label="@string/app_name">
+            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
         <activity
             android:name=".feature.quickplay.presentation.QuickPlayActivity"
             android:exported="true"
