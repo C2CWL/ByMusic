@@ -1,0 +1,113 @@
+@file:OptIn(ExperimentalMaterial3ExpressiveApi::class)
+
+package com.sosauce.chocola.feature.library.presentation.main.components
+
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
+import com.sosauce.chocola.R
+import com.sosauce.chocola.core.designsystem.ICON_TEXT_SPACING
+import com.sosauce.chocola.core.domain.player.PlaySource
+import com.sosauce.chocola.core.domain.player.PlayerActions
+import com.sosauce.chocola.feature.library.presentation.main.Category
+
+@Composable
+fun FolderHeader(
+    modifier: Modifier = Modifier,
+    category: Category,
+    isHidden: Boolean,
+    onToggleVisibility: () -> Unit,
+    onHandlePlayerAction: (PlayerActions) -> Unit,
+
+    ) {
+    val iconRotation by animateFloatAsState(
+        targetValue = if (isHidden) 90f else 0f
+    )
+
+    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.primary) {
+        Row(
+            modifier = modifier
+                .fillMaxWidth()
+                .padding(
+                    horizontal = 5.dp,
+                    vertical = 2.dp
+                )
+                .background(
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    shape = RoundedCornerShape(12.dp)
+                ),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(
+                onClick = onToggleVisibility,
+                shapes = IconButtonDefaults.shapes()
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.arrow_right),
+                    contentDescription = null,
+                    modifier = Modifier.rotate(iconRotation)
+                )
+            }
+            Icon(
+                painter = painterResource(R.drawable.folder_rounded),
+                contentDescription = null
+            )
+            Spacer(Modifier.width(ICON_TEXT_SPACING.dp))
+            Text(
+                text = category.name,
+                modifier = Modifier.weight(1f)
+            )
+            IconButton(
+                onClick = {
+                    onHandlePlayerAction(
+                        PlayerActions.PlayFromSource(
+                            mediaId = null,
+                            source = PlaySource.ExplicitTracks(category.tracks)
+                        )
+                    )
+                },
+                shapes = IconButtonDefaults.shapes()
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.shuffle),
+                    contentDescription = null
+                )
+            }
+            IconButton(
+                onClick = {
+                    onHandlePlayerAction(
+                        PlayerActions.StartPlaylist(
+                            source = PlaySource.ExplicitTracks(category.tracks)
+                        )
+                    )
+                },
+                shapes = IconButtonDefaults.shapes()
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.widget_play),
+                    contentDescription = null
+                )
+            }
+        }
+    }
+}

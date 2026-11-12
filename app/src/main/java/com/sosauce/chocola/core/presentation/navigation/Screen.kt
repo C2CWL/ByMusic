@@ -1,0 +1,83 @@
+package com.sosauce.chocola.core.presentation.navigation
+
+import androidx.navigation3.runtime.NavKey
+import com.sosauce.chocola.feature.bakery.presentation.model.PeriodId
+import com.sosauce.chocola.feature.settings.presentation.components.SettingsScreen
+import kotlinx.serialization.Serializable
+
+@Serializable
+sealed class Screen : NavKey {
+    @Serializable
+    data object Main : Screen()
+
+    @Serializable
+    data class Settings(
+        val initialScreen: SettingsScreen? = null
+    ) : Screen()
+
+    @Serializable
+    data object Albums : Screen()
+
+    @Serializable
+    data object Artists : Screen()
+
+    @Serializable
+    data object Playlists : Screen()
+
+    @Serializable
+    data object Setup : Screen()
+
+    @Serializable
+    data class BakeryStory(
+        val period: PeriodId
+    ) : Screen()
+
+    @Serializable
+    data object Queue : Screen()
+
+    @Serializable
+    data object Lyrics : Screen()
+
+    @Serializable
+    data class LyricsEditor(
+        val trackPath: String
+    ) : Screen()
+
+    @Serializable
+    data class AlbumsDetails(
+        val name: String
+    ) : Screen()
+
+    @Serializable
+    data class ArtistsDetails(
+        val name: String
+    ) : Screen()
+
+    @Serializable
+    data class PlaylistDetails(
+        val id: Int
+    ) : Screen()
+
+    @Serializable
+    data class MetadataEditor(
+        val trackPath: String,
+        val trackUri: String
+    ) : Screen()
+
+    @Serializable
+    data class Transformer(
+        val trackUri: String
+    ) : Screen()
+
+    companion object {
+        fun toScreen(screen: String): Screen {
+            return when (screen) {
+                Main.toString() -> Main
+                Albums.toString() -> Albums
+                Artists.toString() -> Artists
+                Playlists.toString() -> Playlists
+                else -> Main
+            }
+        }
+    }
+}

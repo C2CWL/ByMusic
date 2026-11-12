@@ -1,0 +1,13 @@
+Chocola est un lecteur de musique hors ligne simple, léger et open-source pour Android, utilisant le thème Material 3 Expressif. Il est très rapide !
+
+- Jouez n'importe quelle musique, juste en partageant le fichier à l'application, sans le télécharger !
+- Recherche facile parmi toute vos musiques, vos albums et vos artistes !
+- Très rapide et réactif !
+- Aucune autorisation inutile requise !
+- Design expressif Material 3 !
+- Dossiers sur liste noire !
+- Superbe interface utilisateur en mode paysage !
+- Éditeur de métadonnées !
+- Prise en charge des playlistes !
+- Chargez des musiques depuis n'importe où grâce au S.A.F. d'Android !
+- Fait partie de l'écosystème CuteApps !
