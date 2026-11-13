@@ -296,4 +296,5 @@
     <string name="github" translatable="false">GitHub</string>
     <string name="settings_alignment">Alignment</string>
     <string name="settings_eq_presets">Presets</string>
+    <string name="locate_current_track">Locate current track</string>
 </resources>

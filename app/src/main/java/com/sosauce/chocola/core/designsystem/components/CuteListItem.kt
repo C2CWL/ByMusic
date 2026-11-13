@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.sosauce.nekobites.animations.bouncySpec
 import com.sosauce.nekobites.helpers.rememberInteractionSource
@@ -34,6 +35,8 @@ fun CuteListItem(
     onLongClick: (() -> Unit)? = null,
     leadingContent: @Composable () -> Unit,
     trailingContent: (@Composable () -> Unit)? = null,
+    verticalPadding: Dp = 15.dp,
+    horizontalPadding: Dp = 0.dp,
     content: @Composable ColumnScope.() -> Unit
 ) {
 
@@ -62,8 +65,8 @@ fun CuteListItem(
             )
     ) {
         Row(
-            modifier = modifier
-                .padding(vertical = 15.dp),
+            modifier = Modifier
+                .padding(horizontal = horizontalPadding, vertical = verticalPadding),
             verticalAlignment = Alignment.CenterVertically
         ) {
             leadingContent()

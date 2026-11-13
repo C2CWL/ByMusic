@@ -43,6 +43,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEachIndexed
 import androidx.core.app.ShareCompat
@@ -61,8 +64,6 @@ import com.sosauce.chocola.core.presentation.preferences.rememberHiddenTracks
 import com.sosauce.nekobites.animations.AnimatedDrawable
 import com.sosauce.nekobites.animations.AnimatedDrawableFile
 import com.sosauce.nekobites.components.AnimatedSelectedIcon
-import sv.lib.squircleshape.CornerSmoothing
-import sv.lib.squircleshape.SquircleShape
 
 @Composable
 fun MusicListItem(
@@ -92,6 +93,8 @@ fun MusicListItem(
                 scaleX = scale
                 scaleY = scale
             },
+        verticalPadding = 9.dp,
+        horizontalPadding = 10.dp,
         onClick = onShortClick,
         shape = shape,
         onLongClick = onLongClick,
@@ -103,7 +106,7 @@ fun MusicListItem(
                 Box(
                     modifier = Modifier
                         .size(50.dp)
-                        .clip(SquircleShape(smoothing = CornerSmoothing.Full))
+                        .clip(RoundedCornerShape(5.dp))
                         .background(MaterialTheme.colorScheme.surfaceContainerHigh),
                     contentAlignment = Alignment.Center
                 ) {
@@ -124,16 +127,22 @@ fun MusicListItem(
         Text(
             text = track.title,
             maxLines = 1,
-            style = MaterialTheme.typography.titleMediumEmphasized,
-            modifier = Modifier.basicMarquee()
+            style = MaterialTheme.typography.titleMedium.copy(
+                fontFamily = FontFamily.Default,
+                fontWeight = FontWeight.Normal
+            ),
+            color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            overflow = TextOverflow.Ellipsis
         )
         Text(
-            text = track.artist,
+            text = listOf(track.artist, track.album).filter { it.isNotBlank() }.joinToString(" · "),
             maxLines = 1,
-            style = MaterialTheme.typography.bodyMediumEmphasized.copy(
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Default,
+                fontWeight = FontWeight.Normal
             ),
-            modifier = Modifier.basicMarquee()
+            color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
