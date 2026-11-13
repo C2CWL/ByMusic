@@ -117,7 +117,7 @@ fun rememberUseArtAsBackground() =
 
 @Composable
 fun rememberUseTurntable() =
-    rememberPreference(key = USE_TURNTABLE, defaultValue = false)
+    rememberPreference(key = USE_TURNTABLE, defaultValue = true)
 
 @Composable
 fun rememberAlbumSort() =
