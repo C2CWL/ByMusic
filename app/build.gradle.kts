@@ -27,6 +27,7 @@ android {
         applicationId = "c2cw.bymusic"
         minSdk = 28
         targetSdk = 37
+        resourceConfigurations += listOf("zh-rCN")
         versionCode = 1
         versionName = "0.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

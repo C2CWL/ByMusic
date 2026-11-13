@@ -18,6 +18,7 @@ import androidx.compose.ui.util.fastForEachIndexed
 import com.materialkolor.DynamicMaterialExpressiveTheme
 import com.materialkolor.dynamiccolor.ColorSpec
 import com.materialkolor.rememberDynamicMaterialThemeState
+import com.sosauce.chocola.core.designsystem.CutePaletteStyle
 import com.sosauce.chocola.core.designsystem.CuteTheme
 import com.sosauce.chocola.core.presentation.preferences.rememberAppTheme
 import com.sosauce.chocola.core.presentation.util.toPaletteStyle
@@ -47,7 +48,16 @@ fun PaletteTile(
     SelectableTile(
         selected = selected,
         onClick = onClick,
-        label = paletteStyle
+        label = when (paletteStyle) {
+            CutePaletteStyle.TONAL_SPOT -> "柔和"
+            CutePaletteStyle.EXPRESSIVE -> "表现力"
+            CutePaletteStyle.VIBRANT -> "鲜艳"
+            CutePaletteStyle.FIDELITY -> "保真"
+            CutePaletteStyle.NEUTRAL -> "中性"
+            CutePaletteStyle.MONOCHROME -> "单色"
+            CutePaletteStyle.FRUIT_SALAD -> "缤纷"
+            else -> paletteStyle
+        }
     ) {
         DynamicMaterialExpressiveTheme(state = state, animate = true) {
             val scheme = MaterialTheme.colorScheme

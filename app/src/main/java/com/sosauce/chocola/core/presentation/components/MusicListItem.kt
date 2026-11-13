@@ -361,7 +361,7 @@ fun TrackDropdownMenu(
                     ShareCompat.IntentBuilder(context)
                         .setType("audio/*")
                         .setStream(track.path.toUri()) // this instead of passing the path allows to see the file name in the share sheet
-                        .setChooserTitle("Share track")
+                        .setChooserTitle("分享歌曲")
                         .startChooser()
                 },
                 modifier = Modifier

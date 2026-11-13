@@ -325,7 +325,7 @@ class BakeryRepositoryImpl(
     private fun PeriodId.title(): String = when (type) {
         PeriodType.MONTH -> {
             val month = YearMonth.parse(key)
-            "${month.formatMonthName()} ${month.year}"
+            "${month.year}年${month.formatMonthName()}"
         }
 
         PeriodType.YEAR -> key
@@ -333,11 +333,11 @@ class BakeryRepositoryImpl(
     }
 
     private fun YearMonth.formatMonthName(): String =
-        month.getDisplayName(TextStyle.FULL, Locale.getDefault())
+        month.getDisplayName(TextStyle.FULL, Locale.SIMPLIFIED_CHINESE)
 
     private fun formatDayLabel(epochDay: Long): String =
         LocalDate.ofEpochDay(epochDay)
-            .format(DateTimeFormatter.ofPattern("EEEE, MMMM d", Locale.getDefault()))
+            .format(DateTimeFormatter.ofPattern("M月d日 EEEE", Locale.SIMPLIFIED_CHINESE))
 
     private data class StoryData(
         val total: PeriodTotal,

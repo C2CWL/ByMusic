@@ -140,7 +140,7 @@ fun MusicWidget4x1(
             ) {
                 Spacer(GlanceModifier.height(5.dp))
                 Text(
-                    text = title ?: "No title",
+                    text = title ?: "未知歌曲",
                     style = TextStyle(
                         fontWeight = FontWeight.Bold,
                         color = GlanceTheme.colors.onSurface
@@ -148,7 +148,7 @@ fun MusicWidget4x1(
                     maxLines = 1
                 )
                 Text(
-                    text = artist ?: "No artist",
+                    text = artist ?: "未知歌手",
                     style = TextStyle(
                         color = GlanceTheme.colors.onSurfaceVariant
                     ),

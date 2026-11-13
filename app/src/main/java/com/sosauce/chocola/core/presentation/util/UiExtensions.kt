@@ -153,21 +153,21 @@ fun Int.toLyricDuration(): String {
 
 fun Long.millisToDuration(): String {
 
-    if (this == 0L) return "No time!"
+    if (this == 0L) return "0 秒"
 
     val underAMinute = this < 60_000
 
     if (underAMinute) {
-        return String.format(Locale.getDefault(), "%ds", this / 1000)
+        return String.format(Locale.getDefault(), "%d 秒", this / 1000)
     } else {
         val totalMinutes = this / (1000 * 60)
         val hours = totalMinutes / 60
         val minutes = totalMinutes % 60
 
         return if (hours > 0) {
-            String.format(Locale.getDefault(), "%dh%02d", hours, minutes)
+            String.format(Locale.getDefault(), "%d 小时 %02d 分钟", hours, minutes)
         } else {
-            String.format(Locale.getDefault(), "%dm", minutes)
+            String.format(Locale.getDefault(), "%d 分钟", minutes)
         }
     }
 
