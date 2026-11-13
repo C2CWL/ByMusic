@@ -89,7 +89,7 @@
     <string name="add_queue">添加到队列</string>
     <string name="art_as_bg">封面作为背景</string>
     <string name="use_turntable">黑胶唱片</string>
-    <string name="use_turntable_desc">播放音乐时，将封面显示为旋转的黑胶唱片。</string>
+    <string name="use_turntable_desc">封面取色的星光唱片与唱臂，播放时旋转，暂停时停留。</string>
     <string name="default_text">默认</string>
     <string name="font">字体</string>
     <string name="album">专辑</string>

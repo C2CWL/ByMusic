@@ -51,9 +51,11 @@ import com.sosauce.chocola.core.presentation.preferences.rememberHiddenNowPlayin
 import com.sosauce.chocola.core.presentation.preferences.rememberIsLandscape
 import com.sosauce.chocola.core.presentation.preferences.rememberSnapSpeedAndPitch
 import com.sosauce.chocola.core.presentation.preferences.rememberUseArtAsBackground
+import com.sosauce.chocola.core.presentation.preferences.rememberUseTurntable
 import com.sosauce.chocola.feature.playing.presentation.components.Artwork
 import com.sosauce.chocola.feature.playing.presentation.components.MoreOptionsButton
 import com.sosauce.chocola.feature.playing.presentation.components.QuickActionsRow
+import com.sosauce.chocola.feature.playing.presentation.components.TurntableTheme
 import com.sosauce.chocola.feature.playing.presentation.components.hasVisibleQuickActions
 
 @Composable
@@ -88,25 +90,28 @@ fun NowPlayingLayout(
     onShrinkToSearchbar: () -> Unit = {}
 ) {
     val isLandscape = rememberIsLandscape()
-    if (isLandscape) {
-        NowPlayingLandscape(
-            musicState = musicState,
-            hiddenButtons = hiddenButtons,
-            onHandlePlayerActions = onHandlePlayerActions,
-            onNavigate = onNavigate,
-            onShrinkToSearchbar = onShrinkToSearchbar
-        )
-    } else {
-        NowPlayingContent(
-            modifier = modifier,
-            musicState = musicState,
-            hiddenButtons = hiddenButtons,
-            onHandlePlayerActions = onHandlePlayerActions,
-            onNavigate = onNavigate,
-            onShrinkToSearchbar = onShrinkToSearchbar
-        )
-    }
+    val useTurntable by rememberUseTurntable()
+    TurntableTheme(enabled = useTurntable, artworkUri = musicState.track.artUri) {
+        if (isLandscape) {
+            NowPlayingLandscape(
+                musicState = musicState,
+                hiddenButtons = hiddenButtons,
+                onHandlePlayerActions = onHandlePlayerActions,
+                onNavigate = onNavigate,
+                onShrinkToSearchbar = onShrinkToSearchbar
+            )
+        } else {
+            NowPlayingContent(
+                modifier = modifier,
+                musicState = musicState,
+                hiddenButtons = hiddenButtons,
+                onHandlePlayerActions = onHandlePlayerActions,
+                onNavigate = onNavigate,
+                onShrinkToSearchbar = onShrinkToSearchbar
+            )
+        }
 
+    }
 }
 
 @Composable
@@ -123,6 +128,7 @@ private fun NowPlayingContent(
     var showPlaylistDialog by remember { mutableStateOf(false) }
     var showDetailsDialog by remember { mutableStateOf(false) }
     val useArtBackground by rememberUseArtAsBackground()
+    val useTurntable by rememberUseTurntable()
 
 
     if (showDetailsDialog) {
@@ -151,6 +157,7 @@ private fun NowPlayingContent(
 
     Scaffold(
         modifier = modifier,
+        containerColor = if (useTurntable) Color.Transparent else MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = {},
@@ -216,7 +223,7 @@ private fun NowPlayingContent(
     ) { paddingValues ->
 
 
-        if (useArtBackground) {
+        if (useArtBackground && !useTurntable) {
             AsyncImage(
                 model = musicState.track.artUri,
                 contentDescription = null,
