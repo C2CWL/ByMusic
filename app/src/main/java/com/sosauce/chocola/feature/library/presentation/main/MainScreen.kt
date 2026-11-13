@@ -77,8 +77,6 @@ fun SharedTransitionScope.MainScreen(
     val activeTrackId = remember(musicState.track) { musicState.track.mediaId }
 
     val groupByFolders = state.groupByFolders
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    val headerOffset = with(density) { 104.dp.roundToPx() } + WindowInsets.safeDrawing.getTop(density)
     val backdrop = rememberGraphicsLayer()
     val favoriteListState = rememberLazyListState()
     var locateTrackId by remember { mutableStateOf<String?>(null) }
@@ -86,7 +84,9 @@ fun SharedTransitionScope.MainScreen(
     // Wait for search clearing and folder expansion to reach the displayed state.
     LaunchedEffect(locateTrackId, state, textFieldState.text.toString()) {
         val id = locateTrackId ?: return@LaunchedEffect
-        if (textFieldState.text.isNotEmpty()) return@LaunchedEffect
+        if (state.isLoading || textFieldState.text.isNotEmpty() || state.searchQuery.isNotEmpty()) {
+            return@LaunchedEffect
+        }
         val favoriteIndex = state.favoriteTracks.indexOfFirst { it.mediaId == id }
         if (favoriteIndex >= 0) {
             lazyState.animateScrollToItem(0)
@@ -113,9 +113,9 @@ fun SharedTransitionScope.MainScreen(
                 if (trackIndex >= 0) targetIndex = index + trackIndex
             }
             if (targetIndex >= 0) {
-                lazyState.animateScrollToItem(targetIndex, -headerOffset)
-                locateTrackId = null
+                lazyState.animateScrollToItem(targetIndex)
             }
+            locateTrackId = null
         }
     }
 

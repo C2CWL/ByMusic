@@ -50,6 +50,7 @@ class MainViewModel(
         val (favoriteTracks, nonFavoriteTracks) = filteredTracks.partition { it.isFavorite }
         MainState(
             isLoading = false,
+            searchQuery = query.toString(),
             tracks = filteredTracks,
             favoriteTracks = favoriteTracks,
             nonFavoriteTracks = nonFavoriteTracks,
@@ -86,6 +87,7 @@ class MainViewModel(
 @Stable
 data class MainState(
     val isLoading: Boolean = true,
+    val searchQuery: String = "",
     val tracks: List<CuteTrack> = emptyList(),
     val favoriteTracks: List<CuteTrack> = emptyList(),
     val nonFavoriteTracks: List<CuteTrack> = emptyList(),
