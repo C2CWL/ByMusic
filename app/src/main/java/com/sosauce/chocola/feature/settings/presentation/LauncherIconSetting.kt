@@ -41,7 +41,7 @@ fun LauncherIconSetting() {
     var selected by remember {
         mutableStateOf(launcherIcons.first { icon ->
             val state = context.packageManager.getComponentEnabledSetting(
-                ComponentName(context, "com.sosauce.chocola." + icon.alias)
+                ComponentName(context.packageName, "com.sosauce.chocola." + icon.alias)
             )
             state == PackageManager.COMPONENT_ENABLED_STATE_ENABLED ||
                 (state == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT && icon.alias == "Icon04GeometricLight")
@@ -63,7 +63,7 @@ fun LauncherIconSetting() {
                     Row(Modifier.fillMaxWidth().clickable {
                         val pm = context.packageManager
                         val changes = launcherIcons.map {
-                            val component = ComponentName(context, "com.sosauce.chocola." + it.alias)
+                            val component = ComponentName(context.packageName, "com.sosauce.chocola." + it.alias)
                             val state = if (it == icon) PackageManager.COMPONENT_ENABLED_STATE_ENABLED else PackageManager.COMPONENT_ENABLED_STATE_DISABLED
                             component to state
                         }

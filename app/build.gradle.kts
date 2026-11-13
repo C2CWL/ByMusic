@@ -15,7 +15,7 @@ androidComponents {
         val mainOutput = variant.outputs.single { it.outputType == VariantOutputConfiguration.OutputType.SINGLE }
 
         @Suppress("UnstableApiUsage")
-        mainOutput.outputFileName = "Chocola_${mainOutput.versionName.get()}.apk"
+        mainOutput.outputFileName = "ByMusic_${mainOutput.versionName.get()}.apk"
     }
 }
 
@@ -24,11 +24,11 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.sosauce.cutemusic"
+        applicationId = "c2cw.bymusic"
         minSdk = 28
         targetSdk = 37
-        versionCode = 50015
-        versionName = "4.5.0"
+        versionCode = 1
+        versionName = "0.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
@@ -61,7 +61,11 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.findByName("release")
+            // Only attach the release signing config when the Korea release pipeline
+            // (or a local signed build) supplies keystore env vars; CI builds stay unsigned.
+            if (System.getenv("KEYSTORE_FILE") != null) {
+                signingConfig = signingConfigs.findByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
