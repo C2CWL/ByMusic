@@ -5,7 +5,7 @@
 
     <style name="Theme.CuteSplash" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/surface</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/icon_splash</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/bymusic_04_geometric_light_adaptive</item>
         <item name="postSplashScreenTheme">@style/Theme.Chocola</item>
     </style>
 

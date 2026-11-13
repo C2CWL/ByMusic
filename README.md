@@ -1,7 +1,7 @@
 # ByMusic
 
 ByMusic is an independent downstream source distribution based on [Chocola](https://github.com/sosauce/Chocola) by sosauce.
-The application display name is ByMusic. The launcher icon replacement from the owner-provided CLMY_Music_Icons.zip is pending; upstream icon files are temporary.
+The application display name is ByMusic. All 12 owner-provided CLMY_Music_Icons.zip images are available in appearance settings; default: 04_Geometric_Light. ZIP filenames do not reliably match the overview; use the previews. Launcher icons use activity aliases and may refresh with a delay.
 This fork is not an official Chocola release. The upstream package ID is currently unchanged.
 Original copyright notices and the GPL license are retained; this is not the previous from-scratch AGPL project.
 No performance improvements are claimed by this branding change.
