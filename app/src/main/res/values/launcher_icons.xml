@@ -1,1 +1,1 @@
-<resources><string name="launcher_icon">Launcher icon</string><string name="launcher_icon_delay">The launcher may take a moment to refresh the icon.</string></resources>
+<resources><string name="launcher_icon">应用图标</string><string name="launcher_icon_delay">桌面图标可能需要稍等片刻才会刷新。</string></resources>

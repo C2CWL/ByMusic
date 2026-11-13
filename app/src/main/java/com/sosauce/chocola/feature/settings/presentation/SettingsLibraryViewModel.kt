@@ -63,7 +63,7 @@ class SettingsLibraryViewModel(
                     } catch (e: Exception) {
                         ensureActive()
                         _events.trySend(
-                            LibraryEvents.RescanError(e.message ?: "Unknown error")
+                            LibraryEvents.RescanError(e.message ?: "未知错误")
                         )
                     }
                 }

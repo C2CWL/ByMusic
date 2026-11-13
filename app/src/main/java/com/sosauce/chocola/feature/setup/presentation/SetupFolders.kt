@@ -92,7 +92,7 @@ fun SetupFolders(
                             )
                             Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                             Text(
-                                text = "Let's a meow!",
+                                text = stringResource(R.string.setup_complete),
                                 style = MaterialTheme.typography.titleMediumEmphasized
                             )
                         }

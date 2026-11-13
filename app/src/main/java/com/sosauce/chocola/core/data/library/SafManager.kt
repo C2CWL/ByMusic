@@ -50,7 +50,7 @@ class SafManager(
                 artist = artist,
                 album = album,
                 folder = "S.A.F",
-                path = uri.path ?: "Unknown path",
+                path = uri.path ?: "未知路径",
                 isSaf = true
             )
         }

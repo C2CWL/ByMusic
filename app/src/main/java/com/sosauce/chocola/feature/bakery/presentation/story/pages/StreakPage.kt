@@ -70,7 +70,7 @@ fun StreakPage(
         Spacer(4.dp)
         if (page.streak.current == page.streak.best) {
             Text(
-                text = "Keep it up!",
+                text = stringResource(R.string.keep_it_up),
                 style = MaterialTheme.typography.bodyLargeEmphasized.copy(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

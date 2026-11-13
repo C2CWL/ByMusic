@@ -129,12 +129,12 @@ class EqualizerManager(
 
     fun getPresets(): List<EqualizerPreset> {
         return listOf(
-            EqualizerPreset(name = "Flat", emoji = "⚖️", gains = FLAT),
-            EqualizerPreset(name = "Bass Boost", emoji = "🔊", gains = BASS_BOOST),
-            EqualizerPreset(name = "Vocal Booster", emoji = "🎙️", gains = VOCAL_BOOSTER),
-            EqualizerPreset(name = "Pop", emoji = "🎤", gains = POP),
-            EqualizerPreset(name = "Rock", emoji = "🎸", gains = ROCK),
-            EqualizerPreset(name = "EDM", emoji = "🪩", gains = EDM)
+            EqualizerPreset(name = "平直", emoji = "⚖️", gains = FLAT),
+            EqualizerPreset(name = "低音增强", emoji = "🔊", gains = BASS_BOOST),
+            EqualizerPreset(name = "人声增强", emoji = "🎙️", gains = VOCAL_BOOSTER),
+            EqualizerPreset(name = "流行", emoji = "🎤", gains = POP),
+            EqualizerPreset(name = "摇滚", emoji = "🎸", gains = ROCK),
+            EqualizerPreset(name = "电子舞曲", emoji = "🪩", gains = EDM)
         )
     }
 

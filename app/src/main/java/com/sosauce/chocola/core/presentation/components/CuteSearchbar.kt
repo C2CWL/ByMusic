@@ -132,6 +132,7 @@ fun SharedTransitionScope.CuteSearchbar(
     textFieldState: TextFieldState,
     onHandlePlayerActions: (PlayerActions) -> Unit,
     onNavigate: (Screen) -> Unit,
+    libraryStyle: Boolean = false,
     fab: @Composable (() -> Unit)? = null,
     backButton: @Composable (() -> Unit)? = null,
     sortMenu: @Composable () -> Unit
@@ -202,6 +203,7 @@ fun SharedTransitionScope.CuteSearchbar(
                 onOpenFullPlayer = { showFullPlayer = true },
                 sortMenu = sortMenu,
                 onNavigate = onNavigate,
+                libraryStyle = libraryStyle,
                 fab = fab,
                 backButton = backButton
             )
@@ -217,10 +219,16 @@ private fun SharedTransitionScope.CuteSearchbarContent(
     onHandlePlayerActions: (PlayerActions) -> Unit,
     onNavigate: (Screen) -> Unit,
     onOpenFullPlayer: () -> Unit,
+    libraryStyle: Boolean = false,
     fab: @Composable (() -> Unit)? = null,
     backButton: @Composable (() -> Unit)? = null,
     sortMenu: @Composable () -> Unit
 ) {
+
+    if (libraryStyle) {
+        LibraryMiniPlayer(musicState, onHandlePlayerActions, onNavigate, onOpenFullPlayer)
+        return
+    }
 
     val windowInfo = LocalWindowInfo.current
     val currentScreen = LocalScreen.current
@@ -1019,3 +1027,45 @@ object CuteSearchbarDefaults {
 
 
 
+
+@Composable
+private fun LibraryMiniPlayer(
+    musicState: MusicState,
+    onHandlePlayerActions: (PlayerActions) -> Unit,
+    onNavigate: (Screen) -> Unit,
+    onOpenFullPlayer: () -> Unit
+) {
+    if (!musicState.isPlayerReady) return
+    Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
+        Column(Modifier.navigationBarsPadding()) {
+            androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+            Row(
+                Modifier.fillMaxWidth().clickable(onClick = onOpenFullPlayer).padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                coil3.compose.AsyncImage(
+                    model = musicState.track.artUri,
+                    contentDescription = stringResource(R.string.artwork),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier.size(48.dp).clip(RoundedCornerShape(5.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                )
+                Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                    Text(musicState.track.title, maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Normal))
+                    Text(musicState.track.artist, maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Default),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                PlayPauseButton(isPlaying = musicState.isPlaying, onHandlePlayerActions = onHandlePlayerActions)
+                IconButton(onClick = { onNavigate(Screen.Queue) }) {
+                    Icon(painterResource(R.drawable.queue), stringResource(R.string.queue))
+                }
+            }
+        }
+    }
+}
