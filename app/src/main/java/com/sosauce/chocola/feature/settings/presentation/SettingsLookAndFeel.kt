@@ -15,16 +15,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.sosauce.chocola.R
 import com.sosauce.chocola.core.designsystem.CutePaletteStyle
 import com.sosauce.chocola.core.designsystem.CuteTheme
+import com.sosauce.chocola.core.designsystem.theme.resolveAppearancePrefs
+import com.sosauce.chocola.core.designsystem.theme.selectThemeMode
+import com.sosauce.chocola.core.designsystem.theme.setOledBlackPreference
 import com.sosauce.chocola.core.designsystem.theme.anyDarkColorScheme
 import com.sosauce.chocola.core.designsystem.theme.anyLightColorScheme
 import com.sosauce.chocola.core.presentation.preferences.rememberAppTheme
+import com.sosauce.chocola.core.presentation.preferences.rememberOledBlack
 import com.sosauce.chocola.core.presentation.preferences.rememberPaletteStyle
 import com.sosauce.chocola.core.presentation.preferences.rememberShowShuffleButton
 import com.sosauce.chocola.core.presentation.preferences.rememberUseArtTheme
@@ -42,6 +45,8 @@ fun ColumnScope.SettingsLookAndFeel(
     onNavigateToNowPlayingButtons: () -> Unit
 ) {
     var theme by rememberAppTheme()
+    var oledBlack by rememberOledBlack()
+    val appearance = resolveAppearancePrefs(theme, oledBlack)
     var useSystemFont by rememberUseSystemFont()
     var showShuffleButton by rememberShowShuffleButton()
     var useMaterialArt by rememberUseArtTheme()
@@ -71,13 +76,6 @@ fun ColumnScope.SettingsLookAndFeel(
             icon = R.drawable.light_mode,
             background = anyLight.surfaceContainerHighest,
             iconColor = anyLight.onSurface
-        ),
-        ThemeOption(
-            value = CuteTheme.AMOLED,
-            label = R.string.amoled_mode,
-            icon = R.drawable.amoled,
-            background = Color.Black,
-            iconColor = Color.White
         )
     )
 
@@ -96,8 +94,12 @@ fun ColumnScope.SettingsLookAndFeel(
         SettingsPicker(title = stringResource(R.string.theme)) {
             items(themes) { option ->
                 SelectableTile(
-                    selected = theme == option.value,
-                    onClick = { theme = option.value },
+                    selected = appearance.themeMode == option.value,
+                    onClick = {
+                        val updated = selectThemeMode(theme, oledBlack, option.value)
+                        oledBlack = updated.oledBlack
+                        theme = updated.themeMode
+                    },
                     label = stringResource(option.label),
                     containerColor = option.background
                 ) {
@@ -118,6 +120,16 @@ fun ColumnScope.SettingsLookAndFeel(
                 )
             }
         }
+        SettingsSwitch(
+            title = stringResource(R.string.amoled_mode),
+            description = stringResource(R.string.amoled_mode_desc),
+            checked = appearance.oledBlack,
+            onCheckedChange = { enabled ->
+                val updated = setOledBlackPreference(theme, enabled)
+                oledBlack = updated.oledBlack
+                theme = updated.themeMode
+            }
+        )
         SettingsPicker(title = stringResource(R.string.font)) {
             item {
                 FontTile(
