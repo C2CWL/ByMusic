@@ -8,6 +8,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.time.ZoneOffset
 import kotlin.text.Charsets
 
@@ -130,4 +131,34 @@ class DiagExportAndExitReasonsTest {
         val rest = stream.readBytes().toString(Charsets.UTF_8)
         assertTrue("should not have consumed the entire stream", rest.isNotEmpty())
     }
+
+
+    @Test
+    fun exportReadsOnDiskLogsWhenInMemorySinkIsMissing() {
+        val logDir = temp.newFolder("ondisk")
+        File(logDir, "diag.log").writeText("INFO tag=DiagLog logging enabled\nINFO tag=Process start mark=local-diagnostic-logs\n")
+        val file = DiagExport.writeExport(
+            outputDir = temp.newFolder("export-ondisk"),
+            meta = meta(),
+            sink = null,
+            logDir = logDir
+        )
+        val text = file.readText(Charsets.UTF_8)
+        assertFalse(text.contains("还没有日志记录"))
+        assertTrue(text.contains("logging enabled"))
+        assertTrue(text.contains("start mark=local-diagnostic-logs"))
+    }
+
+    @Test
+    fun exportKeepsPlaceholderWhenSinkAndLogDirAreEmpty() {
+        val file = DiagExport.writeExport(
+            outputDir = temp.newFolder("export-empty"),
+            meta = meta(),
+            sink = null,
+            logDir = temp.newFolder("empty-logs")
+        )
+        val text = file.readText(Charsets.UTF_8)
+        assertTrue(text.contains("还没有日志记录"))
+    }
+
 }

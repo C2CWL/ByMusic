@@ -19,11 +19,13 @@ object DiagShare {
 
     fun share(context: Context) {
         try {
-            DiagLogger.flush()
+            DiagBootstrap.ensureReady(context)
+            DiagLogger.flushBestEffort(1_000)
             val file = DiagExport.writeExport(
                 outputDir = exportCacheDir(context.cacheDir),
                 meta = DiagDeviceInfo.exportMeta(context),
-                sink = DiagLogger.sinkOrNull()
+                sink = DiagLogger.sinkOrNull(),
+                logDir = DiagBootstrap.logDirectory(context)
             )
             val uri = FileProvider.getUriForFile(context, authority(context.packageName), file)
             context.startActivity(createShareIntent(uri, context))

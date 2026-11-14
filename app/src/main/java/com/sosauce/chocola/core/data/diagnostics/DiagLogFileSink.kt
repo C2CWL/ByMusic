@@ -164,5 +164,39 @@ class DiagLogFileSink(
         const val DEFAULT_MAX_FILE_BYTES = 256 * 1024L
         const val DEFAULT_MAX_FILES = 4
         private const val DEFAULT_COPY_BUFFER = 8 * 1024
+
+        fun existingFilesOldestFirst(
+            dir: File,
+            fileName: String = DEFAULT_FILE_NAME,
+            maxFiles: Int = DEFAULT_MAX_FILES
+        ): List<File> {
+            if (!dir.isDirectory) return emptyList()
+            val result = ArrayList<File>(maxFiles)
+            for (index in (maxFiles - 1) downTo 1) {
+                val file = File(dir, "$fileName.$index")
+                if (file.exists() && file.length() > 0) result.add(file)
+            }
+            val current = File(dir, fileName)
+            if (current.exists() && current.length() > 0) result.add(current)
+            return result
+        }
+
+        fun hasExistingLogs(dir: File, fileName: String = DEFAULT_FILE_NAME, maxFiles: Int = DEFAULT_MAX_FILES): Boolean =
+            existingFilesOldestFirst(dir, fileName, maxFiles).isNotEmpty()
+
+        fun exportFromDir(dir: File, out: OutputStream, fileName: String = DEFAULT_FILE_NAME, maxFiles: Int = DEFAULT_MAX_FILES) {
+            val files = existingFilesOldestFirst(dir, fileName, maxFiles)
+            val buffer = ByteArray(DEFAULT_COPY_BUFFER)
+            for ((index, file) in files.withIndex()) {
+                if (index > 0) out.write('\n'.code)
+                file.inputStream().use { input ->
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read <= 0) break
+                        out.write(buffer, 0, read)
+                    }
+                }
+            }
+        }
     }
 }
