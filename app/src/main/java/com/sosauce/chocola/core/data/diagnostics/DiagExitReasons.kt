@@ -1,5 +1,9 @@
 package com.sosauce.chocola.core.data.diagnostics
 
+import java.io.InputStream
+import java.io.InputStreamReader
+import java.nio.charset.StandardCharsets
+
 /**
  * Pure formatting for [android.app.ApplicationExitInfo] values so it can be unit tested
  * without Android framework APIs. Reason codes match the public ApplicationExitInfo constants.
@@ -78,6 +82,20 @@ object DiagExitReasons {
             builder.append("\n  trace:\n").append(trace.trim().prependIndent("  "))
         }
         return builder.toString()
+    }
+
+    fun readBounded(stream: InputStream, maxChars: Int = MAX_TRACE_CHARS): String {
+        val reader = InputStreamReader(stream, StandardCharsets.UTF_8)
+        val buffer = CharArray(1024.coerceAtMost(maxChars.coerceAtLeast(1)))
+        val out = StringBuilder(maxChars.coerceAtMost(1024))
+        while (out.length < maxChars) {
+            val remaining = maxChars - out.length
+            val read = reader.read(buffer, 0, buffer.size.coerceAtMost(remaining))
+            if (read <= 0) break
+            out.append(buffer, 0, read)
+        }
+        if (out.length >= maxChars) out.append("\n<truncated>")
+        return out.toString()
     }
 
     fun truncateTrace(raw: String?, maxChars: Int = MAX_TRACE_CHARS): String? {

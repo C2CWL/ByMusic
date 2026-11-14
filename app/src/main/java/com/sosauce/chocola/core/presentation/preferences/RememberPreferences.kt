@@ -57,8 +57,8 @@ import com.sosauce.chocola.core.data.datastore.PreferencesKeys.USE_TURNTABLE
 import com.sosauce.chocola.core.data.datastore.PreferencesKeys.USE_SYSTEM_FONT
 import com.sosauce.chocola.core.data.datastore.PreferencesKeys.WHITELISTED_FOLDERS
 import com.sosauce.chocola.core.data.datastore.dataStore
+import com.sosauce.chocola.core.data.diagnostics.DiagBootstrap
 import com.sosauce.chocola.core.data.diagnostics.DiagLogPreferences
-import com.sosauce.chocola.core.data.diagnostics.DiagLogger
 import com.sosauce.chocola.core.designsystem.ArtworkShape
 import com.sosauce.chocola.core.designsystem.CutePaletteStyle
 import com.sosauce.chocola.core.designsystem.CuteTheme
@@ -251,8 +251,7 @@ fun rememberDiagLoggingEnabled(): MutableState<Boolean> {
             override var value: Boolean
                 get() = state.value
                 set(value) {
-                    prefs.setEnabled(value)
-                    DiagLogger.setRecordingEnabled(value)
+                    DiagBootstrap.setRecordingEnabledFromUser(context, value)
                     state.value = value
                 }
 

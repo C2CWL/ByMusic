@@ -2,7 +2,9 @@ package com.sosauce.chocola.core.data.diagnostics
 
 import java.util.ArrayDeque
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.locks.ReentrantLock
 
 /**
  * Single-thread async writer so playback and UI threads do not do synchronous disk I/O.
@@ -13,7 +15,7 @@ class DiagLogWriter(
     private val queueCapacity: Int = DEFAULT_QUEUE_CAPACITY
 ) : AutoCloseable {
 
-    private val lock = Any()
+    private val sinkLock = ReentrantLock()
     private val queue = ArrayDeque<String>(queueCapacity)
     private val dropped = AtomicInteger(0)
     private val running = AtomicBoolean(true)
@@ -25,10 +27,13 @@ class DiagLogWriter(
             while (running.get() || peekQueued()) {
                 val batch = takeBatch()
                 if (batch.isEmpty()) continue
-                synchronized(lock) {
+                sinkLock.lock()
+                try {
                     for (line in batch) sink.appendLine(line)
                     maybeNoteDrops()
-                    sink.flush()
+                    sink.flush(syncFileSystem = true)
+                } finally {
+                    sinkLock.unlock()
                 }
             }
         },
@@ -53,14 +58,31 @@ class DiagLogWriter(
     }
 
     fun flushSync() {
+        flushInternal(timeoutMs = null, syncFileSystem = true)
+    }
+
+    fun flushBestEffort(timeoutMs: Long) {
+        flushInternal(timeoutMs = timeoutMs, syncFileSystem = false)
+    }
+
+    private fun flushInternal(timeoutMs: Long?, syncFileSystem: Boolean) {
         val snapshot = ArrayList<String>()
         synchronized(queue) {
             while (queue.isNotEmpty()) snapshot.add(queue.removeFirst())
         }
-        synchronized(lock) {
+        val locked = if (timeoutMs == null) {
+            sinkLock.lock()
+            true
+        } else {
+            sinkLock.tryLock(timeoutMs, TimeUnit.MILLISECONDS)
+        }
+        if (!locked) return
+        try {
             for (line in snapshot) sink.appendLine(line)
             maybeNoteDrops()
-            sink.flush()
+            sink.flush(syncFileSystem = syncFileSystem)
+        } finally {
+            sinkLock.unlock()
         }
     }
 
@@ -68,8 +90,11 @@ class DiagLogWriter(
 
     fun discardPendingAndClear(sinkOverride: DiagLogFileSink? = null) {
         synchronized(queue) { queue.clear() }
-        synchronized(lock) {
+        sinkLock.lock()
+        try {
             (sinkOverride ?: sink).clear()
+        } finally {
+            sinkLock.unlock()
         }
     }
 
@@ -79,7 +104,12 @@ class DiagLogWriter(
         synchronized(hasWork) { hasWork.notifyAll() }
         thread.join(1_000)
         flushSync()
-        synchronized(lock) { sink.close() }
+        sinkLock.lock()
+        try {
+            sink.close()
+        } finally {
+            sinkLock.unlock()
+        }
     }
 
     private fun peekQueued(): Boolean = synchronized(queue) { queue.isNotEmpty() }

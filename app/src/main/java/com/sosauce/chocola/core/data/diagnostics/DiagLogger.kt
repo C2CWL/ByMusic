@@ -7,11 +7,12 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * Process-wide diagnostic logger. Recording is off until [setRecordingEnabled] is true.
- * Safe to call before [install]; messages are then dropped.
+ * Process-wide diagnostic logger. Recording defaults to off. Safe to call before storage is
+ * attached; messages are then dropped. [flushBestEffort] must not block a crash handler forever.
  */
 object DiagLogger {
     const val BUILD_MARK = "local-diagnostic-logs"
+    const val DIR_NAME = "diag"
 
     private val writerRef = AtomicReference<DiagLogWriter?>()
     private val sinkRef = AtomicReference<DiagLogFileSink?>()
@@ -25,6 +26,15 @@ object DiagLogger {
         }
     }
 
+    fun setProcessInfo(processInfo: ProcessInfo, zone: ZoneId = ZoneId.systemDefault()) {
+        processInfoRef.set(processInfo)
+        zoneRef.set(zone)
+    }
+
+    fun setRecordingEnabledFlag(enabled: Boolean) {
+        recordingEnabled.set(enabled)
+    }
+
     @Synchronized
     fun install(
         sink: DiagLogFileSink,
@@ -34,11 +44,16 @@ object DiagLogger {
         recordingEnabled: Boolean = false
     ) {
         writerRef.get()?.close()
+        attachStorage(sink, writer)
+        setProcessInfo(processInfo, zone)
+        this.recordingEnabled.set(recordingEnabled)
+    }
+
+    @Synchronized
+    fun attachStorage(sink: DiagLogFileSink, writer: DiagLogWriter) {
+        if (writerRef.get() != null) return
         sinkRef.set(sink)
         writerRef.set(writer)
-        processInfoRef.set(processInfo)
-        zoneRef.set(zone)
-        this.recordingEnabled.set(recordingEnabled)
     }
 
     fun isInstalled(): Boolean = writerRef.get() != null
@@ -46,7 +61,7 @@ object DiagLogger {
     fun isRecordingEnabled(): Boolean = recordingEnabled.get()
 
     /**
-     * Turns recording on or off immediately. Persistence is handled by the caller.
+     * Turns recording on or off immediately. Persistence and storage setup are handled by the caller.
      * Disabling stops new records but leaves existing files in place.
      */
     fun setRecordingEnabled(enabled: Boolean) {
@@ -56,7 +71,7 @@ object DiagLogger {
             }
         } else if (recordingEnabled.get()) {
             log("INFO", "DiagLog", "logging disabled; existing logs kept until export or clear", null, force = true)
-            flush()
+            flushBestEffort(500)
             recordingEnabled.set(false)
         }
     }
@@ -73,8 +88,12 @@ object DiagLogger {
         writerRef.get()?.flushSync()
     }
 
+    fun flushBestEffort(timeoutMs: Long) {
+        writerRef.get()?.flushBestEffort(timeoutMs)
+    }
+
     fun export(out: OutputStream) {
-        flush()
+        flushBestEffort(1_000)
         sinkRef.get()?.export(out)
     }
 
@@ -122,6 +141,4 @@ object DiagLogger {
     }
 
     fun defaultDir(filesDir: File): File = File(filesDir, DIR_NAME)
-
-    const val DIR_NAME = "diag"
 }

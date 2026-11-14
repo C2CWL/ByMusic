@@ -46,7 +46,7 @@ class DiagExceptionHandlerTest {
                 )
                 writer.enqueue(line)
             },
-            flush = { writer.flushSync() }
+            flushBestEffort = { writer.flushSync() }
         )
 
         val boom = IllegalStateException("failed to open /storage/emulated/0/Music/hidden.mp3")
@@ -73,9 +73,27 @@ class DiagExceptionHandlerTest {
             previous = previous,
             isRecordingEnabled = { true },
             log = { _, _, _ -> throw RuntimeException("logger down") },
-            flush = { throw IllegalStateException("flush down") }
+            flushBestEffort = { throw IllegalStateException("flush down") }
         )
         handler.uncaughtException(Thread.currentThread(), RuntimeException("boom"))
         assertEquals(1, previousCalls.get())
     }
+
+
+    @Test
+    fun doesNotRecurseWhenLogReentersHandler() {
+        val previousCalls = AtomicInteger(0)
+        lateinit var handler: DiagExceptionHandler
+        handler = DiagExceptionHandler(
+            previous = { _, _ -> previousCalls.incrementAndGet() },
+            isRecordingEnabled = { true },
+            log = { _, _, error ->
+                handler.uncaughtException(Thread.currentThread(), error)
+            },
+            flushBestEffort = { }
+        )
+        handler.uncaughtException(Thread.currentThread(), RuntimeException("reenter"))
+        assertEquals(1, previousCalls.get())
+    }
+
 }

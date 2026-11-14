@@ -39,9 +39,14 @@ class DiagLogFileSink(
         currentSize += bytes
     }
 
-    fun flush() {
+    fun flush(syncFileSystem: Boolean = true) {
         writer?.flush()
-        stream?.fd?.sync()
+        if (syncFileSystem) {
+            try {
+                stream?.fd?.sync()
+            } catch (_: Throwable) {
+            }
+        }
     }
 
     fun close() {

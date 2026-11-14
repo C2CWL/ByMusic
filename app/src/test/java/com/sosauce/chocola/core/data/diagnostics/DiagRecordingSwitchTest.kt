@@ -103,7 +103,7 @@ class DiagRecordingSwitchTest {
             previous = { _, _ -> previousCalls.incrementAndGet() },
             isRecordingEnabled = { DiagLogger.isRecordingEnabled() },
             log = { _, _, _ -> logged.set(true) },
-            flush = { }
+            flushBestEffort = { }
         )
         handler.uncaughtException(Thread.currentThread(), RuntimeException("off"))
         assertEquals(1, previousCalls.get())

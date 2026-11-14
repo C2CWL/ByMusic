@@ -5,49 +5,102 @@ import android.app.ActivityManager
 import android.app.Application
 import android.app.Application.ActivityLifecycleCallbacks
 import android.content.ComponentCallbacks2
+import android.content.Context
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.os.Process
-import java.io.InputStreamReader
-import java.nio.charset.StandardCharsets
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 
+/**
+ * Lightweight at process start: when recording is off (the default) this only reads the
+ * switch and installs a chaining crash handler. Log files, writer threads, and historical
+ * exit-reason I/O start only after recording is enabled, and then only on a background thread.
+ */
 object DiagBootstrap {
     @Volatile
     private var installed = false
+
+    @Volatile
+    private var appRef: Application? = null
+
+    private val storageOpened = AtomicBoolean(false)
+
+    private val background = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "bymusic-diag-bg").apply { isDaemon = true }
+    }
 
     fun install(app: Application) {
         synchronized(this) {
             if (installed) return
             try {
-                val recordingEnabled = DiagLogPreferences(app).isEnabled()
-                val sink = DiagLogFileSink(DiagLogger.defaultDir(app.filesDir))
-                val writer = DiagLogWriter(sink)
+                appRef = app
+                val recordingEnabled = runCatching { DiagLogPreferences(app).isEnabled() }
+                    .getOrDefault(DiagLogPreferences.DEFAULT_ENABLED)
                 val processName = runCatching { Application.getProcessName() }
                     .getOrElse { app.packageName }
-                DiagLogger.install(
-                    sink = sink,
-                    writer = writer,
-                    processInfo = DiagLogger.ProcessInfo(
-                        pid = Process.myPid(),
-                        processName = processName
-                    ),
-                    recordingEnabled = recordingEnabled
+                DiagLogger.setProcessInfo(
+                    DiagLogger.ProcessInfo(pid = Process.myPid(), processName = processName)
                 )
+                DiagLogger.setRecordingEnabledFlag(recordingEnabled)
                 val previous = Thread.getDefaultUncaughtExceptionHandler()
-                Thread.setDefaultUncaughtExceptionHandler(DiagExceptionHandler(previous))
-                if (DiagLogger.isRecordingEnabled()) {
-                    logProcessStart(app, processName)
-                    logHistoricalExits(app)
+                if (previous !is DiagExceptionHandler) {
+                    Thread.setDefaultUncaughtExceptionHandler(DiagExceptionHandler(previous))
                 }
                 app.registerActivityLifecycleCallbacks(activityCallbacks)
                 app.registerComponentCallbacks(componentCallbacks)
                 installed = true
-            } catch (t: Throwable) {
-                try {
-                    android.util.Log.e("ByMusicDiag", "failed to install diagnostic logging", t)
-                } catch (_: Throwable) {
+                if (recordingEnabled) {
+                    openStorage(app)
+                    scheduleBackgroundSnapshot(app, processName)
                 }
+            } catch (t: Throwable) {
+                runCatching { android.util.Log.e("ByMusicDiag", "failed to install diagnostic logging", t) }
+            }
+        }
+    }
+
+    /**
+     * Called from settings. Enabling opens storage and starts background collection.
+     * Disabling only stops new records; existing files are kept.
+     */
+    fun setRecordingEnabledFromUser(context: Context, enabled: Boolean) {
+        runCatching { DiagLogPreferences(context).setEnabled(enabled) }
+        val app = appRef ?: context.applicationContext as? Application
+        if (enabled) {
+            if (app != null) openStorage(app)
+            DiagLogger.setRecordingEnabled(true)
+            if (app != null) {
+                val processName = DiagLogger.currentProcessInfo().processName
+                scheduleBackgroundSnapshot(app, processName)
+            }
+        } else {
+            DiagLogger.setRecordingEnabled(false)
+        }
+    }
+
+    private fun openStorage(app: Application) {
+        if (!storageOpened.compareAndSet(false, true)) return
+        try {
+            val sink = DiagLogFileSink(DiagLogger.defaultDir(app.filesDir))
+            val writer = DiagLogWriter(sink)
+            DiagLogger.attachStorage(sink, writer)
+        } catch (t: Throwable) {
+            storageOpened.set(false)
+            runCatching { android.util.Log.e("ByMusicDiag", "failed to open diagnostic log storage", t) }
+        }
+    }
+
+    private fun scheduleBackgroundSnapshot(app: Application, processName: String) {
+        background.execute {
+            try {
+                if (!DiagLogger.isRecordingEnabled()) return@execute
+                logProcessStart(app, processName)
+                logHistoricalExits(app)
+                DiagLogger.flushBestEffort(1_000)
+            } catch (t: Throwable) {
+                runCatching { DiagLogger.w("Process", "background diagnostic snapshot failed", t) }
             }
         }
     }
@@ -83,7 +136,7 @@ object DiagBootstrap {
             for (info in exits) {
                 val trace = runCatching {
                     info.traceInputStream?.use { stream ->
-                        InputStreamReader(stream, StandardCharsets.UTF_8).readText()
+                        DiagExitReasons.readBounded(stream, DiagExitReasons.MAX_TRACE_CHARS)
                     }
                 }.getOrNull()
                 val snapshot = DiagExitSnapshot(
@@ -126,14 +179,14 @@ object DiagBootstrap {
 
         override fun onActivityStopped(activity: Activity) {
             DiagLogger.i("Lifecycle", "activity stopped ${activity.javaClass.simpleName}")
-            DiagLogger.flush()
+            DiagLogger.flushBestEffort(250)
         }
 
         override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) = Unit
 
         override fun onActivityDestroyed(activity: Activity) {
             DiagLogger.i("Lifecycle", "activity destroyed ${activity.javaClass.simpleName}")
-            DiagLogger.flush()
+            DiagLogger.flushBestEffort(250)
         }
     }
 
@@ -145,22 +198,23 @@ object DiagBootstrap {
             )
         }
 
+        @Deprecated("Deprecated in Java")
         override fun onLowMemory() {
             DiagLogger.w("Process", "onLowMemory")
-            DiagLogger.flush()
+            DiagLogger.flushBestEffort(250)
         }
 
         override fun onTrimMemory(level: Int) {
             DiagLogger.w("Process", "onTrimMemory level=$level label=${trimLabel(level)}")
-            DiagLogger.flush()
+            DiagLogger.flushBestEffort(250)
         }
     }
 
     private fun trimLabel(level: Int): String = when (level) {
-        ComponentCallbacks2.TRIM_MEMORY_COMPLETE -> "COMPLETE"
-        ComponentCallbacks2.TRIM_MEMORY_MODERATE -> "MODERATE"
-        ComponentCallbacks2.TRIM_MEMORY_BACKGROUND -> "BACKGROUND"
         ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN -> "UI_HIDDEN"
+        ComponentCallbacks2.TRIM_MEMORY_BACKGROUND -> "BACKGROUND"
+        ComponentCallbacks2.TRIM_MEMORY_MODERATE -> "MODERATE"
+        ComponentCallbacks2.TRIM_MEMORY_COMPLETE -> "COMPLETE"
         ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL -> "RUNNING_CRITICAL"
         ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW -> "RUNNING_LOW"
         ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE -> "RUNNING_MODERATE"

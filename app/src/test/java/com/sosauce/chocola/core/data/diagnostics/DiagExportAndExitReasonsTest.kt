@@ -6,6 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.time.ZoneOffset
 import kotlin.text.Charsets
@@ -114,5 +115,19 @@ class DiagExportAndExitReasonsTest {
         assertFalse(formatted.contains("file://"))
         assertTrue(formatted.contains("<truncated>"))
         assertTrue(DiagExitReasons.truncateTrace("short") == "short")
+    }
+
+    @Test
+    fun readBoundedStopsAfterMaxCharsAndDoesNotConsumeTheRest() {
+        val input = ("HEAD" + "x".repeat(8000) + "TAIL").toByteArray(Charsets.UTF_8)
+        val stream = ByteArrayInputStream(input)
+        val excerpt = DiagExitReasons.readBounded(stream, maxChars = 16)
+        assertTrue(excerpt.startsWith("HEAD"))
+        assertTrue(excerpt.contains("<truncated>"))
+        assertFalse(excerpt.contains("TAIL"))
+        assertTrue(excerpt.length <= 16 + "\n<truncated>".length)
+        // Remaining bytes should still be available because we stopped reading.
+        val rest = stream.readBytes().toString(Charsets.UTF_8)
+        assertTrue("should not have consumed the entire stream", rest.isNotEmpty())
     }
 }
