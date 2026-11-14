@@ -10,6 +10,7 @@
     <string name="dark_mode">深色</string>
     <string name="light_mode">浅色</string>
     <string name="amoled_mode">纯黑</string>
+    <string name="amoled_mode_desc">仅在深色时把页面背景设为纯黑，可与「跟随系统」同时开启。浅色不会被改黑。</string>
     <string name="size">大小</string>
     <string name="type">类型</string>
     <string name="bitrate">比特率</string>

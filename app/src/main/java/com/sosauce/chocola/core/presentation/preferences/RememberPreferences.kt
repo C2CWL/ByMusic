@@ -49,6 +49,7 @@ import com.sosauce.chocola.core.data.datastore.PreferencesKeys.SORT_ARTISTS_ASCE
 import com.sosauce.chocola.core.data.datastore.PreferencesKeys.SORT_PLAYLISTS_ASCENDING
 import com.sosauce.chocola.core.data.datastore.PreferencesKeys.SORT_TRACKS_ASCENDING
 import com.sosauce.chocola.core.data.datastore.PreferencesKeys.THEME
+import com.sosauce.chocola.core.data.datastore.PreferencesKeys.OLED_BLACK
 import com.sosauce.chocola.core.data.datastore.PreferencesKeys.THUMB_STYLE
 import com.sosauce.chocola.core.data.datastore.PreferencesKeys.TRACK_SORT
 import com.sosauce.chocola.core.data.datastore.PreferencesKeys.TRACK_STYLE
@@ -77,6 +78,10 @@ import kotlinx.coroutines.runBlocking
 @Composable
 fun rememberAppTheme() =
     rememberPreference(key = THEME, defaultValue = CuteTheme.SYSTEM)
+
+@Composable
+fun rememberOledBlack() =
+    rememberPreference(key = OLED_BLACK, defaultValue = false)
 
 @Composable
 fun rememberUseSystemFont() =
