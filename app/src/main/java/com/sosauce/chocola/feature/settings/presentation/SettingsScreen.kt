@@ -68,7 +68,6 @@ import androidx.navigation3.ui.NavDisplay
 import com.sosauce.chocola.R
 import com.sosauce.chocola.app.navigation.navigate
 import com.sosauce.chocola.app.navigation.navigateBack
-import com.sosauce.chocola.core.designsystem.GITHUB_RELEASES
 import com.sosauce.chocola.core.domain.player.MusicState
 import com.sosauce.chocola.core.domain.player.PlayerActions
 import com.sosauce.chocola.core.presentation.navigation.Screen
@@ -79,7 +78,6 @@ import com.sosauce.chocola.feature.settings.presentation.components.SettingsScre
 import com.sosauce.chocola.feature.settings.presentation.nowplayingbuttons.NowPlayingButtonsRoot
 import com.sosauce.nekobites.animations.AnimatedFab
 import com.sosauce.nekobites.animations.rememberAnimatedShape
-import com.sosauce.nekobites.components.settings.AboutCard
 import com.sosauce.nekobites.components.settings.ScrollPage
 import com.sosauce.nekobites.components.settings.SettingsCard
 import com.sosauce.nekobites.components.settings.SettingsEntry
@@ -383,11 +381,7 @@ private fun SettingsHome(
             .padding(bottom = contentPadding.calculateBottomPadding() + 16.dp)
             .padding(horizontal = 16.dp)
     ) {
-        AboutCard(
-            icon = R.drawable.music_note,
-            updateLink = GITHUB_RELEASES,
-            appName = "Chocola"
-        )
+        SettingsAboutCard()
 
         Spacer(Modifier.height(20.dp))
         FeaturedCard(
