@@ -1,5 +1,6 @@
 [versions]
 agp = "9.5.1"
+junit = "4.13.2"
 cloudy = "0.7.1"
 emoji2Emojipicker = "1.7.0"
 glance = "1.2.0"
@@ -67,6 +68,7 @@ coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coilCo
 koin-android = { module = "io.insert-koin:koin-android", version.ref = "koinAndroid" }
 koin-androidx-compose = { module = "io.insert-koin:koin-androidx-compose", version.ref = "koinAndroidxCompose" }
 koin-androidx-startup = { module = "io.insert-koin:koin-androidx-startup", version.ref = "koinAndroidxStartup" }
+junit = { group = "junit", name = "junit", version.ref = "junit" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerializationJson" }
 lyrics-core = { module = "com.mocharealm.accompanist:lyrics-core", version.ref = "lyricsCore" }
 material-kolor = { module = "com.materialkolor:material-kolor", version.ref = "materialKolor" }

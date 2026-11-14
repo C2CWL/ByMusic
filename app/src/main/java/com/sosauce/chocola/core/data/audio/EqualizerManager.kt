@@ -4,6 +4,7 @@ import android.media.audiofx.DynamicsProcessing
 import androidx.collection.FloatList
 import androidx.collection.floatListOf
 import com.sosauce.chocola.core.data.datastore.UserPreferences
+import com.sosauce.chocola.core.data.diagnostics.DiagLogger
 import com.sosauce.chocola.core.domain.model.EqualizerBand
 import com.sosauce.chocola.core.domain.model.EqualizerPreset
 import com.sosauce.chocola.core.domain.util.copyMutate
@@ -57,12 +58,25 @@ class EqualizerManager(
 
         _eqBands.update { initialBands }
 
-        dynamicsProcessing = DynamicsProcessing(0, audioSessionId, builder).apply {
-            enabled = isEnabled
+        DiagLogger.i(
+            "Equalizer",
+            "init DynamicsProcessing session=$audioSessionId enabled=$isEnabled bands=${initialBands.size}"
+        )
+        try {
+            dynamicsProcessing = DynamicsProcessing(0, audioSessionId, builder).apply {
+                enabled = isEnabled
+            }
+            DiagLogger.i("Equalizer", "DynamicsProcessing ready session=$audioSessionId")
+        } catch (t: Throwable) {
+            DiagLogger.e("Equalizer", "DynamicsProcessing failed session=$audioSessionId", t)
+            throw t
         }
     }
 
     fun releaseDynamicsProcessing() {
+        if (dynamicsProcessing != null) {
+            DiagLogger.i("Equalizer", "release DynamicsProcessing")
+        }
         dynamicsProcessing?.release()
         dynamicsProcessing = null
     }

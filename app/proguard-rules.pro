@@ -20,3 +20,6 @@
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
 
+# Keep readable stacks in diagnostic logs for this investigation branch.
+-keepattributes SourceFile,LineNumberTable
+-keep class com.sosauce.chocola.** { *; }

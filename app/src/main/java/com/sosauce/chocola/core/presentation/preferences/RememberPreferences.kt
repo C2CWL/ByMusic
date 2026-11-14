@@ -4,6 +4,8 @@ package com.sosauce.chocola.core.presentation.preferences
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import com.sosauce.chocola.core.data.datastore.PreferencesKeys.ALBUM_SORT
@@ -55,6 +57,8 @@ import com.sosauce.chocola.core.data.datastore.PreferencesKeys.USE_TURNTABLE
 import com.sosauce.chocola.core.data.datastore.PreferencesKeys.USE_SYSTEM_FONT
 import com.sosauce.chocola.core.data.datastore.PreferencesKeys.WHITELISTED_FOLDERS
 import com.sosauce.chocola.core.data.datastore.dataStore
+import com.sosauce.chocola.core.data.diagnostics.DiagBootstrap
+import com.sosauce.chocola.core.data.diagnostics.DiagLogPreferences
 import com.sosauce.chocola.core.designsystem.ArtworkShape
 import com.sosauce.chocola.core.designsystem.CutePaletteStyle
 import com.sosauce.chocola.core.designsystem.CuteTheme
@@ -235,6 +239,27 @@ fun rememberNowPlayingShapeMorph() =
 @Composable
 fun rememberKeepAlive() =
     rememberPreference(key = KEEP_ALIVE, defaultValue = false)
+
+
+@Composable
+fun rememberDiagLoggingEnabled(): MutableState<Boolean> {
+    val context = LocalContext.current
+    val prefs = remember(context) { DiagLogPreferences(context) }
+    val state = remember { mutableStateOf(prefs.isEnabled()) }
+    return remember(prefs) {
+        object : MutableState<Boolean> {
+            override var value: Boolean
+                get() = state.value
+                set(value) {
+                    DiagBootstrap.setRecordingEnabledFromUser(context, value)
+                    state.value = value
+                }
+
+            override fun component1() = value
+            override fun component2(): (Boolean) -> Unit = { value = it }
+        }
+    }
+}
 
 
 @Composable

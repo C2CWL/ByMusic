@@ -13,6 +13,7 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackParameters
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.ExperimentalApi
 import androidx.media3.common.util.UnstableApi
@@ -26,6 +27,7 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.sosauce.chocola.R
 import com.sosauce.chocola.core.data.audio.EqualizerManager
+import com.sosauce.chocola.core.data.diagnostics.DiagLogger
 import com.sosauce.chocola.core.data.auto.AndroidAutoHelper
 import com.sosauce.chocola.core.data.bakery.PlaybackSnapshot
 import com.sosauce.chocola.core.data.bakery.StatsRecorder
@@ -68,15 +70,26 @@ class PlaybackService : MediaLibraryService(), KoinComponent {
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             super.onIsPlayingChanged(isPlaying)
+            DiagLogger.i("PlaybackService", "isPlaying=$isPlaying")
             widgetsHelper.updateMusicWidgetData(WIDGET_IS_PLAYING, isPlaying)
             playbackSnapshot()?.let(statsRecorder::onIsPlayingChanged)
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
             super.onPlaybackStateChanged(playbackState)
+            DiagLogger.i("PlaybackService", "playbackState=$playbackState")
             if (playbackState == Player.STATE_ENDED || playbackState == Player.STATE_IDLE) {
                 statsRecorder.onPlaybackEnded()
             }
+        }
+
+        override fun onPlayerError(error: PlaybackException) {
+            super.onPlayerError(error)
+            DiagLogger.e(
+                "PlaybackService",
+                "player error code=${error.errorCode} name=${error.errorCodeName}",
+                error
+            )
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -107,6 +120,7 @@ class PlaybackService : MediaLibraryService(), KoinComponent {
         @SuppressLint("UnsafeOptInUsageError")
         override fun onAudioSessionIdChanged(audioSessionId: Int) {
             super.onAudioSessionIdChanged(audioSessionId)
+            DiagLogger.i("PlaybackService", "audioSessionIdChanged session=$audioSessionId")
             lifecycleScope.launch { equalizerManager.initDynamicsProcessing(audioSessionId) }
         }
 
@@ -245,6 +259,7 @@ class PlaybackService : MediaLibraryService(), KoinComponent {
     @UnstableApi
     override fun onCreate() {
         super.onCreate()
+        DiagLogger.i("PlaybackService", "onCreate")
         val player: Player = ExoPlayer.Builder(applicationContext)
             .setDeviceVolumeControlEnabled(true)
             .setHandleAudioBecomingNoisy(true)
@@ -283,6 +298,8 @@ class PlaybackService : MediaLibraryService(), KoinComponent {
 
     @UnstableApi
     override fun onDestroy() {
+        DiagLogger.i("PlaybackService", "onDestroy")
+        DiagLogger.flush()
         keepAliveJob?.cancel()
         keepAliveJob = null
         statsRecorder.release()
@@ -300,7 +317,13 @@ class PlaybackService : MediaLibraryService(), KoinComponent {
 
     @UnstableApi
     override fun onTaskRemoved(rootIntent: Intent?) {
+        val isPlaying = mediaLibrarySession?.player?.isPlaying
+        DiagLogger.i(
+            "PlaybackService",
+            "onTaskRemoved keepAlive=$keepAliveEnabled isPlaying=$isPlaying"
+        )
         if (keepAliveEnabled && mediaLibrarySession!!.player.isPlaying) {
+            DiagLogger.flush()
             super.onTaskRemoved(rootIntent)
             return
         }
@@ -317,7 +340,10 @@ class PlaybackService : MediaLibraryService(), KoinComponent {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-
+        DiagLogger.i(
+            "PlaybackService",
+            "onStartCommand startId=$startId flags=$flags action=${intent?.action ?: "-"}"
+        )
         when (intent?.action) {
             WIDGET_ACTION_PLAY_PAUSE -> mediaLibrarySession?.player?.playOrPause()
             WIDGET_ACTION_SKIP_NEXT -> mediaLibrarySession?.player?.seekToNext()
