@@ -158,5 +158,7 @@ dependencies {
     implementation(libs.squircle.shape)
     implementation(libs.cloudy)
     implementation(libs.sosauce.nekobites)
+
+    testImplementation(libs.junit)
 }
 

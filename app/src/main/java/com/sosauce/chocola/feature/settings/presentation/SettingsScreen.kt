@@ -301,6 +301,12 @@ fun SettingsScreen(
                         contentPaddingValues = paddingValues
                     )
                 }
+
+                entry<SettingsScreen.Diagnostics> {
+                    ScrollPage(paddingValues) {
+                        SettingsDiagnostics()
+                    }
+                }
             }
         )
     }
@@ -360,6 +366,12 @@ private fun SettingsHome(
             name = stringResource(R.string.backup_and_restore),
             description = stringResource(R.string.backup_and_restore_desc),
             onClick = { backstack.navigate(SettingsScreen.Backup) }
+        ),
+        SettingsEntry(
+            icon = R.drawable.info_rounded,
+            name = stringResource(R.string.diag_logs),
+            description = stringResource(R.string.diag_logs_desc),
+            onClick = { backstack.navigate(SettingsScreen.Diagnostics) }
         )
     )
 
