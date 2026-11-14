@@ -120,16 +120,19 @@ class DiagExportAndExitReasonsTest {
 
     @Test
     fun readBoundedStopsAfterMaxCharsAndDoesNotConsumeTheRest() {
-        val input = ("HEAD" + "x".repeat(8000) + "TAIL").toByteArray(Charsets.UTF_8)
+        // InputStreamReader prefetches a charset decoder buffer (typically 8 KiB).
+        // The fixture must be larger than that so this checks the underlying stream
+        // is not fully drained, not just that the returned excerpt is truncated.
+        val input = ("HEAD" + "x".repeat(32_000) + "TAIL").toByteArray(Charsets.UTF_8)
         val stream = ByteArrayInputStream(input)
         val excerpt = DiagExitReasons.readBounded(stream, maxChars = 16)
         assertTrue(excerpt.startsWith("HEAD"))
         assertTrue(excerpt.contains("<truncated>"))
         assertFalse(excerpt.contains("TAIL"))
         assertTrue(excerpt.length <= 16 + "\n<truncated>".length)
-        // Remaining bytes should still be available because we stopped reading.
         val rest = stream.readBytes().toString(Charsets.UTF_8)
         assertTrue("should not have consumed the entire stream", rest.isNotEmpty())
+        assertTrue(rest.contains("TAIL"))
     }
 
 
