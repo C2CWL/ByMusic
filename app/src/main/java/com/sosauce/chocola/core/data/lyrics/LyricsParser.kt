@@ -7,55 +7,44 @@ import android.os.ParcelFileDescriptor
 import android.provider.MediaStore
 import android.util.Log
 import com.kyant.taglib.TagLib
-import com.mocharealm.accompanist.lyrics.core.model.karaoke.KaraokeLine
-import com.mocharealm.accompanist.lyrics.core.model.synced.SyncedLine
-import com.mocharealm.accompanist.lyrics.core.model.synced.mapper.toSyncedLine
-import com.mocharealm.accompanist.lyrics.core.parser.AutoParser
-import com.mocharealm.accompanist.lyrics.core.parser.EnhancedLrcParser
+import com.sosauce.chocola.core.data.diagnostics.DiagLogger
 import com.sosauce.chocola.core.domain.model.Lyrics
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileNotFoundException
+import kotlin.coroutines.cancellation.CancellationException
 
 class LyricsParser(private val context: Context) {
 
     suspend fun parseLyrics(
         path: String
     ): List<Lyrics> = withContext(Dispatchers.IO) {
-        val parent = path.substringBeforeLast('/')
-        val fileName = path.substringAfterLast('/').replaceAfterLast('.', "lrc")
-        val lyricsFile = File(parent, fileName)
+        try {
+            ensureActive()
+            val parent = path.substringBeforeLast('/')
+            val fileName = path.substringAfterLast('/').replaceAfterLast('.', "lrc")
+            val lyricsFile = File(parent, fileName)
 
-
-        return@withContext if (lyricsFile.exists()) {
-            lyricsFile.bufferedReader().useLines { lines ->
-                val lyrics = EnhancedLrcParser.parse(lines.toList())
-                lyrics.lines.map { line ->
-                    if (line is SyncedLine) {
-                        line.toLyricLine()
-                    } else {
-                        (line as KaraokeLine).toSyncedLine().toLyricLine()
-                    }
-                }
+            if (lyricsFile.exists()) {
+                val raw = LyricsTextParser.decodeLyricBytes(lyricsFile.readBytes())
+                LyricsTextParser.parseLyricText(raw, LyricSource.SIDECAR)
+            } else {
+                val embeddedLyrics = loadEmbeddedLyrics(path) ?: return@withContext emptyList()
+                LyricsTextParser.parseLyricText(embeddedLyrics, LyricSource.EMBEDDED)
             }
-        } else {
-
-            val embeddedLyrics = loadEmbeddedLyrics(path) ?: return@withContext emptyList()
-
-
-            // Tries to load synced embedded lyrics, if embedded lyrics are unsynced, just return raw embedded lyrics
-            autoParser.parse(embeddedLyrics)
-                .takeIf { it.lines.isNotEmpty() }
-                ?.lines?.map { line ->
-                    if (line is SyncedLine) {
-                        line.toLyricLine()
-                    } else {
-                        (line as KaraokeLine).toSyncedLine().toLyricLine()
-                    }
-                } ?: listOf(Lyrics(lineLyrics = embeddedLyrics))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Do not include the song path. The sanitizer also redacts paths in the stack.
+            DiagLogger.w(
+                "Lyrics",
+                "lyrics load failed error=${e::class.java.simpleName}: ${e.message ?: ""}",
+                e
+            )
+            emptyList()
         }
-
     }
 
     private fun loadEmbeddedLyrics(path: String): String? {
@@ -96,16 +85,4 @@ class LyricsParser(private val context: Context) {
 
         return null
     }
-
-    private fun SyncedLine.toLyricLine(): Lyrics {
-        return Lyrics(
-            timestamp = this.start,
-            lineLyrics = this.content
-        )
-    }
-
-    companion object {
-        private val autoParser = AutoParser()
-    }
-
 }
