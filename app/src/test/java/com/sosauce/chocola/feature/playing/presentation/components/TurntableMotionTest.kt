@@ -53,7 +53,7 @@ class TurntableMotionTest {
         assertEquals(32, field.count)
         assertEquals(32, field.life.size)
         assertEquals(identities, System.identityHashCode(field.life))
-        assertTrue(field.life.all { it in 0f until 1f })
+        assertTrue(field.life.all { it >= 0f && it < 1f })
         assertTrue((0 until field.count).all { field.radius(it) <= TurntableMotion.STAR_END_RADIUS + 1e-4f })
         assertTrue((0 until field.count).all { field.alpha(it) >= 0f })
     }
