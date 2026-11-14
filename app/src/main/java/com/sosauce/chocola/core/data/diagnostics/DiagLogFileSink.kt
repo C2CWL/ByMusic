@@ -54,6 +54,13 @@ class DiagLogFileSink(
         }
     }
 
+    fun clear() {
+        close()
+        existingManagedFiles().forEach { file -> file.delete() }
+        pruneExtras()
+        openCurrent(append = false)
+    }
+
     fun export(out: OutputStream) {
         flush()
         val files = filesOldestFirst()

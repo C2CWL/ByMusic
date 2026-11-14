@@ -29,6 +29,7 @@ class DiagExceptionHandlerTest {
         }
         val handler = DiagExceptionHandler(
             previous = previous,
+            isRecordingEnabled = { true },
             log = { tag, message, throwable ->
                 val line = DiagLogFormatter.format(
                     DiagLogEvent(
@@ -70,6 +71,7 @@ class DiagExceptionHandlerTest {
         val previous = Thread.UncaughtExceptionHandler { _, _ -> previousCalls.incrementAndGet() }
         val handler = DiagExceptionHandler(
             previous = previous,
+            isRecordingEnabled = { true },
             log = { _, _, _ -> throw RuntimeException("logger down") },
             flush = { throw IllegalStateException("flush down") }
         )

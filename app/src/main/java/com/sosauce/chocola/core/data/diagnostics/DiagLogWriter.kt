@@ -66,6 +66,13 @@ class DiagLogWriter(
 
     fun droppedCount(): Int = dropped.get()
 
+    fun discardPendingAndClear(sinkOverride: DiagLogFileSink? = null) {
+        synchronized(queue) { queue.clear() }
+        synchronized(lock) {
+            (sinkOverride ?: sink).clear()
+        }
+    }
+
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
         running.set(false)

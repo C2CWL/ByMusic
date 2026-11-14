@@ -20,6 +20,7 @@ object DiagBootstrap {
         synchronized(this) {
             if (installed) return
             try {
+                val recordingEnabled = DiagLogPreferences(app).isEnabled()
                 val sink = DiagLogFileSink(DiagLogger.defaultDir(app.filesDir))
                 val writer = DiagLogWriter(sink)
                 val processName = runCatching { Application.getProcessName() }
@@ -30,12 +31,15 @@ object DiagBootstrap {
                     processInfo = DiagLogger.ProcessInfo(
                         pid = Process.myPid(),
                         processName = processName
-                    )
+                    ),
+                    recordingEnabled = recordingEnabled
                 )
                 val previous = Thread.getDefaultUncaughtExceptionHandler()
                 Thread.setDefaultUncaughtExceptionHandler(DiagExceptionHandler(previous))
-                logProcessStart(app, processName)
-                logHistoricalExits(app)
+                if (DiagLogger.isRecordingEnabled()) {
+                    logProcessStart(app, processName)
+                    logHistoricalExits(app)
+                }
                 app.registerActivityLifecycleCallbacks(activityCallbacks)
                 app.registerComponentCallbacks(componentCallbacks)
                 installed = true

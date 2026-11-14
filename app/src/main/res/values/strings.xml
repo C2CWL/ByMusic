@@ -292,8 +292,13 @@
     <string name="keep_it_up">继续保持！</string>
 
     <string name="diag_logs">诊断日志</string>
-    <string name="diag_logs_desc">导出本地诊断日志，用来排查偶发的「已停止运行」提示。</string>
-    <string name="diag_logs_help">出现「已停止运行」之后，打开这个页面并导出日志。即使当时不在 ByMusic 里也可以，下次打开后再导出即可。日志只保存在手机里，不会自动上传，也不包含歌曲名称或完整文件路径。</string>
+    <string name="diag_logs_desc">可选开启本地诊断日志，用来排查偶发的「已停止运行」提示。</string>
+    <string name="diag_logs_help">默认关闭，打开「记录诊断日志」后才会开始记录。关闭后会立即停止记录，已有日志会保留，直到你导出或清除。出现「已停止运行」之后再导出即可，即使当时不在 ByMusic 里也可以。日志只保存在手机里，不会自动上传，也不包含歌曲名称或完整文件路径。</string>
+    <string name="diag_logging">记录诊断日志</string>
+    <string name="diag_logging_desc">打开后才会记录异常、启动和播放相关诊断信息。关闭后停止记录，已有日志会保留。</string>
+    <string name="diag_clear_logs">清除诊断日志</string>
+    <string name="diag_clear_logs_desc">删除手机里已保存的诊断日志。不影响已经导出的文件。</string>
+    <string name="diag_logs_cleared">已清除诊断日志</string>
     <string name="export_diag_logs">导出诊断日志</string>
     <string name="export_diag_logs_desc">通过系统分享发送日志文件。不会自动上传。</string>
     <string name="diag_export_subject">ByMusic 诊断日志</string>

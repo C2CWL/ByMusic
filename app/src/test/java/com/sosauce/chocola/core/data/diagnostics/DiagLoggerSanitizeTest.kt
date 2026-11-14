@@ -29,7 +29,8 @@ class DiagLoggerSanitizeTest {
             sink = sink,
             writer = writer,
             processInfo = DiagLogger.ProcessInfo(pid = 7, processName = "c2cw.bymusic"),
-            zone = ZoneOffset.UTC
+            zone = ZoneOffset.UTC,
+            recordingEnabled = true
         )
         DiagLogger.e(
             "Crash",
