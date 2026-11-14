@@ -9,6 +9,7 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -16,6 +17,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.sosauce.chocola.R
+import com.sosauce.chocola.core.data.diagnostics.DiagBootstrap
 import com.sosauce.chocola.core.data.diagnostics.DiagLogger
 import com.sosauce.chocola.core.data.diagnostics.DiagShare
 import com.sosauce.chocola.core.presentation.preferences.rememberDiagLoggingEnabled
@@ -27,6 +29,11 @@ import com.sosauce.nekobites.components.settings.SettingsSwitch
 fun ColumnScope.SettingsDiagnostics() {
     val context = LocalContext.current
     var loggingEnabled by rememberDiagLoggingEnabled()
+    LaunchedEffect(loggingEnabled) {
+        if (loggingEnabled) {
+            DiagBootstrap.ensureReady(context)
+        }
+    }
     Text(
         text = stringResource(R.string.diag_logs_help),
         style = MaterialTheme.typography.bodyMediumEmphasized.copy(

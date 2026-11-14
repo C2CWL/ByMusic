@@ -67,17 +67,38 @@ object DiagBootstrap {
      */
     fun setRecordingEnabledFromUser(context: Context, enabled: Boolean) {
         runCatching { DiagLogPreferences(context).setEnabled(enabled) }
-        val app = appRef ?: context.applicationContext as? Application
         if (enabled) {
-            if (app != null) openStorage(app)
-            DiagLogger.setRecordingEnabled(true)
-            if (app != null) {
-                val processName = DiagLogger.currentProcessInfo().processName
-                scheduleBackgroundSnapshot(app, processName)
-            }
+            ensureReady(context)
         } else {
             DiagLogger.setRecordingEnabled(false)
         }
+    }
+
+    /**
+     * If the persisted switch is on, attach the log sink and start recording.
+     * Safe to call more than once. Used after startup and again before export,
+     * because a switch that was already on does not go through the settings setter,
+     * and [install] in attachBaseContext may have read the preference too early.
+     */
+    fun ensureReady(context: Context) {
+        val app = (appRef ?: context.applicationContext as? Application) ?: return
+        appRef = app
+        val enabled = runCatching { DiagLogPreferences(context).isEnabled() }
+            .getOrDefault(false)
+        if (!enabled) return
+        openStorage(app)
+        val alreadyRecording = DiagLogger.isRecordingEnabled()
+        DiagLogger.setRecordingEnabled(true)
+        if (!alreadyRecording) {
+            val processName = DiagLogger.currentProcessInfo().processName
+            scheduleBackgroundSnapshot(app, processName)
+        }
+    }
+
+    fun logDirectory(context: Context): java.io.File {
+        val app = appRef ?: context.applicationContext as? Application
+        val filesDir = app?.filesDir ?: context.applicationContext.filesDir
+        return DiagLogger.defaultDir(filesDir)
     }
 
     private fun openStorage(app: Application) {

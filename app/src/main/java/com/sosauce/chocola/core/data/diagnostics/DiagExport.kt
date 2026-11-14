@@ -68,7 +68,8 @@ object DiagExport {
         outputDir: File,
         meta: DiagExportMeta,
         sink: DiagLogFileSink?,
-        exportedAtMillis: Long = meta.exportedAtMillis
+        exportedAtMillis: Long = meta.exportedAtMillis,
+        logDir: File? = null
     ): File {
         if (!outputDir.exists()) outputDir.mkdirs()
         outputDir.listFiles()?.forEach { file ->
@@ -78,18 +79,24 @@ object DiagExport {
         }
         val file = File(outputDir, exportFileName(exportedAtMillis, meta.zone))
         file.outputStream().use { out ->
-            writeExport(out, meta, sink)
+            writeExport(out, meta, sink, logDir)
         }
         return file
     }
 
-    fun writeExport(out: OutputStream, meta: DiagExportMeta, sink: DiagLogFileSink?) {
+    fun writeExport(
+        out: OutputStream,
+        meta: DiagExportMeta,
+        sink: DiagLogFileSink?,
+        logDir: File? = null
+    ) {
         val header = header(meta).toByteArray(Charsets.UTF_8)
         out.write(header)
-        if (sink == null) {
-            out.write("（还没有日志记录）\n".toByteArray(Charsets.UTF_8))
-        } else {
-            sink.export(out)
+        when {
+            sink != null -> sink.export(out)
+            logDir != null && DiagLogFileSink.hasExistingLogs(logDir) ->
+                DiagLogFileSink.exportFromDir(logDir, out)
+            else -> out.write("（还没有日志记录）\n".toByteArray(Charsets.UTF_8))
         }
         out.flush()
     }

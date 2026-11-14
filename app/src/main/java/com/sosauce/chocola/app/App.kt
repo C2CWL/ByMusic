@@ -24,6 +24,13 @@ class App : Application(), KoinStartup, SingletonImageLoader.Factory {
         DiagBootstrap.install(this)
     }
 
+    override fun onCreate() {
+        super.onCreate()
+        // Re-check the switch after the app context is fully ready, and open log
+        // storage if the user already enabled recording in a previous session.
+        DiagBootstrap.ensureReady(this)
+    }
+
     override fun onKoinStartup() = koinConfiguration {
         androidContext(this@App)
         modules(appModule, bakeryModule)
