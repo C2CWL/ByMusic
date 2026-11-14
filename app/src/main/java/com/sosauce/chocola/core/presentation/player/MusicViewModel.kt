@@ -48,6 +48,8 @@ import com.sosauce.chocola.core.presentation.util.pauseWithFadeOut
 import com.sosauce.chocola.core.presentation.util.playOrPause
 import com.sosauce.chocola.core.presentation.util.playRandom
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -72,6 +74,7 @@ class MusicViewModel(
     val musicState = _musicState.asStateFlow()
 
     private val tracks = abstractTracksScanner.latestTracks()
+    private var lyricsJob: Job? = null
     @Volatile
     private var favoriteTrackIds: Set<Long> = emptySet()
 
@@ -277,12 +280,14 @@ class MusicViewModel(
         }
     }
 
-    private fun parseLyrics(trackPath: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            _musicState.update {
-                it.copy(
-                    lyrics = lyricsParser.parseLyrics(trackPath)
-                )
+    private fun parseLyrics(trackPath: String, requireCurrentTrack: Boolean = true) {
+        lyricsJob?.cancel()
+        lyricsJob = viewModelScope.launch(Dispatchers.IO) {
+            val lyrics = lyricsParser.parseLyrics(trackPath)
+            ensureActive()
+            _musicState.update { state ->
+                if (requireCurrentTrack && state.track.path != trackPath) state
+                else state.copy(lyrics = lyrics)
             }
         }
     }
@@ -621,14 +626,8 @@ class MusicViewModel(
             }
 
             is PlayerActions.LoadLyrics -> {
-                viewModelScope.launch {
-                    val lyrics = lyricsParser.parseLyrics(action.uri.path ?: return@launch)
-                    _musicState.update {
-                        it.copy(
-                            lyrics = lyrics
-                        )
-                    }
-                }
+                val lyricsPath = action.uri.path ?: return
+                parseLyrics(lyricsPath, requireCurrentTrack = false)
             }
 
             is PlayerActions.ToggleFavorite -> viewModelScope.launch {
