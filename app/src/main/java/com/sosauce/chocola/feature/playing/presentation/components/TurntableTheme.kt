@@ -23,7 +23,7 @@ import com.materialkolor.rememberDynamicMaterialThemeState
 import com.sosauce.chocola.core.designsystem.theme.rememberSeedColor
 
 @Composable
-internal fun TurntableTheme(
+fun TurntableTheme(
     enabled: Boolean,
     artworkUri: String?,
     content: @Composable () -> Unit,

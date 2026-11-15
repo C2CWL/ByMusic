@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -43,6 +44,7 @@ import com.sosauce.chocola.core.domain.player.PlayerActions
 import com.sosauce.chocola.core.presentation.navigation.Screen
 import com.sosauce.chocola.core.presentation.preferences.rememberIsLandscape
 import com.sosauce.chocola.core.presentation.util.selfAlignHorizontally
+import com.sosauce.chocola.feature.playing.presentation.components.TurntableTheme
 
 @Composable
 fun LyricsScreen(
@@ -53,33 +55,10 @@ fun LyricsScreen(
 ) {
     val isLandscape = rememberIsLandscape()
     val artworkSize = if (isLandscape) LyricsLayout.CompactHeaderArtworkDp.dp else LyricsLayout.HeaderArtworkDp.dp
-    val surface = MaterialTheme.colorScheme.surface
     val fadeHeight = LyricsLayout.FadeHeightDp.dp
 
-    Box(modifier = Modifier.fillMaxSize().background(surface)) {
-        musicState.track.artUri?.let { artUri ->
-            AsyncImage(
-                model = artUri,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-                alpha = 0.22f
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(
-                                surface.copy(alpha = 0.55f),
-                                surface.copy(alpha = 0.82f),
-                                surface.copy(alpha = 0.94f)
-                            )
-                        )
-                    )
-            )
-        }
-
+    TurntableTheme(enabled = true, artworkUri = musicState.track.artUri) {
+        val surface = MaterialTheme.colorScheme.surface
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -116,6 +95,7 @@ fun LyricsScreen(
                     Text(
                         text = musicState.track.title,
                         style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -154,7 +134,7 @@ fun LyricsScreen(
                         .align(Alignment.TopCenter)
                         .background(
                             Brush.verticalGradient(
-                                colors = listOf(surface.copy(alpha = 0.72f), Color.Transparent)
+                                colors = listOf(surface.copy(alpha = 0.45f), Color.Transparent)
                             )
                         )
                 )
@@ -165,7 +145,7 @@ fun LyricsScreen(
                         .align(Alignment.BottomCenter)
                         .background(
                             Brush.verticalGradient(
-                                colors = listOf(Color.Transparent, surface.copy(alpha = 0.88f))
+                                colors = listOf(Color.Transparent, surface.copy(alpha = 0.55f))
                             )
                         )
                 )

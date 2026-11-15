@@ -168,16 +168,21 @@ fun LyricsList(
 
                 val isCurrentLyric = index == currentLyricIndex
 
+                val distance = if (currentLyricIndex < 0) 2 else kotlin.math.abs(index - currentLyricIndex)
                 val color by animateColorAsState(
-                    targetValue = if (isCurrentLyric) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
+                    targetValue = when (distance) {
+                        0 -> MaterialTheme.colorScheme.primary
+                        1 -> MaterialTheme.colorScheme.onSurface
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
                     }
                 )
-
+                val lineAlpha = when (distance) {
+                    0 -> 1f
+                    1 -> 0.72f
+                    else -> 0.38f
+                }
                 val animatedScale by animateFloatAsState(
-                    if (isCurrentLyric) 1f else 0.96f
+                    if (isCurrentLyric) 1.04f else 1f
                 )
                 Column(
                     modifier = Modifier
@@ -225,7 +230,7 @@ fun LyricsList(
                         modifier = Modifier
                             .fillMaxWidth()
                             .graphicsLayer {
-                                alpha = if (isCurrentLyric) 1f else 0.42f
+                                alpha = lineAlpha
                                 scaleX = animatedScale
                                 scaleY = animatedScale
                             }
