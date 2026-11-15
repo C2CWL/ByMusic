@@ -4,7 +4,12 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
 const val SETTINGS_BACKUP_VERSION = 1
-const val SETTINGS_BACKUP_APP_NAME = "Chocola"
+const val SETTINGS_BACKUP_APP_NAME = "ByMusic"
+const val SETTINGS_BACKUP_APP_NAME_LEGACY = "Chocola"
+
+fun isSupportedSettingsBackupApp(app: String): Boolean {
+    return app == SETTINGS_BACKUP_APP_NAME || app == SETTINGS_BACKUP_APP_NAME_LEGACY
+}
 
 @Serializable
 data class BackupSettingsFile(

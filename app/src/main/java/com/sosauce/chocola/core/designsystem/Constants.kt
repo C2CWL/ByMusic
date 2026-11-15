@@ -22,7 +22,7 @@ import com.sosauce.chocola.core.designsystem.components.WavyTrack
 
 const val CUTE_MUSIC_ID = "CUTE_MUSIC_ID"
 const val ICON_TEXT_SPACING = 5
-const val GITHUB_RELEASES = "https://github.com/sosauce/Chocola/releases"
+const val BYMUSIC_GITHUB = "https://github.com/C2CWL/ByMusic"
 
 
 object SharedTransitionKeys {

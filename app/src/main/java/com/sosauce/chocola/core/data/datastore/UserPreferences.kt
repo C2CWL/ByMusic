@@ -14,7 +14,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.sosauce.chocola.core.data.backup.BackupSettingsFile
-import com.sosauce.chocola.core.data.backup.SETTINGS_BACKUP_APP_NAME
+import com.sosauce.chocola.core.data.backup.isSupportedSettingsBackupApp
 import com.sosauce.chocola.core.data.backup.SettingType
 import com.sosauce.chocola.core.data.datastore.PreferencesKeys.ALBUM_SORT
 import com.sosauce.chocola.core.data.datastore.PreferencesKeys.ARTIST_SORT
@@ -319,7 +319,7 @@ class UserPreferences(
         context.contentResolver.openInputStream(uri)?.use {
             val file = Json.decodeFromStream<BackupSettingsFile>(it)
 
-            require(file.app == SETTINGS_BACKUP_APP_NAME) { "Not a Chocola backup file!" }
+            require(isSupportedSettingsBackupApp(file.app)) { "Not a ByMusic backup file!" }
 
             val settings = file.settings
 
