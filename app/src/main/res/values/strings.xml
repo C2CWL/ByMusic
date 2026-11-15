@@ -10,6 +10,7 @@
     <string name="dark_mode">深色</string>
     <string name="light_mode">浅色</string>
     <string name="amoled_mode">纯黑</string>
+    <string name="amoled_mode_desc">仅在深色时把页面背景设为纯黑，可与「跟随系统」同时开启。浅色不会被改黑。</string>
     <string name="size">大小</string>
     <string name="type">类型</string>
     <string name="bitrate">比特率</string>
@@ -303,4 +304,10 @@
     <string name="export_diag_logs_desc">通过系统分享发送日志文件。不会自动上传。</string>
     <string name="diag_export_subject">ByMusic 诊断日志</string>
     <string name="diag_export_failed">无法导出诊断日志</string>
+    <string name="library_background">歌曲列表背景图</string>
+    <string name="library_background_reset">恢复默认背景</string>
+    <string name="library_background_error">无法保留此图片的访问权限，请选择其他图片</string>
+    <string name="lightweight_glass">轻量玻璃效果</string>
+    <string name="lightweight_glass_desc">使用半透明渐变与细边框，不实时模糊列表；关闭后使用不透明背景</string>
+    <string name="library_sort">排序</string>
 </resources>

@@ -27,7 +27,9 @@ import com.materialkolor.DynamicMaterialExpressiveTheme
 import com.materialkolor.dynamiccolor.ColorSpec
 import com.materialkolor.rememberDynamicMaterialThemeState
 import com.sosauce.chocola.R
-import com.sosauce.chocola.core.designsystem.CuteTheme
+import com.sosauce.chocola.core.designsystem.theme.OledPageBackgroundTheme
+import com.sosauce.chocola.core.designsystem.theme.isEffectiveDark
+import com.sosauce.chocola.core.designsystem.theme.shouldApplyOledBlack
 import com.sosauce.chocola.core.designsystem.components.NoResult
 import com.sosauce.chocola.core.designsystem.components.SelectOverlayAction
 import com.sosauce.chocola.core.domain.model.CuteTrack
@@ -41,6 +43,7 @@ import com.sosauce.chocola.core.presentation.components.TracksSelectedBar
 import com.sosauce.chocola.core.presentation.components.trackItems
 import com.sosauce.chocola.core.presentation.navigation.Screen
 import com.sosauce.chocola.core.presentation.preferences.rememberAppTheme
+import com.sosauce.chocola.core.presentation.preferences.rememberOledBlack
 import com.sosauce.chocola.core.presentation.preferences.rememberPaletteStyle
 import com.sosauce.chocola.core.presentation.util.barsContentTransform
 import com.sosauce.chocola.core.presentation.util.selfAlignHorizontally
@@ -63,8 +66,11 @@ fun SharedTransitionScope.PlaylistDetailsScreen(
 
     val listState = rememberLazyListState()
     val theme by rememberAppTheme()
+    val oledBlack by rememberOledBlack()
     val isSystemInDarkTheme = isSystemInDarkTheme()
     val paletteStyle by rememberPaletteStyle()
+    val isDark = isEffectiveDark(theme, isSystemInDarkTheme)
+    val applyOled = shouldApplyOledBlack(theme, oledBlack, isSystemInDarkTheme)
     val multiSelectState = rememberSweetSelectState<CuteTrack>()
     val activeTrackId = remember(musicState.track) { musicState.track.mediaId }
 
@@ -75,12 +81,13 @@ fun SharedTransitionScope.PlaylistDetailsScreen(
     DynamicMaterialExpressiveTheme(
         state = rememberDynamicMaterialThemeState(
             seedColor = state.playlist.color ?: MaterialTheme.colorScheme.primary,
-            isDark = if (theme == CuteTheme.SYSTEM) isSystemInDarkTheme else if (theme == CuteTheme.AMOLED) true else theme == CuteTheme.DARK,
-            isAmoled = theme == CuteTheme.AMOLED,
+            isDark = isDark,
+            isAmoled = applyOled,
             specVersion = ColorSpec.SpecVersion.SPEC_2025,
             style = paletteStyle.toPaletteStyle()
         )
     ) {
+        OledPageBackgroundTheme(enabled = applyOled) {
         Scaffold(
             contentWindowInsets = WindowInsets.safeDrawing,
             bottomBar = {
@@ -195,7 +202,6 @@ fun SharedTransitionScope.PlaylistDetailsScreen(
                 }
             }
         }
+        }
     }
-
-
 }
