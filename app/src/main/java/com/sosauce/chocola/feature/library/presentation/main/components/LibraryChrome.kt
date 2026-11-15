@@ -142,8 +142,12 @@ fun LibraryDrawerSheet(
                 label = { Text("${stringResource(R.string.shuffle)} · $trackCount") },
                 icon = { Icon(painterResource(R.drawable.shuffle), null) },
                 selected = false,
-                enabled = trackCount > 0,
-                onClick = { onClose(); onShuffle() },
+                onClick = {
+                    if (trackCount > 0) {
+                        onClose()
+                        onShuffle()
+                    }
+                },
                 modifier = Modifier.padding(horizontal = 12.dp),
             )
             NavigationDrawerItem(
