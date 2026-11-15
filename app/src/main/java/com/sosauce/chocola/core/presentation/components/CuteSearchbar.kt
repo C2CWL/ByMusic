@@ -89,7 +89,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -158,7 +157,8 @@ fun SharedTransitionScope.CuteSearchbar(
             val yTranslationPlaying = remember { Animatable(screenHeight) }
 
             LaunchedEffect(Unit) {
-                yTranslationPlaying.animateTo(0f, tween(420, easing = FastOutSlowInEasing))
+                // Salt-style: the page travels the full height and stops. No overshoot.
+                yTranslationPlaying.animateTo(0f, tween(380, easing = FastOutSlowInEasing))
             }
 
             val playingDragState = rememberDraggableState { dragAmount ->
@@ -185,17 +185,17 @@ fun SharedTransitionScope.CuteSearchbar(
                                 showFullPlayer = false
                             } else {
                                 scope.launch {
-                                    yTranslationPlaying.animateTo(0f, bouncySpec())
+                                    yTranslationPlaying.animateTo(
+                                        0f,
+                                        tween(260, easing = FastOutSlowInEasing)
+                                    )
                                 }
                             }
                         }
                     )
                     .graphicsLayer {
+                        // Full-page translation only. The list underneath stays put.
                         translationY = yTranslationPlaying.value
-                        val progress = (1f - (yTranslationPlaying.value / screenHeight)).coerceIn(0f, 1f)
-                        scaleX = 0.86f + 0.14f * progress
-                        scaleY = scaleX
-                        transformOrigin = TransformOrigin(0.5f, 1f)
                     },
                 musicState = musicState,
                 onHandlePlayerActions = onHandlePlayerActions,
