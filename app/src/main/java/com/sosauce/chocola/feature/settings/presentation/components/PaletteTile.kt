@@ -19,8 +19,10 @@ import com.materialkolor.DynamicMaterialExpressiveTheme
 import com.materialkolor.dynamiccolor.ColorSpec
 import com.materialkolor.rememberDynamicMaterialThemeState
 import com.sosauce.chocola.core.designsystem.CutePaletteStyle
-import com.sosauce.chocola.core.designsystem.CuteTheme
+import com.sosauce.chocola.core.designsystem.theme.isEffectiveDark
+import com.sosauce.chocola.core.designsystem.theme.shouldApplyOledBlack
 import com.sosauce.chocola.core.presentation.preferences.rememberAppTheme
+import com.sosauce.chocola.core.presentation.preferences.rememberOledBlack
 import com.sosauce.chocola.core.presentation.util.toPaletteStyle
 import com.sosauce.nekobites.components.settings.SelectableTile
 
@@ -32,15 +34,12 @@ fun PaletteTile(
 ) {
     val isSystemDark = isSystemInDarkTheme()
     val theme by rememberAppTheme()
-    val isDark = when (theme) {
-        CuteTheme.DARK, CuteTheme.AMOLED -> true
-        CuteTheme.SYSTEM -> isSystemDark
-        else -> false
-    }
+    val oledBlack by rememberOledBlack()
+    val isDark = isEffectiveDark(theme, isSystemDark)
     val state = rememberDynamicMaterialThemeState(
         seedColor = MaterialTheme.colorScheme.primary,
         isDark = isDark,
-        isAmoled = theme == CuteTheme.AMOLED,
+        isAmoled = shouldApplyOledBlack(theme, oledBlack, isSystemDark),
         specVersion = ColorSpec.SpecVersion.SPEC_2025,
         style = paletteStyle.toPaletteStyle()
     )

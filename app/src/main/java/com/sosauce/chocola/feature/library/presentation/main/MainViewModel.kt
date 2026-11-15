@@ -33,7 +33,8 @@ class MainViewModel(
 ) : AndroidViewModel(application) {
 
     val textFieldState = TextFieldState()
-    private val searchQuery = snapshotFlow { textFieldState.text }.debounce(250.milliseconds)
+    private val searchQuery = snapshotFlow { textFieldState.text.toString() }
+        .debounce { if (it.isEmpty()) 0.milliseconds else 250.milliseconds }
 
     val state: StateFlow<MainState> = combine(
         abstractTracksScanner.latestTracks(),
