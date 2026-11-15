@@ -11,6 +11,9 @@ sealed class Screen : NavKey {
     data object Main : Screen()
 
     @Serializable
+    data object Online : Screen()
+
+    @Serializable
     data class Settings(
         val initialScreen: SettingsScreen? = null
     ) : Screen()

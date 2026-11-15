@@ -13,6 +13,8 @@ import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
@@ -87,6 +89,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -151,12 +154,11 @@ fun SharedTransitionScope.CuteSearchbar(
     ) { fullPlayer ->
         if (fullPlayer) {
 
-            val halfScreen = windowInfo.containerSize.height / 2f
-            val yTranslationPlaying = remember { Animatable(halfScreen) }
+            val screenHeight = windowInfo.containerSize.height.toFloat()
+            val yTranslationPlaying = remember { Animatable(screenHeight) }
 
-            // enter in bounce
             LaunchedEffect(Unit) {
-                yTranslationPlaying.animateTo(0f, bouncySpec())
+                yTranslationPlaying.animateTo(0f, tween(420, easing = FastOutSlowInEasing))
             }
 
             val playingDragState = rememberDraggableState { dragAmount ->
@@ -190,6 +192,10 @@ fun SharedTransitionScope.CuteSearchbar(
                     )
                     .graphicsLayer {
                         translationY = yTranslationPlaying.value
+                        val progress = (1f - (yTranslationPlaying.value / screenHeight)).coerceIn(0f, 1f)
+                        scaleX = 0.86f + 0.14f * progress
+                        scaleY = scaleX
+                        transformOrigin = TransformOrigin(0.5f, 1f)
                     },
                 musicState = musicState,
                 onHandlePlayerActions = onHandlePlayerActions,

@@ -182,6 +182,9 @@
     <string name="allow_perform_changes">请允许应用修改文件</string>
     <string name="library_setup_desc">选择要扫描的文件夹并设置歌曲最短持续时间</string>
     <string name="tracks">歌曲</string>
+    <string name="online_music">在线音乐</string>
+    <string name="online_music_pending">入口已预留，音源还没定，暂时不能播放。</string>
+    <string name="about">关于</string>
     <string name="date">日期</string>
     <string name="unknown_error">未知错误</string>
     <string name="no_lyrics_desc">未找到这首歌内置的歌词或外部.lrc文件！</string>
