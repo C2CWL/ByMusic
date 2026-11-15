@@ -56,10 +56,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.time.Duration
-import kotlin.time.Duration.Companion.seconds
 
 class MusicViewModel(
     private val application: Application,
@@ -75,6 +75,7 @@ class MusicViewModel(
 
     private val tracks = abstractTracksScanner.latestTracks()
     private var lyricsJob: Job? = null
+    private var positionJob: Job? = null
     @Volatile
     private var favoriteTrackIds: Set<Long> = emptySet()
 
@@ -150,6 +151,13 @@ class MusicViewModel(
                         isPlaying = isPlaying
                     )
                 }
+                val player = mediaController ?: return
+                if (isPlaying) {
+                    startPositionUpdates(player)
+                } else {
+                    stopPositionUpdates()
+                    snapshotPlaybackPosition(player)
+                }
             }
 
             override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
@@ -209,7 +217,7 @@ class MusicViewModel(
                 super.onPositionDiscontinuity(oldPosition, newPosition, reason)
                 _musicState.update {
                     it.copy(
-                        position = newPosition.positionMs
+                        position = newPosition.positionMs.coerceAtLeast(0)
                     )
                 }
             }
@@ -224,15 +232,8 @@ class MusicViewModel(
                 }
 
 
-                viewModelScope.launch {
-                    while (player.isPlaying) {
-                        _musicState.update {
-                            it.copy(
-                                position = player.currentPosition
-                            )
-                        }
-                        delay(1.seconds)
-                    }
+                if (player.isPlaying && positionJob?.isActive != true) {
+                    startPositionUpdates(player)
                 }
             }
         }
@@ -278,6 +279,34 @@ class MusicViewModel(
                 mediaIndex = newTracks.indexOf(it.track),
             )
         }
+    }
+
+
+    private fun snapshotPlaybackPosition(player: Player) {
+        _musicState.update {
+            it.copy(position = player.currentPosition.coerceAtLeast(0))
+        }
+    }
+
+    private fun startPositionUpdates(player: Player) {
+        if (!LyricsPositionClock.shouldPollWhilePlaying(player.isPlaying)) {
+            snapshotPlaybackPosition(player)
+            return
+        }
+        positionJob?.cancel()
+        positionJob = viewModelScope.launch {
+            snapshotPlaybackPosition(player)
+            while (isActive && LyricsPositionClock.shouldPollWhilePlaying(player.isPlaying)) {
+                delay(LyricsPositionClock.PLAYING_POLL_MS)
+                if (!isActive || !player.isPlaying) break
+                snapshotPlaybackPosition(player)
+            }
+        }
+    }
+
+    private fun stopPositionUpdates() {
+        positionJob?.cancel()
+        positionJob = null
     }
 
     private fun parseLyrics(trackPath: String, requireCurrentTrack: Boolean = true) {
@@ -403,6 +432,7 @@ class MusicViewModel(
 
 
     override fun onCleared() {
+        stopPositionUpdates()
         runBlocking { userPreferences.saveSavedMusicState(musicState.value) }
         mediaController!!.removeListener(playerListener)
         mediaController!!.release()
