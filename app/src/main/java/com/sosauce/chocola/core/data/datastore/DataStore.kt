@@ -27,6 +27,9 @@ data object LegacyPreferencesKeys {
 
 data object PreferencesKeys {
     val THEME = stringPreferencesKey("theme")
+    val LIBRARY_BACKGROUND = stringPreferencesKey("library_background")
+    val LIGHTWEIGHT_GLASS = booleanPreferencesKey("lightweight_glass")
+    val OLED_BLACK = booleanPreferencesKey("oled_black")
     val USE_SYSTEM_FONT = booleanPreferencesKey("use_sys_font")
     val WHITELISTED_FOLDERS = stringSetPreferencesKey("WHITELISTED_FOLDERS")
     val BLACKLISTED_FOLDERS = stringSetPreferencesKey("BLACKLISTED_FOLDERS")

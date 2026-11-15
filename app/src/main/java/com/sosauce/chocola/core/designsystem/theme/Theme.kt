@@ -11,6 +11,7 @@ import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -21,6 +22,7 @@ import com.materialkolor.rememberDynamicMaterialThemeState
 import com.sosauce.chocola.R
 import com.sosauce.chocola.core.designsystem.CuteTheme
 import com.sosauce.chocola.core.presentation.preferences.rememberAppTheme
+import com.sosauce.chocola.core.presentation.preferences.rememberOledBlack
 import com.sosauce.chocola.core.presentation.preferences.rememberPaletteStyle
 import com.sosauce.chocola.core.presentation.preferences.rememberUseArtTheme
 import com.sosauce.chocola.core.presentation.preferences.rememberUseSystemFont
@@ -34,16 +36,14 @@ fun ChocolaTheme(
 
     val activity = LocalActivity.current
     val window = activity?.window
-    val theme by rememberAppTheme()
+    var theme by rememberAppTheme()
+    var oledBlack by rememberOledBlack()
     val useArtTheme by rememberUseArtTheme()
     val isSystemInDarkTheme = isSystemInDarkTheme()
     val useSystemFont by rememberUseSystemFont()
     val paletteStyle by rememberPaletteStyle()
-    val isDark = when (theme) {
-        CuteTheme.DARK, CuteTheme.AMOLED -> true
-        CuteTheme.SYSTEM -> isSystemInDarkTheme
-        else -> false
-    }
+    val isDark = isEffectiveDark(theme, isSystemInDarkTheme)
+    val applyOled = shouldApplyOledBlack(theme, oledBlack, isSystemInDarkTheme)
     val seedColor = rememberSeedColor(
         isDark = isDark,
         useMaterialArt = useArtTheme,
@@ -53,25 +53,36 @@ fun ChocolaTheme(
     val state = rememberDynamicMaterialThemeState(
         seedColor = seedColor,
         isDark = isDark,
-        isAmoled = theme == CuteTheme.AMOLED,
+        isAmoled = applyOled,
         specVersion = ColorSpec.SpecVersion.SPEC_2025,
         style = paletteStyle.toPaletteStyle()
     )
 
-    LaunchedEffect(isDark) {
+    LaunchedEffect(theme) {
+        if (theme == CuteTheme.AMOLED) {
+            oledBlack = true
+            theme = CuteTheme.DARK
+        }
+    }
+
+    LaunchedEffect(isDark, applyOled, window) {
         if (window == null) return@LaunchedEffect
 
         SystemUiController.setSystemBarsColors(
             window = window,
             isLight = !isDark
         )
+        window.decorView.setBackgroundColor(
+            if (applyOled) android.graphics.Color.BLACK else android.graphics.Color.TRANSPARENT
+        )
     }
     DynamicMaterialExpressiveTheme(
         state = state,
         motionScheme = MotionScheme.expressive(),
-        typography = if (useSystemFont) MaterialTheme.typography else GoogleSansFlexTypography,
-        content = content
-    )
+        typography = if (useSystemFont) MaterialTheme.typography else GoogleSansFlexTypography
+    ) {
+        OledPageBackgroundTheme(enabled = applyOled, content = content)
+    }
 }
 
 val googleSansFlexFontFamily = FontFamily(

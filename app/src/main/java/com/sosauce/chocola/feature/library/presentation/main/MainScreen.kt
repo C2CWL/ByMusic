@@ -4,6 +4,7 @@ package com.sosauce.chocola.feature.library.presentation.main
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Arrangement
@@ -28,9 +29,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.layer.drawLayer
-import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.SmallFloatingActionButton
@@ -76,8 +74,9 @@ fun SharedTransitionScope.MainScreen(
     val multiSelectState = rememberSweetSelectState<CuteTrack>()
     val activeTrackId = remember(musicState.track) { musicState.track.mediaId }
 
+    var fullPlayerVisible by remember { mutableStateOf(false) }
     val groupByFolders = state.groupByFolders
-    val backdrop = rememberGraphicsLayer()
+    val background by com.sosauce.chocola.core.presentation.preferences.rememberLibraryBackground()
     val favoriteListState = rememberLazyListState()
     var locateTrackId by remember { mutableStateOf<String?>(null) }
 
@@ -147,6 +146,7 @@ fun SharedTransitionScope.MainScreen(
                     CuteSearchbar(
                         modifier = Modifier.selfAlignHorizontally(),
                         libraryStyle = true,
+                        onFullPlayerChanged = { fullPlayerVisible = it },
                         musicState = musicState,
                         textFieldState = textFieldState,
                         onHandlePlayerActions = onHandlePlayerAction,
@@ -161,12 +161,18 @@ fun SharedTransitionScope.MainScreen(
     ) { paddingValues ->
 
         Box(Modifier.fillMaxSize()) {
+            if (background.startsWith("content://")) {
+                coil3.compose.AsyncImage(
+                    model = background,
+                    contentDescription = null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+                Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background.copy(alpha = 0.78f)))
+            }
             LoadingBox(isLoading = state.isLoading) {
                 LazyColumn(
-                    modifier = Modifier.drawWithContent {
-                        backdrop.record { this@drawWithContent.drawContent() }
-                        drawLayer(backdrop)
-                    },
+                    modifier = Modifier.fillMaxSize(),
                     state = lazyState,
                     contentPadding = PaddingValues(
                         top = paddingValues.calculateTopPadding() + 104.dp,
@@ -303,7 +309,7 @@ fun SharedTransitionScope.MainScreen(
                 }
             }
             LibraryHeader(
-                backdrop = backdrop,
+                handleBack = !fullPlayerVisible,
                 textFieldState = textFieldState,
                 count = state.tracks.size,
                 onNavigate = onNavigate,
