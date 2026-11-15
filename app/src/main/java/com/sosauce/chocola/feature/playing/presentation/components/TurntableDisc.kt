@@ -2,7 +2,6 @@ package com.sosauce.chocola.feature.playing.presentation.components
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -14,6 +13,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,7 +45,6 @@ import com.sosauce.chocola.R
 import com.sosauce.chocola.core.domain.player.MusicState
 import kotlin.math.cos
 import kotlin.math.sin
-import kotlin.random.Random
 
 @Composable
 internal fun TurntableDisc(
@@ -53,6 +55,12 @@ internal fun TurntableDisc(
     val surface = MaterialTheme.colorScheme.surface
     val metal = MaterialTheme.colorScheme.secondary
     val rotation = remember { Animatable(0f) }
+    val armAngle = remember {
+        Animatable(TurntableMotion.playPauseArmTarget(musicState.isPlaying))
+    }
+    val stars = remember { TurntableStarField() }
+    var starFrame by remember { mutableIntStateOf(0) }
+    var seenMediaId by remember { mutableStateOf(musicState.track.mediaId) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(musicState.isPlaying, lifecycle) {
         // Stop producing frames when the host lifecycle leaves the foreground.
@@ -66,24 +74,35 @@ internal fun TurntableDisc(
             }
         }
     }
-    val armAngle by animateFloatAsState(
-        targetValue = if (musicState.isPlaying) 0f else -19f,
-        animationSpec = tween(650),
-        label = "Tonearm lift",
-    )
-    // A fixed seed keeps the star field steady across playback-position updates.
-    val stars =
-        remember {
-            val random = Random(73)
-            List(180) {
-                floatArrayOf(
-                    random.nextFloat() * 6.283185f,
-                    0.58f + random.nextFloat() * 0.37f,
-                    0.35f + random.nextFloat() * 0.8f,
-                    0.08f + random.nextFloat() * 0.34f,
-                )
+    LaunchedEffect(musicState.isPlaying, lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            if (musicState.isPlaying) {
+                var lastFrame = 0L
+                while (true) {
+                    withFrameNanos { now ->
+                        val dt = if (lastFrame == 0L) 0f else ((now - lastFrame) / 1_000_000_000f)
+                        lastFrame = now
+                        stars.update(dt)
+                        starFrame = starFrame + 1
+                    }
+                }
             }
         }
+    }
+    LaunchedEffect(musicState.track.mediaId, musicState.isPlaying) {
+        val trackChanged = seenMediaId != musicState.track.mediaId
+        seenMediaId = musicState.track.mediaId
+        val targets =
+            if (trackChanged) {
+                TurntableMotion.trackChangeArmTargets(musicState.isPlaying)
+            } else {
+                listOf(TurntableMotion.playPauseArmTarget(musicState.isPlaying))
+            }
+        val spec = tween<Float>(TurntableMotion.ARM_ANIMATION_DURATION_MS)
+        for (target in targets) {
+            armAngle.animateTo(target, spec)
+        }
+    }
 
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
@@ -139,31 +158,6 @@ internal fun TurntableDisc(
                                     style = Stroke(width = if (index % 5 == 0) 0.65.dp.toPx() else 0.35.dp.toPx()),
                                 )
                             }
-                            stars.forEachIndexed { index, star ->
-                                val point =
-                                    center +
-                                        Offset(
-                                            cos(star[0]) * radius * star[1],
-                                            sin(star[0]) * radius * star[1],
-                                        )
-                                val color = lerp(accent, Color.White, 0.65f).copy(alpha = star[3])
-                                val dot = star[2] * 0.7.dp.toPx()
-                                drawCircle(color, dot, point)
-                                if (index % 19 == 0) {
-                                    drawLine(
-                                        color.copy(alpha = 0.22f),
-                                        point - Offset(dot * 3f, 0f),
-                                        point + Offset(dot * 3f, 0f),
-                                        0.5.dp.toPx(),
-                                    )
-                                    drawLine(
-                                        color.copy(alpha = 0.22f),
-                                        point - Offset(0f, dot * 3f),
-                                        point + Offset(0f, dot * 3f),
-                                        0.5.dp.toPx(),
-                                    )
-                                }
-                            }
                             drawCircle(accent.copy(alpha = 0.2f), radius * 0.99f, style = Stroke(0.7.dp.toPx()))
                         }
                     },
@@ -186,11 +180,39 @@ internal fun TurntableDisc(
                     modifier = Modifier.fillMaxSize().cloudy(radius = blur, enabled = blur > 0),
                 )
             }
+            Canvas(Modifier.fillMaxSize()) {
+                val radius = size.minDimension / 2f * (if (starFrame >= 0) 1f else 1f)
+                for (index in 0 until stars.count) {
+                    val point =
+                        center +
+                            Offset(
+                                cos(stars.angle[index]) * radius * stars.radius(index),
+                                sin(stars.angle[index]) * radius * stars.radius(index),
+                            )
+                    val color = lerp(accent, Color.White, 0.65f).copy(alpha = stars.alpha(index))
+                    val dot = stars.size[index] * 0.7.dp.toPx()
+                    drawCircle(color, dot, point)
+                    if (index % 19 == 0) {
+                        drawLine(
+                            color.copy(alpha = 0.22f),
+                            point - Offset(dot * 3f, 0f),
+                            point + Offset(dot * 3f, 0f),
+                            0.5.dp.toPx(),
+                        )
+                        drawLine(
+                            color.copy(alpha = 0.22f),
+                            point - Offset(0f, dot * 3f),
+                            point + Offset(0f, dot * 3f),
+                            0.5.dp.toPx(),
+                        )
+                    }
+                }
+            }
         }
         Canvas(Modifier.fillMaxSize()) {
             val unit = size.minDimension
             val pivot = Offset(size.width * 0.88f, size.height * 0.13f)
-            rotate(armAngle, pivot) {
+            rotate(armAngle.value, pivot) {
                 val arm =
                     Path().apply {
                         moveTo(pivot.x, pivot.y)
