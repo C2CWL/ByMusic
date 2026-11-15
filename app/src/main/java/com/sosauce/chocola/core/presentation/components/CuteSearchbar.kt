@@ -133,6 +133,7 @@ fun SharedTransitionScope.CuteSearchbar(
     onHandlePlayerActions: (PlayerActions) -> Unit,
     onNavigate: (Screen) -> Unit,
     libraryStyle: Boolean = false,
+    onFullPlayerChanged: (Boolean) -> Unit = {},
     fab: @Composable (() -> Unit)? = null,
     backButton: @Composable (() -> Unit)? = null,
     sortMenu: @Composable () -> Unit
@@ -140,6 +141,7 @@ fun SharedTransitionScope.CuteSearchbar(
 
     val scope = rememberCoroutineScope()
     var showFullPlayer by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(showFullPlayer) { onFullPlayerChanged(showFullPlayer) }
     val windowInfo = LocalWindowInfo.current
 
 
