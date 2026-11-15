@@ -91,6 +91,7 @@ fun ColumnScope.SettingsLookAndFeel(
 
     SettingsGroup(title = stringResource(R.string.appearance)) {
         LauncherIconSetting()
+        LibraryAppearanceSettings()
         SettingsPicker(title = stringResource(R.string.theme)) {
             items(themes) { option ->
                 SelectableTile(

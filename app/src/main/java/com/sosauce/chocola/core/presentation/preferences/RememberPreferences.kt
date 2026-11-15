@@ -323,3 +323,15 @@ fun rememberInitialScreenBlocking(): Screen {
 //        defaultValue = LastPlayed("", 0L),
 //        context = context
 //    )
+
+@Composable
+fun rememberLibraryBackground() = rememberPreference(
+    key = com.sosauce.chocola.core.data.datastore.PreferencesKeys.LIBRARY_BACKGROUND,
+    defaultValue = ""
+)
+
+@Composable
+fun rememberLightweightGlass() = rememberPreference(
+    key = com.sosauce.chocola.core.data.datastore.PreferencesKeys.LIGHTWEIGHT_GLASS,
+    defaultValue = true
+)
