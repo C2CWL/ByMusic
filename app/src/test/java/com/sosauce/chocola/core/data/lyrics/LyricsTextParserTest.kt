@@ -102,6 +102,46 @@ class LyricsTextParserTest {
     }
 
     @Test
+    fun textBeforeFirstAngleSyllableIsPreserved() {
+        val raw = "[00:10.00]这些年<00:10.50>有的感情<00:11.00>变淡"
+        for (source in LyricSource.entries) {
+            val lyrics = LyricsTextParser.parseLyricText(raw, source)
+            assertEquals("这些年有的感情变淡", lyrics.single().lineLyrics)
+            assertEquals(10000, lyrics.single().timestamp)
+        }
+    }
+
+    @Test
+    fun textBeforeFirstSquareSyllableIsPreserved() {
+        val raw = "[00:10.00]手机里[00:10.50]收藏的视频[00:11.00]不知道分享给谁看"
+        val lyrics = LyricsTextParser.parseLyricText(raw, LyricSource.SIDECAR)
+        assertEquals("手机里收藏的视频不知道分享给谁看", lyrics.single().lineLyrics)
+        assertEquals(10000, lyrics.single().timestamp)
+    }
+
+    @Test
+    fun lenientFallbackAlsoKeepsUntimedPrefix() {
+        for (raw in listOf(
+            "[00:10.00]这些年<00:10.50>有的感情<00:11.00>变淡",
+            "[00:10.00]这些年[00:10.50]有的感情[00:11.00]变淡"
+        )) {
+            val lyrics = LyricsTextParser.parseLyricText(raw, LyricSource.SIDECAR) {
+                throw IllegalArgumentException("force fallback")
+            }
+            assertEquals("这些年有的感情变淡", lyrics.single().lineLyrics)
+            assertEquals(10000, lyrics.single().timestamp)
+        }
+    }
+
+    @Test
+    fun strippingTagsDoesNotDropPrefixOrLiteralBrackets() {
+        val lyrics = LyricsTextParser.parseLenientLrc(
+            listOf("[00:10.00]前文[注释]<00:10.50>后文")
+        )
+        assertEquals("前文[注释]后文", lyrics.single().lineLyrics)
+    }
+
+    @Test
     fun cancellationIsRethrownAndDoesNotBecomeEmptyLyrics() {
         try {
             LyricsTextParser.parseLyricText(normalLrc, LyricSource.SIDECAR) {

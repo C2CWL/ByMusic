@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
@@ -40,7 +39,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
@@ -50,6 +48,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -169,23 +168,27 @@ fun LyricsList(
 
                 val isCurrentLyric = index == currentLyricIndex
 
+                val distance = if (currentLyricIndex < 0) 2 else kotlin.math.abs(index - currentLyricIndex)
                 val color by animateColorAsState(
-                    targetValue = if (isCurrentLyric) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
+                    targetValue = when (distance) {
+                        0 -> MaterialTheme.colorScheme.primary
+                        1 -> MaterialTheme.colorScheme.onSurface
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
                     }
                 )
-
+                val lineAlpha = when (distance) {
+                    0 -> 1f
+                    1 -> 0.72f
+                    else -> 0.38f
+                }
                 val animatedScale by animateFloatAsState(
-                    if (isCurrentLyric) 1f else 0.96f
+                    if (isCurrentLyric) 1.04f else 1f
                 )
                 Column(
                     modifier = Modifier
                         .animateItem()
                         .fillMaxWidth()
                         .padding(vertical = 6.dp)
-                        .clip(RoundedCornerShape(16.dp))
                         .combinedClickable(
                             onClick = {
                                 onHandlePlayerActions(
@@ -210,9 +213,13 @@ fun LyricsList(
                 ) {
                     Text(
                         text = lyric.lineLyrics,
+                        softWrap = true,
+                        maxLines = Int.MAX_VALUE,
+                        overflow = TextOverflow.Clip,
                         style = MaterialTheme.typography.titleLargeEmphasized.copy(
                             color = color,
                             fontSize = lyricsFontSize.sp,
+                            lineHeight = (lyricsFontSize * 1.4f).sp,
                             textAlign = lyricsAlignment.toLyricsAlignment(),
                             shadow = if (textShadow) Shadow(
                                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -223,7 +230,7 @@ fun LyricsList(
                         modifier = Modifier
                             .fillMaxWidth()
                             .graphicsLayer {
-                                alpha = if (isCurrentLyric) 1f else 0.42f
+                                alpha = lineAlpha
                                 scaleX = animatedScale
                                 scaleY = animatedScale
                             }
