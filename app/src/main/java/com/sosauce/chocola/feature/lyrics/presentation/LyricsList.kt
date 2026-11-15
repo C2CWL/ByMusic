@@ -33,8 +33,11 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,8 +47,10 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sosauce.chocola.R
@@ -57,6 +62,7 @@ import com.sosauce.chocola.core.presentation.preferences.rememberLyricsFontSize
 import com.sosauce.chocola.core.presentation.util.toLyricsAlignment
 import com.sosauce.nekobites.components.NoXFound
 import com.sosauce.nekobites.components.Spacer
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -66,25 +72,74 @@ fun LyricsList(
     onHandlePlayerActions: (PlayerActions) -> Unit,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     textShadow: Boolean = false,
+    horizontalPadding: Dp = LyricsLayout.HorizontalPaddingDp.dp,
+    focusCurrentLine: Boolean = true,
     emptyLyrics: @Composable () -> Unit
 ) {
     val clipboardManager = LocalClipboard.current
     val activity = LocalActivity.current
     val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
     val lyricsAlignment by rememberLyricsAlignment()
     val lyricsFontSize by rememberLyricsFontSize()
-    val currentLyricIndex by remember(musicState.position) {
+    val currentLyricIndex by remember(musicState.position, musicState.lyrics) {
         derivedStateOf {
-            musicState.lyrics.indexOfLast { musicState.position >= it.timestamp }
+            LyricsLayout.currentLineIndex(
+                positionMs = musicState.position,
+                timestampsMs = musicState.lyrics.map { it.timestamp }
+            )
         }
     }
-    val lazyListState = rememberLazyListState(
-        initialFirstVisibleItemIndex = if (currentLyricIndex != -1) currentLyricIndex else 0
-    )
+    val lazyListState = rememberLazyListState()
+    var suppressAutoScroll by remember { mutableStateOf(false) }
+    var programmaticScroll by remember { mutableStateOf(false) }
 
-    LaunchedEffect(currentLyricIndex) {
-        if (currentLyricIndex != -1) {
-            lazyListState.animateScrollToItem(currentLyricIndex)
+    val viewportHeightPx = lazyListState.layoutInfo.viewportSize.height
+    val measuredLineHeightPx = lazyListState.layoutInfo.visibleItemsInfo
+        .firstOrNull { it.size > 0 }
+        ?.size
+    val fallbackLineHeightPx = with(density) { (lyricsFontSize.sp * 2.2f).roundToPx() }
+    val lineHeightPx = measuredLineHeightPx ?: fallbackLineHeightPx
+    val extraTopPx = if (focusCurrentLine) {
+        LyricsLayout.leadContentPaddingPx(viewportHeightPx, lineHeightPx)
+    } else 0
+    val extraBottomPx = if (focusCurrentLine) {
+        LyricsLayout.trailContentPaddingPx(viewportHeightPx, lineHeightPx)
+    } else 0
+    val mergedPadding = PaddingValues(
+        start = horizontalPadding,
+        end = horizontalPadding,
+        top = contentPadding.calculateTopPadding() + with(density) { extraTopPx.toDp() },
+        bottom = contentPadding.calculateBottomPadding() + with(density) { extraBottomPx.toDp() }
+    )
+    val scrollOffset = if (focusCurrentLine) {
+        LyricsLayout.focusScrollOffsetPx(viewportHeightPx, lineHeightPx)
+    } else 0
+
+    LaunchedEffect(currentLyricIndex, scrollOffset, viewportHeightPx, suppressAutoScroll) {
+        if (currentLyricIndex != -1 && !suppressAutoScroll && viewportHeightPx > 0) {
+            programmaticScroll = true
+            try {
+                lazyListState.animateScrollToItem(currentLyricIndex, scrollOffset)
+            } finally {
+                programmaticScroll = false
+            }
+        }
+    }
+
+    LaunchedEffect(lazyListState) {
+        snapshotFlow { lazyListState.isScrollInProgress }
+            .collect { inProgress ->
+                if (inProgress && !programmaticScroll) {
+                    suppressAutoScroll = true
+                }
+            }
+    }
+
+    LaunchedEffect(suppressAutoScroll) {
+        if (suppressAutoScroll) {
+            delay(LyricsLayout.AutoScrollResumeMs)
+            suppressAutoScroll = false
         }
     }
 
@@ -99,13 +154,13 @@ fun LyricsList(
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center,
+        verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.CenterHorizontally,
         state = lazyListState,
-        contentPadding = contentPadding
+        contentPadding = mergedPadding
     ) {
         if (musicState.lyrics.isEmpty()) {
-            item { emptyLyrics() }
+            item(key = "empty-lyrics") { emptyLyrics() }
         } else {
             itemsIndexed(
                 items = musicState.lyrics,
@@ -115,7 +170,7 @@ fun LyricsList(
                 val isCurrentLyric = index == currentLyricIndex
 
                 val color by animateColorAsState(
-                    targetValue = if (isCurrentLyric || lyric.timestamp == 0) {
+                    targetValue = if (isCurrentLyric) {
                         MaterialTheme.colorScheme.primary
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
@@ -123,14 +178,14 @@ fun LyricsList(
                 )
 
                 val animatedScale by animateFloatAsState(
-                    if (isCurrentLyric) 1f else 0.85f
+                    if (isCurrentLyric) 1f else 0.96f
                 )
                 Column(
                     modifier = Modifier
                         .animateItem()
                         .fillMaxWidth()
-                        .padding(2.dp)
-                        .clip(RoundedCornerShape(24.dp))
+                        .padding(vertical = 6.dp)
+                        .clip(RoundedCornerShape(16.dp))
                         .combinedClickable(
                             onClick = {
                                 onHandlePlayerActions(
@@ -167,9 +222,8 @@ fun LyricsList(
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(5.dp)
                             .graphicsLayer {
-                                alpha = if (isCurrentLyric) 1f else 0.3f
+                                alpha = if (isCurrentLyric) 1f else 0.42f
                                 scaleX = animatedScale
                                 scaleY = animatedScale
                             }
@@ -207,7 +261,9 @@ fun DefaultEmptyLyricsScreen(
 
 
     Column(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = LyricsLayout.HorizontalPaddingDp.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
