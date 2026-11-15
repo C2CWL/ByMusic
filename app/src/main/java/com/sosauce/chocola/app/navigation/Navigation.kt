@@ -47,6 +47,7 @@ import com.sosauce.chocola.feature.library.presentation.artist.ArtistsScreen
 import com.sosauce.chocola.feature.library.presentation.artist.ArtistsViewModel
 import com.sosauce.chocola.feature.library.presentation.main.MainScreen
 import com.sosauce.chocola.feature.library.presentation.main.MainViewModel
+import com.sosauce.chocola.feature.online.OnlineMusicScreen
 import com.sosauce.chocola.feature.lyrics.presentation.LyricsEditorScreen
 import com.sosauce.chocola.feature.lyrics.presentation.LyricsScreen
 import com.sosauce.chocola.feature.metadata.presentation.MetadataActions
@@ -122,6 +123,10 @@ fun Nav(
                             onHandlePlayerAction = musicViewModel::handlePlayerActions,
                             onFolderToggle = viewModel::toggleHiddenFolder
                         )
+                    }
+
+                    entry<Screen.Online> {
+                        OnlineMusicScreen(onNavigateBack = backStack::navigateBack)
                     }
 
                     entry<Screen.Albums> {

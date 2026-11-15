@@ -19,7 +19,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
@@ -27,13 +30,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Icon
-import com.sosauce.chocola.feature.library.presentation.main.components.LibraryHeader
+import com.sosauce.chocola.feature.library.presentation.main.components.LibraryDrawerSheet
+import com.sosauce.chocola.feature.library.presentation.main.components.LibraryTopBar
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEach
@@ -118,8 +124,28 @@ fun SharedTransitionScope.MainScreen(
         }
     }
 
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val drawerScope = rememberCoroutineScope()
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            LibraryDrawerSheet(
+                trackCount = state.tracks.size,
+                onShuffle = { onHandlePlayerAction(PlayerActions.PlayFromSource(null, PlaySource.All)) },
+                onNavigate = onNavigate,
+                onClose = { drawerScope.launch { drawerState.close() } }
+            )
+        }
+    ) {
     Scaffold(
         contentWindowInsets = WindowInsets.safeDrawing,
+        topBar = {
+            LibraryTopBar(
+                handleBack = !fullPlayerVisible,
+                textFieldState = textFieldState,
+                onOpenDrawer = { drawerScope.launch { drawerState.open() } }
+            )
+        },
         floatingActionButton = {
             if (musicState.isPlayerReady && !multiSelectState.isInSelectionMode && activeTrackId.isNotEmpty()) {
                 SmallFloatingActionButton(onClick = {
@@ -175,7 +201,7 @@ fun SharedTransitionScope.MainScreen(
                     modifier = Modifier.fillMaxSize(),
                     state = lazyState,
                     contentPadding = PaddingValues(
-                        top = paddingValues.calculateTopPadding() + 104.dp,
+                        top = paddingValues.calculateTopPadding(),
                         bottom = paddingValues.calculateBottomPadding() + 72.dp
                     )
                 ) {
@@ -308,15 +334,7 @@ fun SharedTransitionScope.MainScreen(
                     }
                 }
             }
-            LibraryHeader(
-                handleBack = !fullPlayerVisible,
-                textFieldState = textFieldState,
-                count = state.tracks.size,
-                onNavigate = onNavigate,
-                onShuffle = {
-                    onHandlePlayerAction(PlayerActions.PlayFromSource(null, PlaySource.All))
-                }
-            )
         }
+    }
     }
 }
