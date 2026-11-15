@@ -59,7 +59,7 @@ internal object LyricsTextParser {
         source: LyricSource,
         officialParse: (List<String>) -> List<Lyrics> = { officialParseOrThrow(source, it) }
     ): List<Lyrics> {
-        val originalLines = splitLines(raw)
+        val originalLines = splitLines(raw).map(::preserveUntimedPrefix)
         val officialFirst = runOfficial(originalLines, officialParse)
         if (officialFirst is OfficialResult.Success && officialFirst.lyrics.isNotEmpty()) {
             return officialFirst.lyrics
@@ -330,18 +330,30 @@ internal object LyricsTextParser {
         return starts.map { it to text }
     }
 
-    private fun stripSyllableTags(content: String): String {
-        val regex = syllableRegex(content)
-        val builder = StringBuilder()
-        var found = false
-        for (match in regex.findAll(content)) {
-            val ts = match.groupValues[1].trim()
-            if (isTimestamp(ts)) {
-                found = true
-                builder.append(match.groupValues[2])
+    /** Keep text before the first syllable tag; lyrics-core otherwise drops it. */
+    private fun preserveUntimedPrefix(line: String): String {
+        val start = firstLineTimestamp(line) ?: return line
+        val (contentStart, content) = contentAfterLeadingTags(line)
+        val firstSyllable = syllableRegex(content).findAll(content)
+            .firstOrNull { isTimestamp(it.groupValues[1]) } ?: return line
+        if (content.substring(0, firstSyllable.range.first).isBlank()) return line
+        val timestamp = formatTime(start, "00:00.000")
+        // An extra square tag at the beginning would be read as another line
+        // timestamp, so normalize square syllables to angle tags first.
+        val timedContent = if (firstSyllable.value.startsWith("[")) {
+            squareSyllableRegex.replace(content) { match ->
+                if (isTimestamp(match.groupValues[1])) {
+                    "<${match.groupValues[1]}>${match.groupValues[2]}"
+                } else match.value
             }
+        } else content
+        return line.substring(0, contentStart) + "<$timestamp>" + timedContent
+    }
+
+    private fun stripSyllableTags(content: String): String {
+        return syllableRegex(content).replace(content) { match ->
+            if (isTimestamp(match.groupValues[1])) match.groupValues[2] else match.value
         }
-        return if (found) builder.toString() else content
     }
 
     private fun isTimestamp(value: String): Boolean = timestampPattern.matches(value.trim())

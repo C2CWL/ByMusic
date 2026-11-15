@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
@@ -40,7 +39,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
@@ -50,6 +48,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -185,7 +184,6 @@ fun LyricsList(
                         .animateItem()
                         .fillMaxWidth()
                         .padding(vertical = 6.dp)
-                        .clip(RoundedCornerShape(16.dp))
                         .combinedClickable(
                             onClick = {
                                 onHandlePlayerActions(
@@ -210,9 +208,13 @@ fun LyricsList(
                 ) {
                     Text(
                         text = lyric.lineLyrics,
+                        softWrap = true,
+                        maxLines = Int.MAX_VALUE,
+                        overflow = TextOverflow.Clip,
                         style = MaterialTheme.typography.titleLargeEmphasized.copy(
                             color = color,
                             fontSize = lyricsFontSize.sp,
+                            lineHeight = (lyricsFontSize * 1.4f).sp,
                             textAlign = lyricsAlignment.toLyricsAlignment(),
                             shadow = if (textShadow) Shadow(
                                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
