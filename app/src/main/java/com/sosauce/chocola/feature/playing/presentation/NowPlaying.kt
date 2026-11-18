@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -28,9 +29,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -64,7 +67,9 @@ fun NowPlaying(
     musicState: MusicState,
     onHandlePlayerActions: (PlayerActions) -> Unit,
     onNavigate: (Screen) -> Unit,
-    onShrinkToSearchbar: () -> Unit = {}
+    onShrinkToSearchbar: () -> Unit = {},
+    transitionProgress: Float = 1f,
+    onArtworkBoundsChanged: ((Rect) -> Unit)? = null
 ) {
     NowPlayingLayout(
         modifier = modifier,
@@ -72,7 +77,9 @@ fun NowPlaying(
         hiddenButtons = rememberHiddenNowPlayingButtons(),
         onHandlePlayerActions = onHandlePlayerActions,
         onNavigate = onNavigate,
-        onShrinkToSearchbar = onShrinkToSearchbar
+        onShrinkToSearchbar = onShrinkToSearchbar,
+        transitionProgress = transitionProgress,
+        onArtworkBoundsChanged = onArtworkBoundsChanged
     )
 }
 
@@ -87,7 +94,9 @@ fun NowPlayingLayout(
     hiddenButtons: Set<NowPlayingButton>,
     onHandlePlayerActions: (PlayerActions) -> Unit,
     onNavigate: (Screen) -> Unit,
-    onShrinkToSearchbar: () -> Unit = {}
+    onShrinkToSearchbar: () -> Unit = {},
+    transitionProgress: Float = 1f,
+    onArtworkBoundsChanged: ((Rect) -> Unit)? = null
 ) {
     val isLandscape = rememberIsLandscape()
     val useTurntable by rememberUseTurntable()
@@ -107,7 +116,9 @@ fun NowPlayingLayout(
                 hiddenButtons = hiddenButtons,
                 onHandlePlayerActions = onHandlePlayerActions,
                 onNavigate = onNavigate,
-                onShrinkToSearchbar = onShrinkToSearchbar
+                onShrinkToSearchbar = onShrinkToSearchbar,
+                transitionProgress = transitionProgress,
+                onArtworkBoundsChanged = onArtworkBoundsChanged
             )
         }
 
@@ -121,7 +132,9 @@ private fun NowPlayingContent(
     hiddenButtons: Set<NowPlayingButton>,
     onHandlePlayerActions: (PlayerActions) -> Unit,
     onNavigate: (Screen) -> Unit,
-    onShrinkToSearchbar: () -> Unit
+    onShrinkToSearchbar: () -> Unit,
+    transitionProgress: Float = 1f,
+    onArtworkBoundsChanged: ((Rect) -> Unit)? = null
 ) {
     var snap by rememberSnapSpeedAndPitch()
     var showSpeedCard by remember { mutableStateOf(false) }
@@ -130,6 +143,13 @@ private fun NowPlayingContent(
     val useArtBackground by rememberUseArtAsBackground()
     val useTurntable by rememberUseTurntable()
 
+    // Fade full-screen controls out early on downward drag so text/sliders never overlap the shrinking artwork
+    val chromeAlpha = ((transitionProgress - 0.45f) / 0.55f).coerceIn(0f, 1f)
+    val artworkHandoffAlpha = if (transitionProgress >= 0.999f) {
+        1f
+    } else {
+        ((transitionProgress - 0.88f) / 0.12f).coerceIn(0f, 1f)
+    }
 
     if (showDetailsDialog) {
         TracksDetailsDialog(
@@ -160,6 +180,7 @@ private fun NowPlayingContent(
         containerColor = if (useTurntable) Color.Transparent else MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
+                modifier = Modifier.graphicsLayer { alpha = chromeAlpha },
                 title = {},
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent
@@ -209,6 +230,7 @@ private fun NowPlayingContent(
                 exit = fadeOut() + shrinkVertically()
             ) {
                 BottomAppBar(
+                    modifier = Modifier.graphicsLayer { alpha = chromeAlpha },
                     containerColor = Color.Transparent
                 ) {
                     QuickActionsRow(
@@ -229,6 +251,7 @@ private fun NowPlayingContent(
                 contentDescription = null,
                 modifier = Modifier
                     .fillMaxSize()
+                    .graphicsLayer { alpha = transitionProgress }
                     .cloudy(100),
                 contentScale = ContentScale.Crop,
                 colorFilter = ColorFilter.tint(
@@ -251,31 +274,38 @@ private fun NowPlayingContent(
                 // (e.g. split-screen), instead of overflowing.
                 modifier = Modifier.weight(1f, fill = false),
                 musicState = musicState,
-                onHandlePlayerActions = onHandlePlayerActions
-            )
-            TitleAndArtist(
-                title = musicState.track.title,
-                artist = musicState.track.artist,
-                album = musicState.track.album,
-                isFavorite = musicState.track.isFavorite,
-                onToggleFavorite = {
-                    musicState.track.mediaId.toLongOrNull()
-                        ?.let { onHandlePlayerActions(PlayerActions.ToggleFavorite(it)) }
-                },
-                hiddenButtons = hiddenButtons
-            )
-            CuteSlider(
-                musicState = musicState,
-                onHandlePlayerActions = onHandlePlayerActions
-            )
-            ActionButtonsRow(
-                musicState = musicState,
                 onHandlePlayerActions = onHandlePlayerActions,
-                hiddenButtons = hiddenButtons
+                onArtworkBoundsChanged = onArtworkBoundsChanged,
+                artworkContentAlpha = artworkHandoffAlpha
             )
+            Box(modifier = Modifier.graphicsLayer { alpha = chromeAlpha }) {
+                TitleAndArtist(
+                    title = musicState.track.title,
+                    artist = musicState.track.artist,
+                    album = musicState.track.album,
+                    isFavorite = musicState.track.isFavorite,
+                    onToggleFavorite = {
+                        musicState.track.mediaId.toLongOrNull()
+                            ?.let { onHandlePlayerActions(PlayerActions.ToggleFavorite(it)) }
+                    },
+                    hiddenButtons = hiddenButtons
+                )
+            }
+            Box(modifier = Modifier.graphicsLayer { alpha = chromeAlpha }) {
+                CuteSlider(
+                    musicState = musicState,
+                    onHandlePlayerActions = onHandlePlayerActions
+                )
+            }
+            Box(modifier = Modifier.graphicsLayer { alpha = chromeAlpha }) {
+                ActionButtonsRow(
+                    musicState = musicState,
+                    onHandlePlayerActions = onHandlePlayerActions,
+                    hiddenButtons = hiddenButtons
+                )
+            }
         }
     }
 
 
 }
-
