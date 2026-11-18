@@ -13,10 +13,10 @@ import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -39,12 +39,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.TextFieldState
@@ -87,17 +90,28 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp
 import androidx.compose.ui.util.lerp
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
+import coil3.compose.AsyncImage
 import com.sosauce.chocola.R
 import com.sosauce.chocola.core.designsystem.SharedTransitionKeys
 import com.sosauce.chocola.core.designsystem.components.PlayPauseButton
@@ -125,7 +139,7 @@ import com.sosauce.nekobites.animations.bouncySpec
 import com.sosauce.nekobites.components.Spacer
 import com.sosauce.nekobites.helpers.rememberInteractionSource
 import kotlinx.coroutines.launch
-import kotlin.math.absoluteValue
+import kotlin.math.roundToInt
 
 @Composable
 fun SharedTransitionScope.CuteSearchbar(
@@ -140,81 +154,280 @@ fun SharedTransitionScope.CuteSearchbar(
     backButton: @Composable (() -> Unit)? = null,
     sortMenu: @Composable () -> Unit
 ) {
-
     val scope = rememberCoroutineScope()
-    var showFullPlayer by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(showFullPlayer) { onFullPlayerChanged(showFullPlayer) }
+    val density = LocalDensity.current
     val windowInfo = LocalWindowInfo.current
 
+    var showFullPlayerSaved by rememberSaveable { mutableStateOf(false) }
+    // Continuous transition progress: 0f = collapsed mini player, 1f = full-screen NowPlaying
+    val expandProgress = remember { Animatable(if (showFullPlayerSaved) 1f else 0f) }
 
-    AnimatedContent(
-        targetState = showFullPlayer,
-        transitionSpec = { fadeIn() togetherWith fadeOut() }
-    ) { fullPlayer ->
-        if (fullPlayer) {
+    // Critically damped spring: smooth, responsive, zero overshoot, and supports mid-drag spring rebound
+    val playerSpringSpec = remember {
+        spring<Float>(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMediumLow
+        )
+    }
 
-            val screenHeight = windowInfo.containerSize.height.toFloat()
-            val yTranslationPlaying = remember { Animatable(screenHeight) }
+    val isFullPlayer by remember {
+        derivedStateOf { expandProgress.value > 0.5f }
+    }
+    LaunchedEffect(isFullPlayer) {
+        onFullPlayerChanged(isFullPlayer)
+    }
+    LaunchedEffect(expandProgress.value) {
+        if (expandProgress.value == 0f) {
+            showFullPlayerSaved = false
+        } else if (expandProgress.value == 1f) {
+            showFullPlayerSaved = true
+        }
+    }
+    LaunchedEffect(musicState.isPlayerReady) {
+        if (!musicState.isPlayerReady && expandProgress.value > 0f) {
+            expandProgress.animateTo(0f, playerSpringSpec)
+        }
+    }
 
-            LaunchedEffect(Unit) {
-                // Salt-style: the page travels the full height and stops. No overshoot.
-                yTranslationPlaying.animateTo(0f, tween(380, easing = FastOutSlowInEasing))
+    // Track root-space rectangles of the mini player card, mini artwork, and full-screen artwork
+    var miniCardBoundsInRoot by remember { mutableStateOf<Rect?>(null) }
+    var miniArtBoundsInRoot by remember { mutableStateOf<Rect?>(null) }
+    var fullArtBoundsInRoot by remember { mutableStateOf<Rect?>(null) }
+
+    val progress = expandProgress.value
+    val miniBarAlpha = (1f - progress * 3.5f).coerceIn(0f, 1f)
+    val miniArtAlpha = if (progress > 0f) 0f else 1f
+
+    if (progress > 0f) {
+        BackHandler {
+            scope.launch {
+                expandProgress.animateTo(0f, playerSpringSpec)
             }
+        }
+    }
 
-            val playingDragState = rememberDraggableState { dragAmount ->
-
-                val value =
-                    (yTranslationPlaying.value + dragAmount).coerceAtLeast(0f) // always keep the value positive or else it's a shithole to manage
-
-                scope.launch {
-                    yTranslationPlaying.snapTo(value)
-                }
+    // Keep the mini player mounted underneath until fully expanded so its bounds remain anchored
+    if (progress < 1f) {
+        Box(
+            modifier = modifier.graphicsLayer {
+                alpha = miniBarAlpha
             }
-
-            BackHandler { showFullPlayer = false }
-            NowPlaying(
-                modifier = Modifier
-                    .draggable(
-                        state = playingDragState,
-                        orientation = Orientation.Vertical,
-                        onDragStopped = {
-                            val targetValue = yTranslationPlaying.value
-                            val minDistance = windowInfo.containerSize.height / 8
-
-                            if (targetValue >= minDistance) {
-                                showFullPlayer = false
-                            } else {
-                                scope.launch {
-                                    yTranslationPlaying.animateTo(
-                                        0f,
-                                        tween(260, easing = FastOutSlowInEasing)
-                                    )
-                                }
-                            }
-                        }
-                    )
-                    .graphicsLayer {
-                        // Full-page translation only. The list underneath stays put.
-                        translationY = yTranslationPlaying.value
-                    },
-                musicState = musicState,
-                onHandlePlayerActions = onHandlePlayerActions,
-                onNavigate = onNavigate,
-                onShrinkToSearchbar = { showFullPlayer = false }
-            )
-        } else {
+        ) {
             CuteSearchbarContent(
-                modifier = modifier,
+                modifier = Modifier,
                 musicState = musicState,
                 textFieldState = textFieldState,
                 onHandlePlayerActions = onHandlePlayerActions,
-                onOpenFullPlayer = { showFullPlayer = true },
+                onOpenFullPlayer = {
+                    scope.launch {
+                        expandProgress.animateTo(1f, playerSpringSpec)
+                    }
+                },
+                onInteractiveExpandDelta = { deltaFraction ->
+                    scope.launch {
+                        val next = (expandProgress.value + deltaFraction).coerceIn(0f, 1f)
+                        expandProgress.snapTo(next)
+                    }
+                },
+                onInteractiveExpandSettled = { velocity ->
+                    val screenHeightPx = windowInfo.containerSize.height.toFloat().coerceAtLeast(1f)
+                    val shouldOpen = velocity < -900f || expandProgress.value >= 0.22f
+                    scope.launch {
+                        if (shouldOpen) {
+                            expandProgress.animateTo(
+                                targetValue = 1f,
+                                animationSpec = playerSpringSpec,
+                                initialVelocity = (-velocity / screenHeightPx)
+                            )
+                        } else {
+                            expandProgress.animateTo(
+                                targetValue = 0f,
+                                animationSpec = playerSpringSpec,
+                                initialVelocity = (-velocity / screenHeightPx)
+                            )
+                        }
+                    }
+                },
+                expandProgress = progress,
+                miniArtAlpha = miniArtAlpha,
+                onMiniCardBoundsChanged = { miniCardBoundsInRoot = it },
+                onMiniArtBoundsChanged = { miniArtBoundsInRoot = it },
                 sortMenu = sortMenu,
                 onNavigate = onNavigate,
                 libraryStyle = libraryStyle,
                 fab = fab,
                 backButton = backButton
             )
+        }
+    }
+
+    // Interactive shared-element morphing container + full-screen NowPlaying
+    if (progress > 0f) {
+        var overlayOriginInRoot by remember { mutableStateOf(Offset.Zero) }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .onGloballyPositioned { coords ->
+                    overlayOriginInRoot = coords.positionInRoot()
+                }
+        ) {
+            val containerWidthPx = windowInfo.containerSize.width.toFloat().coerceAtLeast(1f)
+            val containerHeightPx = windowInfo.containerSize.height.toFloat().coerceAtLeast(1f)
+
+            val fallbackMiniHeightPx = with(density) { 64.dp.toPx() }
+            val fallbackHorizontalMarginPx = with(density) { 24.dp.toPx() }
+            val fallbackBottomMarginPx = with(density) { 16.dp.toPx() }
+            val fallbackMiniArtSizePx = with(density) { 44.dp.toPx() }
+
+            val localMiniCard = miniCardBoundsInRoot?.translate(-overlayOriginInRoot)
+                ?: Rect(
+                    left = fallbackHorizontalMarginPx,
+                    top = containerHeightPx - fallbackMiniHeightPx - fallbackBottomMarginPx,
+                    right = containerWidthPx - fallbackHorizontalMarginPx,
+                    bottom = containerHeightPx - fallbackBottomMarginPx
+                )
+
+            val localMiniArt = miniArtBoundsInRoot?.translate(-overlayOriginInRoot)
+                ?: Rect(
+                    left = localMiniCard.left + with(density) { 12.dp.toPx() },
+                    top = localMiniCard.top + (localMiniCard.height - fallbackMiniArtSizePx) / 2f,
+                    right = localMiniCard.left + with(density) { 12.dp.toPx() } + fallbackMiniArtSizePx,
+                    bottom = localMiniCard.top + (localMiniCard.height + fallbackMiniArtSizePx) / 2f
+                )
+
+            val fallbackFullArtSizePx = (containerWidthPx - with(density) { 64.dp.toPx() }).coerceAtLeast(1f)
+            val localFullArt = fullArtBoundsInRoot?.translate(-overlayOriginInRoot)
+                ?: Rect(
+                    left = (containerWidthPx - fallbackFullArtSizePx) / 2f,
+                    top = containerHeightPx * 0.14f,
+                    right = (containerWidthPx + fallbackFullArtSizePx) / 2f,
+                    bottom = containerHeightPx * 0.14f + fallbackFullArtSizePx
+                )
+
+            val miniCardCornerDp = if (libraryStyle) 0.dp else 24.dp
+            val containerCornerDp = lerp(miniCardCornerDp, 0.dp, progress)
+            val containerElevation = lerp(if (libraryStyle) 0.dp else 6.dp, 0.dp, progress)
+
+            val morphedLeft = lerp(localMiniCard.left, 0f, progress)
+            val morphedTop = lerp(localMiniCard.top, 0f, progress)
+            val morphedWidthPx = lerp(localMiniCard.width, containerWidthPx, progress).coerceAtLeast(1f)
+            val morphedHeightPx = lerp(localMiniCard.height, containerHeightPx, progress).coerceAtLeast(1f)
+
+            val morphedWidthDp = with(density) { morphedWidthPx.toDp() }
+            val morphedHeightDp = with(density) { morphedHeightPx.toDp() }
+
+            val dragTravelPx = (containerHeightPx - localMiniCard.height).coerceAtLeast(1f)
+            val fullPlayerDragState = rememberDraggableState { dragAmount ->
+                val next = (expandProgress.value - dragAmount / dragTravelPx).coerceIn(0f, 1f)
+                scope.launch {
+                    expandProgress.snapTo(next)
+                }
+            }
+
+            // 1. Expanding / shrinking player container
+            Box(
+                modifier = Modifier
+                    .offset {
+                        IntOffset(
+                            x = morphedLeft.roundToInt(),
+                            y = morphedTop.roundToInt()
+                        )
+                    }
+                    .width(morphedWidthDp)
+                    .height(morphedHeightDp)
+                    .shadow(
+                        elevation = containerElevation,
+                        shape = RoundedCornerShape(containerCornerDp)
+                    )
+                    .clip(RoundedCornerShape(containerCornerDp))
+                    .background(MaterialTheme.colorScheme.background)
+                    .draggable(
+                        state = fullPlayerDragState,
+                        orientation = Orientation.Vertical,
+                        onDragStopped = { velocity ->
+                            val normalizedVelocity = -velocity / dragTravelPx
+                            // Dismiss only if flicked downward fast or dragged down past ~28% of screen;
+                            // otherwise spring smoothly back to full screen (1f) with zero overshoot.
+                            val shouldCollapse = velocity > 1100f || expandProgress.value < 0.72f
+                            scope.launch {
+                                if (shouldCollapse) {
+                                    expandProgress.animateTo(
+                                        targetValue = 0f,
+                                        animationSpec = playerSpringSpec,
+                                        initialVelocity = normalizedVelocity
+                                    )
+                                } else {
+                                    expandProgress.animateTo(
+                                        targetValue = 1f,
+                                        animationSpec = playerSpringSpec,
+                                        initialVelocity = normalizedVelocity
+                                    )
+                                }
+                            }
+                        }
+                    )
+            ) {
+                NowPlaying(
+                    modifier = Modifier.fillMaxSize(),
+                    musicState = musicState,
+                    onHandlePlayerActions = onHandlePlayerActions,
+                    onNavigate = onNavigate,
+                    onShrinkToSearchbar = {
+                        scope.launch {
+                            expandProgress.animateTo(0f, playerSpringSpec)
+                        }
+                    },
+                    transitionProgress = progress,
+                    onArtworkBoundsChanged = { bounds ->
+                        fullArtBoundsInRoot = bounds
+                    }
+                )
+            }
+
+            // 2. Shared-element morphing album artwork gliding continuously between mini & full bounds
+            if (progress < 1f) {
+                val artLeft = lerp(localMiniArt.left, localFullArt.left, progress)
+                val artTop = lerp(localMiniArt.top, localFullArt.top, progress)
+                val artWidthDp = with(density) {
+                    lerp(localMiniArt.width, localFullArt.width, progress).coerceAtLeast(1f).toDp()
+                }
+                val artHeightDp = with(density) {
+                    lerp(localMiniArt.height, localFullArt.height, progress).coerceAtLeast(1f).toDp()
+                }
+                val startArtCorner = if (libraryStyle) 5.dp else 10.dp
+                val artCornerDp = lerp(startArtCorner, 24.dp, progress)
+                val overlayArtAlpha = (1f - ((progress - 0.92f) / 0.08f).coerceIn(0f, 1f))
+
+                Box(
+                    modifier = Modifier
+                        .offset {
+                            IntOffset(
+                                x = artLeft.roundToInt(),
+                                y = artTop.roundToInt()
+                            )
+                        }
+                        .width(artWidthDp)
+                        .height(artHeightDp)
+                        .graphicsLayer { alpha = overlayArtAlpha }
+                        .clip(RoundedCornerShape(artCornerDp))
+                        .background(MaterialTheme.colorScheme.surfaceContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.music_note),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(0.4f),
+                        tint = contentColorFor(MaterialTheme.colorScheme.surfaceContainer)
+                    )
+                    AsyncImage(
+                        model = musicState.track.artUri,
+                        contentDescription = stringResource(R.string.artwork),
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
         }
     }
 }
@@ -227,6 +440,12 @@ private fun SharedTransitionScope.CuteSearchbarContent(
     onHandlePlayerActions: (PlayerActions) -> Unit,
     onNavigate: (Screen) -> Unit,
     onOpenFullPlayer: () -> Unit,
+    onInteractiveExpandDelta: (Float) -> Unit = {},
+    onInteractiveExpandSettled: (Float) -> Unit = {},
+    expandProgress: Float = 0f,
+    miniArtAlpha: Float = 1f,
+    onMiniCardBoundsChanged: (Rect) -> Unit = {},
+    onMiniArtBoundsChanged: (Rect) -> Unit = {},
     libraryStyle: Boolean = false,
     fab: @Composable (() -> Unit)? = null,
     backButton: @Composable (() -> Unit)? = null,
@@ -234,39 +453,42 @@ private fun SharedTransitionScope.CuteSearchbarContent(
 ) {
 
     if (libraryStyle) {
-        LibraryMiniPlayer(musicState, onHandlePlayerActions, onNavigate, onOpenFullPlayer)
+        LibraryMiniPlayer(
+            musicState = musicState,
+            onHandlePlayerActions = onHandlePlayerActions,
+            onNavigate = onNavigate,
+            onOpenFullPlayer = onOpenFullPlayer,
+            miniArtAlpha = miniArtAlpha,
+            onMiniCardBoundsChanged = onMiniCardBoundsChanged,
+            onMiniArtBoundsChanged = onMiniArtBoundsChanged
+        )
         return
     }
 
     val windowInfo = LocalWindowInfo.current
     val currentScreen = LocalScreen.current
     val scope = rememberCoroutineScope()
-    val oneFourthOfHeight = windowInfo.containerSize.height / 4f
+    val screenHeightPx = windowInfo.containerSize.height.toFloat().coerceAtLeast(1f)
+    val oneFourthOfHeight = screenHeightPx / 4f
     val yTranslationSearchbar = remember { Animatable(0f) }
     var isInScreenSelectionMode by rememberSaveable { mutableStateOf(false) }
     val showFab by rememberShowShuffleButton()
 
 
     val searchbarDragState = rememberDraggableState { dragAmount ->
-        scope.launch {
-            // reminder: dragging up gives a negative value
-            val newValue = yTranslationSearchbar.value + dragAmount
-            val upLimit = -oneFourthOfHeight
-
-            val finalValue = if (newValue < 0) {
-                newValue.coerceAtLeast(upLimit)
-            } else {
-                newValue
+        // When dragging upward (dragAmount < 0) or already expanding, drive the interactive shared expansion directly
+        if (expandProgress > 0f || (dragAmount < 0f && yTranslationSearchbar.value <= 0f)) {
+            onInteractiveExpandDelta(-dragAmount / screenHeightPx)
+        } else {
+            scope.launch {
+                val newValue = (yTranslationSearchbar.value + dragAmount).coerceAtLeast(0f)
+                yTranslationSearchbar.snapTo(newValue)
             }
-
-            yTranslationSearchbar.snapTo(finalValue)
         }
     }
-    val progress by remember {
+    val progress by remember(expandProgress) {
         derivedStateOf {
-            if (yTranslationSearchbar.value <= 0) {
-                (yTranslationSearchbar.value.absoluteValue / oneFourthOfHeight).coerceIn(0f, 1f)
-            } else 0f // means we're dragging down
+            expandProgress.coerceIn(0f, 1f)
         }
     }
 
@@ -289,17 +511,14 @@ private fun SharedTransitionScope.CuteSearchbarContent(
                 state = searchbarDragState,
                 orientation = Orientation.Vertical,
                 enabled = musicState.isPlayerReady && !isInScreenSelectionMode,
-                onDragStopped = {
-                    val targetValue = yTranslationSearchbar.value
-
-                    if (targetValue <= -oneFourthOfHeight / 2) {
-                        onOpenFullPlayer()
-                    } else if (targetValue > 0) {
-                        onHandlePlayerActions(PlayerActions.StopPlayback)
-                        scope.launch {
-                            yTranslationSearchbar.animateTo(0f, bouncySpec())
-                        }
+                onDragStopped = { velocity ->
+                    if (expandProgress > 0f) {
+                        onInteractiveExpandSettled(velocity)
                     } else {
+                        val targetValue = yTranslationSearchbar.value
+                        if (targetValue > 0f) {
+                            onHandlePlayerActions(PlayerActions.StopPlayback)
+                        }
                         scope.launch {
                             yTranslationSearchbar.animateTo(0f, bouncySpec())
                         }
@@ -322,131 +541,165 @@ private fun SharedTransitionScope.CuteSearchbarContent(
                 fab?.invoke()
             }
         }
-        // Controls
-        AnimatedVisibility(
-            visible = musicState.isPlayerReady,
-            enter = fadeIn() + slideInVertically { it }
+        // Unified mini-player + searchbar container measured for shared expansion bounds
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .onGloballyPositioned { coords ->
+                    onMiniCardBoundsChanged(coords.boundsInRoot())
+                }
         ) {
-            Row(
+            // Controls
+            AnimatedVisibility(
+                visible = musicState.isPlayerReady,
+                enter = fadeIn() + slideInVertically { it }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(
+                            shape = RoundedCornerShape(
+                                topStart = 24.dp,
+                                topEnd = 24.dp,
+                                bottomStart = animatedRadius,
+                                bottomEnd = animatedRadius
+                            )
+                        )
+                        .background(
+                            color = MaterialTheme.colorScheme.surfaceContainer
+                        )
+                        .clickable(
+                            enabled = musicState.isPlayerReady,
+                            onClick = onOpenFullPlayer,
+                            indication = null,
+                            interactionSource = null
+                        )
+                        .drawMusicPosition(
+                            position = { musicState.position.toFloat() },
+                            trackDuration = { musicState.duration },
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh
+                        ),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .padding(start = 8.dp, top = 6.dp, bottom = 6.dp)
+                            .size(42.dp)
+                            .onGloballyPositioned { coords ->
+                                onMiniArtBoundsChanged(coords.boundsInRoot())
+                            }
+                            .graphicsLayer { alpha = miniArtAlpha }
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.music_note),
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                            tint = contentColorFor(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        )
+                        AsyncImage(
+                            model = musicState.track.artUri,
+                            contentDescription = stringResource(R.string.artwork),
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                    AnimatedContent(
+                        targetState = musicState.track.title,
+                        transitionSpec = { slideInHorizontally { it } + fadeIn() togetherWith slideOutHorizontally { -it } + fadeOut() },
+                        modifier = Modifier
+                            .padding(start = 12.dp)
+                            .weight(1f)
+                    ) {
+                        Text(
+                            text = it,
+                            modifier = Modifier.basicMarquee()
+                        )
+                    }
+                    Row {
+                        IconButton(
+                            onClick = { onHandlePlayerActions(PlayerActions.SeekToPreviousMusic) },
+                            shapes = IconButtonDefaults.shapes()
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.skip_previous),
+                                contentDescription = null
+                            )
+                        }
+                        PlayPauseButton(
+                            isPlaying = musicState.isPlaying,
+                            onHandlePlayerActions = onHandlePlayerActions
+                        )
+                        IconButton(
+                            onClick = { onHandlePlayerActions(PlayerActions.SeekToNextMusic) },
+                            shapes = IconButtonDefaults.shapes()
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.skip_next),
+                                contentDescription = null
+                            )
+                        }
+                    }
+                }
+            }
+            // Bottom content
+
+            val spacerHeight by animateDpAsState(
+                targetValue = if (isInScreenSelectionMode) 10.dp else 0.dp,
+                animationSpec = bouncySpec()
+            )
+
+            if (musicState.isPlayerReady) { // To avoid FAB bounce when no controls
+                Spacer(spacerHeight)
+            }
+            Box(
                 modifier = Modifier
+                    .sharedElement(
+                        sharedContentState = rememberSharedContentState(SharedTransitionKeys.SEARCHBAR),
+                        animatedVisibilityScope = LocalNavAnimatedContentScope.current
+                    )
                     .fillMaxWidth()
                     .clip(
                         shape = RoundedCornerShape(
-                            topStart = 24.dp,
-                            topEnd = 24.dp,
-                            bottomStart = animatedRadius,
-                            bottomEnd = animatedRadius
+                            topStart = animatedRadius,
+                            topEnd = animatedRadius,
+                            bottomStart = 24.dp,
+                            bottomEnd = 24.dp
                         )
                     )
                     .background(
                         color = MaterialTheme.colorScheme.surfaceContainer
                     )
-                    .clickable(
-                        enabled = musicState.isPlayerReady,
-                        onClick = onOpenFullPlayer,
-                        indication = null,
-                        interactionSource = null
-                    )
                     .drawMusicPosition(
                         position = { musicState.position.toFloat() },
                         trackDuration = { musicState.duration },
                         color = MaterialTheme.colorScheme.surfaceContainerHigh
-                    ),
-                verticalAlignment = Alignment.CenterVertically
+                    )
             ) {
-                AnimatedContent(
-                    targetState = musicState.track.title,
-                    transitionSpec = { slideInHorizontally { it } + fadeIn() togetherWith slideOutHorizontally { -it } + fadeOut() },
-                    modifier = Modifier
-                        .padding(start = 20.dp)
-                        .weight(1f)
-                ) {
-                    Text(
-                        text = it,
-                        modifier = Modifier.basicMarquee()
-                    )
-                }
-                Row {
-                    IconButton(
-                        onClick = { onHandlePlayerActions(PlayerActions.SeekToPreviousMusic) },
-                        shapes = IconButtonDefaults.shapes()
+                SharedTransitionLayout {
+                    AnimatedContent(
+                        targetState = isInScreenSelectionMode,
+                        transitionSpec = {
+                            slideInVertically { it } + fadeIn() togetherWith
+                                    slideOutVertically { it } + fadeOut()
+                        }
                     ) {
-                        Icon(
-                            painter = painterResource(R.drawable.skip_previous),
-                            contentDescription = null
-                        )
-                    }
-                    PlayPauseButton(
-                        isPlaying = musicState.isPlaying,
-                        onHandlePlayerActions = onHandlePlayerActions
-                    )
-                    IconButton(
-                        onClick = { onHandlePlayerActions(PlayerActions.SeekToNextMusic) },
-                        shapes = IconButtonDefaults.shapes()
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.skip_next),
-                            contentDescription = null
-                        )
-                    }
-                }
-            }
-        }
-        // Bottom content
-
-        val spacerHeight by animateDpAsState(
-            targetValue = if (isInScreenSelectionMode) 10.dp else 0.dp,
-            animationSpec = bouncySpec()
-        )
-
-        if (musicState.isPlayerReady) { // To avoid FAB bounce when no controls
-            Spacer(spacerHeight)
-        }
-        Box(
-            modifier = Modifier
-                .sharedElement(
-                    sharedContentState = rememberSharedContentState(SharedTransitionKeys.SEARCHBAR),
-                    animatedVisibilityScope = LocalNavAnimatedContentScope.current
-                )
-                .fillMaxWidth()
-                .clip(
-                    shape = RoundedCornerShape(
-                        topStart = animatedRadius,
-                        topEnd = animatedRadius,
-                        bottomStart = 24.dp,
-                        bottomEnd = 24.dp
-                    )
-                )
-                .background(
-                    color = MaterialTheme.colorScheme.surfaceContainer
-                )
-                .drawMusicPosition(
-                    position = { musicState.position.toFloat() },
-                    trackDuration = { musicState.duration },
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh
-                )
-        ) {
-            SharedTransitionLayout {
-                AnimatedContent(
-                    targetState = isInScreenSelectionMode,
-                    transitionSpec = {
-                        slideInVertically { it } + fadeIn() togetherWith
-                                slideOutVertically { it } + fadeOut()
-                    }
-                ) {
-                    CompositionLocalProvider(LocalNavAnimatedContentScope provides this) {
-                        if (it) {
-                            ScreenSelection(
-                                onNavigate = onNavigate,
-                                dismiss = { isInScreenSelectionMode = false }
-                            )
-                        } else {
-                            CuteSearchbarDefaults.CuteSearchbarTextField(
-                                state = textFieldState,
-                                onNavigate = onNavigate,
-                                onSwitchToScreenSelection = { isInScreenSelectionMode = true },
-                                sortingMenuPopupContent = sortMenu
-                            )
+                        CompositionLocalProvider(LocalNavAnimatedContentScope provides this) {
+                            if (it) {
+                                ScreenSelection(
+                                    onNavigate = onNavigate,
+                                    dismiss = { isInScreenSelectionMode = false }
+                                )
+                            } else {
+                                CuteSearchbarDefaults.CuteSearchbarTextField(
+                                    state = textFieldState,
+                                    onNavigate = onNavigate,
+                                    onSwitchToScreenSelection = { isInScreenSelectionMode = true },
+                                    sortingMenuPopupContent = sortMenu
+                                )
+                            }
                         }
                     }
                 }
@@ -1041,23 +1294,51 @@ private fun LibraryMiniPlayer(
     musicState: MusicState,
     onHandlePlayerActions: (PlayerActions) -> Unit,
     onNavigate: (Screen) -> Unit,
-    onOpenFullPlayer: () -> Unit
+    onOpenFullPlayer: () -> Unit,
+    miniArtAlpha: Float = 1f,
+    onMiniCardBoundsChanged: (Rect) -> Unit = {},
+    onMiniArtBoundsChanged: (Rect) -> Unit = {}
 ) {
     if (!musicState.isPlayerReady) return
-    Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        modifier = Modifier.onGloballyPositioned { coords ->
+            onMiniCardBoundsChanged(coords.boundsInRoot())
+        }
+    ) {
         Column(Modifier.navigationBarsPadding()) {
             androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
             Row(
-                Modifier.fillMaxWidth().clickable(onClick = onOpenFullPlayer).padding(horizontal = 16.dp, vertical = 8.dp),
+                Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onOpenFullPlayer)
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                coil3.compose.AsyncImage(
-                    model = musicState.track.artUri,
-                    contentDescription = stringResource(R.string.artwork),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                    modifier = Modifier.size(48.dp).clip(RoundedCornerShape(5.dp))
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                )
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .onGloballyPositioned { coords ->
+                            onMiniArtBoundsChanged(coords.boundsInRoot())
+                        }
+                        .graphicsLayer { alpha = miniArtAlpha }
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.music_note),
+                        contentDescription = null,
+                        modifier = Modifier.size(22.dp),
+                        tint = contentColorFor(MaterialTheme.colorScheme.surfaceContainerHigh)
+                    )
+                    AsyncImage(
+                        model = musicState.track.artUri,
+                        contentDescription = stringResource(R.string.artwork),
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
                 Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                     Text(musicState.track.title, maxLines = 1,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,

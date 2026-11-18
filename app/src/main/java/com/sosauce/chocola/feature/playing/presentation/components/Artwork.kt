@@ -41,10 +41,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Constraints
@@ -109,6 +112,8 @@ fun Artwork(
     modifier: Modifier = Modifier,
     musicState: MusicState,
     onHandlePlayerActions: (PlayerActions) -> Unit,
+    onArtworkBoundsChanged: ((Rect) -> Unit)? = null,
+    artworkContentAlpha: Float = 1f,
 ) {
     val useCarousel by rememberCarousel()
     var artworkShape by rememberArtworkShape()
@@ -151,8 +156,11 @@ fun Artwork(
                     layout(side, side) { placeable.place(0, 0) }
                 }
         }
+            .onGloballyPositioned { coordinates ->
+                onArtworkBoundsChanged?.invoke(coordinates.boundsInRoot())
+            }
             .clickable(
-                enabled = artLyrics,
+                enabled = artLyrics && artworkContentAlpha > 0.9f,
                 indication = null,
                 interactionSource = null,
                 onClick = { showLyrics = !showLyrics }
@@ -160,6 +168,7 @@ fun Artwork(
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
+                alpha = artworkContentAlpha
             }
     ) {
         if (useTurntable) {
