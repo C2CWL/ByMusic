@@ -68,11 +68,21 @@ fun reloadAppearancePrefs(persistedTheme: String, persistedOled: Boolean): Appea
     return resolveAppearancePrefs(persistedTheme, persistedOled)
 }
 
+/**
+ * Flatten page and container surfaces to true black. Accent, content, and
+ * outline tokens are left unchanged so selected states, icons, and hairlines
+ * stay visible. Only applied when [shouldApplyOledBlack] is true.
+ */
 fun ColorScheme.withOledPageBackgrounds(): ColorScheme = copy(
     background = Color.Black,
     surface = Color.Black,
     surfaceDim = Color.Black,
-    surfaceContainerLowest = Color.Black
+    surfaceBright = Color.Black,
+    surfaceContainerLowest = Color.Black,
+    surfaceContainerLow = Color.Black,
+    surfaceContainer = Color.Black,
+    surfaceContainerHigh = Color.Black,
+    surfaceContainerHighest = Color.Black
 )
 
 @Composable
