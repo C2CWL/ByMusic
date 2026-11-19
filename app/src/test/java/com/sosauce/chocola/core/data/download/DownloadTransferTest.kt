@@ -14,6 +14,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.io.IOException
 
 class DownloadTransferTest {
     @get:Rule val files = TemporaryFolder()
@@ -54,6 +55,11 @@ class DownloadTransferTest {
         }
         assertFalse(transfer.fetch(source(), files.newFile()))
         assertNull(requests.single().header("Range"))
+    }
+
+    @Test fun rejectsFailedConnectionSoTheNextQualityCanBeTried() = runBlocking {
+        val transfer = transfer { throw IOException("connection unavailable") }
+        assertFalse(transfer.fetch(source(), files.newFile()))
     }
 
     private fun source() = PluginMediaSource(

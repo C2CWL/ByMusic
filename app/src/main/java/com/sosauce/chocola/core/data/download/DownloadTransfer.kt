@@ -67,7 +67,7 @@ internal class DownloadTransfer(base: OkHttpClient) {
                 continuation.invokeOnCancellation { call.cancel() }
                 call.enqueue(object : Callback {
                     override fun onFailure(call: Call, e: IOException) {
-                        continuation.resumeWithException(e)
+                        continuation.resume(ResponseResult.Rejected)
                     }
 
                     override fun onResponse(call: Call, response: Response) {
@@ -96,7 +96,11 @@ internal class DownloadTransfer(base: OkHttpClient) {
         val input = body.byteStream()
         val buffer = ByteArray(64 * 1024)
         while (!canceled()) {
-            val count = input.read(buffer)
+            val count = try {
+                input.read(buffer)
+            } catch (_: IOException) {
+                return ResponseResult.Rejected
+            }
             if (count == -1) break
             total += count
             if (total > MAX_BYTES) return ResponseResult.Rejected
