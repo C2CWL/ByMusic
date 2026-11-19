@@ -18,6 +18,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.ExperimentalApi
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.LibraryResult
 import androidx.media3.session.MediaLibraryService
@@ -28,6 +29,10 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.sosauce.chocola.R
 import com.sosauce.chocola.core.data.audio.EqualizerManager
 import com.sosauce.chocola.core.data.diagnostics.DiagLogger
+import com.sosauce.chocola.core.data.online.OnlineDataSourceResolver
+import com.sosauce.chocola.core.data.online.OnlineDataSources
+import com.sosauce.chocola.core.data.online.OnlinePlaybackCache
+import com.sosauce.chocola.core.domain.online.OnlineMediaResolver
 import com.sosauce.chocola.core.data.auto.AndroidAutoHelper
 import com.sosauce.chocola.core.data.bakery.PlaybackSnapshot
 import com.sosauce.chocola.core.data.bakery.StatsRecorder
@@ -45,6 +50,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
@@ -57,6 +63,12 @@ class PlaybackService : MediaLibraryService(), KoinComponent {
     private val widgetsHelper by inject<WidgetsHelper>()
 
     private val statsRecorder by inject<StatsRecorder>()
+
+    // Online playback. The resolver and HTTP client are injected lazily and the cache
+    // opens its files lazily, so local-only playback never initialises any of them.
+    private val onlineMediaResolver by inject<OnlineMediaResolver>()
+    private val okHttpClient by inject<OkHttpClient>()
+    private val onlinePlaybackCache by lazy { OnlinePlaybackCache(applicationContext) }
     private val audioAttributes = AudioAttributes
         .Builder()
         .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
@@ -260,7 +272,14 @@ class PlaybackService : MediaLibraryService(), KoinComponent {
     override fun onCreate() {
         super.onCreate()
         DiagLogger.i("PlaybackService", "onCreate")
+        val dataSourceFactory = OnlineDataSources.create(
+            context = applicationContext,
+            resolver = OnlineDataSourceResolver(resolverProvider = { onlineMediaResolver }),
+            cache = onlinePlaybackCache,
+            callFactory = { okHttpClient }
+        )
         val player: Player = ExoPlayer.Builder(applicationContext)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
             .setDeviceVolumeControlEnabled(true)
             .setHandleAudioBecomingNoisy(true)
             .setAudioAttributes(audioAttributes, true)
@@ -310,6 +329,7 @@ class PlaybackService : MediaLibraryService(), KoinComponent {
             it.release()
             mediaLibrarySession = null
         }
+        onlinePlaybackCache.release()
         pauseAllPlayersAndStopSelf()
         super.onDestroy()
     }

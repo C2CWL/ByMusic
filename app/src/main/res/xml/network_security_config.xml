@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Online music: HTTPS only. Cleartext http is not allowed, and only system CAs are
+  trusted (user-installed CAs are not), so plugins cannot downgrade traffic to http.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
