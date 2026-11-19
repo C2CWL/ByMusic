@@ -36,6 +36,8 @@ import com.sosauce.chocola.core.presentation.preferences.rememberIsLandscape
 import com.sosauce.nekobites.components.settings.SettingsSwitch
 import com.sosauce.nekobites.components.settings.settingsItemShape
 import com.sosauce.nekobites.helpers.ObserveAsEvents
+import com.sosauce.chocola.feature.playing.presentation.VinylLayout
+import com.sosauce.chocola.feature.playing.presentation.components.rememberTurntableEnabled
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
@@ -156,7 +158,8 @@ private fun ButtonToggles(
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier
 ) {
-    val buttons = NowPlayingButton.hideable
+    // The turntable page has no collapse button (swipe down / Back), so its toggle is not listed.
+    val buttons = VinylLayout.settingsToggles(turntableLayout = rememberTurntableEnabled())
 
     LazyColumn(
         modifier = modifier,

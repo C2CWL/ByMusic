@@ -68,7 +68,8 @@ fun NowPlaying(
     onHandlePlayerActions: (PlayerActions) -> Unit,
     onNavigate: (Screen) -> Unit,
     onShrinkToSearchbar: () -> Unit = {},
-    onArtworkBoundsChanged: ((Rect) -> Unit)? = null
+    onArtworkBoundsChanged: ((Rect) -> Unit)? = null,
+    dragToClose: NowPlayingDragToClose? = null
 ) {
     NowPlayingLayout(
         modifier = modifier,
@@ -77,7 +78,8 @@ fun NowPlaying(
         onHandlePlayerActions = onHandlePlayerActions,
         onNavigate = onNavigate,
         onShrinkToSearchbar = onShrinkToSearchbar,
-        onArtworkBoundsChanged = onArtworkBoundsChanged
+        onArtworkBoundsChanged = onArtworkBoundsChanged,
+        dragToClose = dragToClose
     )
 }
 
@@ -93,7 +95,8 @@ fun NowPlayingLayout(
     onHandlePlayerActions: (PlayerActions) -> Unit,
     onNavigate: (Screen) -> Unit,
     onShrinkToSearchbar: () -> Unit = {},
-    onArtworkBoundsChanged: ((Rect) -> Unit)? = null
+    onArtworkBoundsChanged: ((Rect) -> Unit)? = null,
+    dragToClose: NowPlayingDragToClose? = null
 ) {
     val isLandscape = rememberIsLandscape()
     val useTurntable = rememberTurntableEnabled()
@@ -105,7 +108,20 @@ fun NowPlayingLayout(
                 onHandlePlayerActions = onHandlePlayerActions,
                 onNavigate = onNavigate,
                 onShrinkToSearchbar = onShrinkToSearchbar,
-                onArtworkBoundsChanged = onArtworkBoundsChanged
+                onArtworkBoundsChanged = onArtworkBoundsChanged,
+                dragToClose = dragToClose
+            )
+        } else if (useTurntable) {
+            // Turntable page: no top bar, every control at the bottom.
+            VinylNowPlayingContent(
+                modifier = modifier,
+                musicState = musicState,
+                hiddenButtons = hiddenButtons,
+                onHandlePlayerActions = onHandlePlayerActions,
+                onNavigate = onNavigate,
+                onShrinkToSearchbar = onShrinkToSearchbar,
+                onArtworkBoundsChanged = onArtworkBoundsChanged,
+                dragToClose = dragToClose
             )
         } else {
             NowPlayingContent(

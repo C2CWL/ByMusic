@@ -51,7 +51,8 @@ fun NowPlayingLandscape(
     hiddenButtons: Set<NowPlayingButton>,
     onNavigate: (Screen) -> Unit,
     onShrinkToSearchbar: () -> Unit,
-    onArtworkBoundsChanged: ((androidx.compose.ui.geometry.Rect) -> Unit)? = null
+    onArtworkBoundsChanged: ((androidx.compose.ui.geometry.Rect) -> Unit)? = null,
+    dragToClose: NowPlayingDragToClose? = null
 ) {
     var showSpeedCard by remember { mutableStateOf(false) }
     var snap by rememberSnapSpeedAndPitch()
@@ -97,6 +98,8 @@ fun NowPlayingLandscape(
             onNavigate = onNavigate,
             onShrinkToSearchbar = onShrinkToSearchbar,
             onShowSpeedCard = { showSpeedCard = true },
+            vinylLayout = useTurntable,
+            recordAreaModifier = Modifier.dragToClose(dragToClose),
             artwork = {
                 Artwork(
 //                    pagerModifier = Modifier
@@ -124,8 +127,24 @@ internal fun NowPlayingLandscapeBody(
     onNavigate: (Screen) -> Unit,
     onShrinkToSearchbar: () -> Unit,
     onShowSpeedCard: () -> Unit,
+    vinylLayout: Boolean = false,
+    recordAreaModifier: Modifier = Modifier,
     artwork: @Composable () -> Unit
 ) {
+    if (vinylLayout) {
+        VinylLandscapeBody(
+            paddingValues = paddingValues,
+            musicState = musicState,
+            hiddenButtons = hiddenButtons,
+            onHandlePlayerActions = onHandlePlayerActions,
+            onNavigate = onNavigate,
+            onShrinkToSearchbar = onShrinkToSearchbar,
+            onShowSpeedCard = onShowSpeedCard,
+            recordAreaModifier = recordAreaModifier,
+            artwork = artwork
+        )
+        return
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier

@@ -74,6 +74,7 @@ import com.sosauce.chocola.core.presentation.components.TitleAndArtist
 import com.sosauce.chocola.core.presentation.navigation.Screen
 import com.sosauce.chocola.core.presentation.preferences.rememberHiddenNowPlayingButtons
 import com.sosauce.chocola.feature.playing.presentation.NowPlaying
+import com.sosauce.chocola.feature.playing.presentation.NowPlayingDragToClose
 import com.sosauce.chocola.feature.playing.presentation.components.MoreOptionsButton
 import com.sosauce.chocola.feature.playing.presentation.components.QuickActionsRow
 import com.sosauce.chocola.feature.playing.presentation.expand.PlayerExpandMath.Phase
@@ -108,6 +109,14 @@ class PlayerExpandController internal constructor(
     var pendingExpand by mutableStateOf(false)
         private set
     var pendingMeasure by mutableStateOf(false)
+        private set
+
+    /**
+     * A swipe down that started on the settled page. The (hidden) page stays
+     * composed until it ends, so the gesture is not cut off while the
+     * transition layer draws the way back.
+     */
+    var pageDragging by mutableStateOf(false)
         private set
 
     val progress: Float get() = animatable.value
@@ -157,7 +166,18 @@ class PlayerExpandController internal constructor(
         }
     }
 
+    fun onPageDragStarted() {
+        pageDragging = true
+    }
+
+    fun onPageDragSettled(velocityPxPerSec: Float) {
+        pageDragging = false
+        if (reduceMotion) return
+        animateTo(PlayerExpandMath.pageDragSettleTarget(animatable.value, velocityPxPerSec))
+    }
+
     fun collapse() {
+        pageDragging = false
         pendingExpand = false
         if (reduceMotion) {
             snapTo(0f)
@@ -369,7 +389,8 @@ fun PlayerExpandOverlay(
                     canDrawTransition &&
                     VinylExpandMath.shouldPrepareSettledPage(progress)
                 if (settled || controller.pendingMeasure ||
-                    (controller.pendingExpand && !canDrawTransition) || keepPageReady
+                    (controller.pendingExpand && !canDrawTransition) || keepPageReady ||
+                    controller.pageDragging
                 ) {
                     val hideForMeasure = !settled
                     // Hide the whole page, backdrop included (the turntable backdrop is
@@ -386,7 +407,24 @@ fun PlayerExpandOverlay(
                                 onHandlePlayerActions = onHandlePlayerActions,
                                 onNavigate = onNavigate,
                                 onShrinkToSearchbar = controller::collapse,
-                                onArtworkBoundsChanged = controller::onFullArt
+                                onArtworkBoundsChanged = controller::onFullArt,
+                                // Swipe down on the settled turntable page runs the
+                                // expand progress backwards (same transition layer).
+                                dragToClose = if (style == VinylExpandMath.Style.Vinyl && canDrawTransition) {
+                                    NowPlayingDragToClose(
+                                        onStart = controller::onPageDragStarted,
+                                        onDelta = { px ->
+                                            val travel = PlayerExpandMath.travelPx(
+                                                viewport.height,
+                                                miniContainer!!.height
+                                            )
+                                            controller.onDragDelta(PlayerExpandMath.dragDeltaProgress(px, travel))
+                                        },
+                                        onStop = controller::onPageDragSettled
+                                    )
+                                } else {
+                                    null
+                                }
                             )
                         }
                     }
