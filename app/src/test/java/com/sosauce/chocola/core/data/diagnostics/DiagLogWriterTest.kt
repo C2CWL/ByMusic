@@ -37,4 +37,24 @@ class DiagLogWriterTest {
         assertTrue(text.contains("queued-19"))
         writer.close()
     }
+
+    /**
+     * Regression: the writer thread used to take lines off the queue before it held the sink
+     * lock, so a flushSync() right after enqueue could return before they were written
+     * (DiagExceptionHandlerTest failed intermittently on CI).
+     */
+    @Test
+    fun flushSyncNeverReturnsBeforeAnInFlightBatchIsWritten() {
+        val dir = temp.newFolder("logs")
+        val sink = DiagLogFileSink(dir, maxFileBytes = 256 * 1024, maxFiles = 3)
+        val writer = DiagLogWriter(sink)
+        repeat(300) { i ->
+            writer.enqueue("race-line-$i")
+            if (i % 3 == 0) Thread.yield()
+            writer.flushSync()
+            val text = ByteArrayOutputStream().also { sink.export(it) }.toString(Charsets.UTF_8.name())
+            assertTrue("line $i missing right after flushSync", text.contains("race-line-$i"))
+        }
+        writer.close()
+    }
 }

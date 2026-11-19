@@ -25,13 +25,18 @@ class DiagLogWriter(
     private val thread = Thread(
         {
             while (running.get() || peekQueued()) {
-                val batch = takeBatch()
-                if (batch.isEmpty()) continue
+                awaitWork()
+                // Lines leave the queue only while the sink lock is held, so flushSync() either
+                // drains them itself or waits until this batch is on disk. Taking them out
+                // before locking let a crash-path flush return while the batch was in flight.
                 sinkLock.lock()
                 try {
-                    for (line in batch) sink.appendLine(line)
-                    maybeNoteDrops()
-                    sink.flush(syncFileSystem = true)
+                    val batch = drainBatch()
+                    if (batch.isNotEmpty()) {
+                        for (line in batch) sink.appendLine(line)
+                        maybeNoteDrops()
+                        sink.flush(syncFileSystem = true)
+                    }
                 } finally {
                     sinkLock.unlock()
                 }
@@ -66,18 +71,19 @@ class DiagLogWriter(
     }
 
     private fun flushInternal(timeoutMs: Long?, syncFileSystem: Boolean) {
-        val snapshot = ArrayList<String>()
-        synchronized(queue) {
-            while (queue.isNotEmpty()) snapshot.add(queue.removeFirst())
-        }
         val locked = if (timeoutMs == null) {
             sinkLock.lock()
             true
         } else {
             sinkLock.tryLock(timeoutMs, TimeUnit.MILLISECONDS)
         }
+        // Not locked: the writer thread still owns the queued lines and will write them.
         if (!locked) return
         try {
+            val snapshot = ArrayList<String>()
+            synchronized(queue) {
+                while (queue.isNotEmpty()) snapshot.add(queue.removeFirst())
+            }
             for (line in snapshot) sink.appendLine(line)
             maybeNoteDrops()
             sink.flush(syncFileSystem = syncFileSystem)
@@ -114,17 +120,9 @@ class DiagLogWriter(
 
     private fun peekQueued(): Boolean = synchronized(queue) { queue.isNotEmpty() }
 
-    private fun takeBatch(): List<String> {
-        synchronized(queue) {
-            if (queue.isNotEmpty()) {
-                val batch = ArrayList<String>(queue.size.coerceAtMost(64))
-                while (queue.isNotEmpty() && batch.size < 64) {
-                    batch.add(queue.removeFirst())
-                }
-                return batch
-            }
-        }
-        if (!running.get()) return emptyList()
+    /** Waits up to 250 ms for queued lines; returns at once when there are some or on close. */
+    private fun awaitWork() {
+        if (peekQueued() || !running.get()) return
         synchronized(hasWork) {
             if (!peekQueued() && running.get()) {
                 try {
@@ -134,14 +132,16 @@ class DiagLogWriter(
                 }
             }
         }
-        synchronized(queue) {
-            if (queue.isEmpty()) return emptyList()
-            val batch = ArrayList<String>(queue.size.coerceAtMost(64))
-            while (queue.isNotEmpty() && batch.size < 64) {
-                batch.add(queue.removeFirst())
-            }
-            return batch
+    }
+
+    /** Call with [sinkLock] held. */
+    private fun drainBatch(): List<String> = synchronized(queue) {
+        if (queue.isEmpty()) return emptyList()
+        val batch = ArrayList<String>(queue.size.coerceAtMost(64))
+        while (queue.isNotEmpty() && batch.size < 64) {
+            batch.add(queue.removeFirst())
         }
+        batch
     }
 
     private fun maybeNoteDrops() {
