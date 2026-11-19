@@ -13,6 +13,15 @@ sealed class Screen : NavKey {
     @Serializable
     data object Online : Screen()
 
+    /** [autoStart] is true only when the user tapped "开始识别" to get here. */
+    @Serializable
+    data class Recognition(
+        val autoStart: Boolean = false
+    ) : Screen()
+
+    @Serializable
+    data object RecognitionHistory : Screen()
+
     @Serializable
     data class Settings(
         val initialScreen: SettingsScreen? = null

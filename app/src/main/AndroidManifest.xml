@@ -18,6 +18,8 @@
     <uses-permission
         android:name="android.permission.RECEIVE_BOOT_COMPLETED"
         tools:node="remove" />
+    <!-- Song recognition: requested at runtime only after the user taps start, foreground only. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
 
     <application
