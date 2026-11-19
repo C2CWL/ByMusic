@@ -48,6 +48,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.retain.RetainedEffect
 import androidx.compose.runtime.retain.retain
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,6 +76,7 @@ import com.sosauce.chocola.core.domain.player.PlayerActions
 import com.sosauce.chocola.core.presentation.navigation.Screen
 import com.sosauce.chocola.core.presentation.util.selfAlignHorizontally
 import com.sosauce.chocola.feature.bakery.presentation.BakeryRoot
+import com.sosauce.chocola.feature.online.OnlineDisclaimerDialog
 import com.sosauce.chocola.feature.playing.presentation.aod.AlwaysOnDisplay
 import com.sosauce.chocola.feature.plugins.presentation.PluginsRoute
 import com.sosauce.chocola.feature.plugins.presentation.PluginsViewModel
@@ -333,6 +335,7 @@ private fun SettingsHome(
         colors.secondary,
         colors.tertiary
     )
+    var showOnlineDisclaimer by rememberSaveable { mutableStateOf(false) }
     val screens = listOf(
         SettingsEntry(
             icon = R.drawable.palette,
@@ -375,6 +378,12 @@ private fun SettingsHome(
             name = stringResource(R.string.plugins),
             description = stringResource(R.string.plugins_desc),
             onClick = { backstack.navigate(SettingsScreen.Plugins) }
+        ),
+        SettingsEntry(
+            icon = R.drawable.shield,
+            name = stringResource(R.string.online_disclaimer_settings),
+            description = stringResource(R.string.online_disclaimer_settings_desc),
+            onClick = { showOnlineDisclaimer = true }
         ),
         SettingsEntry(
             icon = R.drawable.backup,
@@ -424,6 +433,12 @@ private fun SettingsHome(
                 )
             }
         }
+    }
+    if (showOnlineDisclaimer) {
+        OnlineDisclaimerDialog(
+            onAccept = { showOnlineDisclaimer = false },
+            onDecline = null
+        )
     }
 }
 

@@ -11,4 +11,6 @@
     <string name="online_disclaimer_5">用在线功能时 ByMusic 会联网；不装插件就不会联网。</string>
     <string name="online_disclaimer_accept">我知道了</string>
     <string name="online_disclaimer_decline">先不用</string>
+    <string name="online_disclaimer_settings">在线音乐使用说明</string>
+    <string name="online_disclaimer_settings_desc">查看音源、版权和联网说明</string>
 </resources>
