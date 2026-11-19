@@ -76,6 +76,8 @@ import com.sosauce.chocola.core.presentation.navigation.Screen
 import com.sosauce.chocola.core.presentation.util.selfAlignHorizontally
 import com.sosauce.chocola.feature.bakery.presentation.BakeryRoot
 import com.sosauce.chocola.feature.playing.presentation.aod.AlwaysOnDisplay
+import com.sosauce.chocola.feature.plugins.presentation.PluginsRoute
+import com.sosauce.chocola.feature.plugins.presentation.PluginsViewModel
 import com.sosauce.chocola.feature.settings.presentation.components.SettingsScreen
 import com.sosauce.chocola.feature.settings.presentation.nowplayingbuttons.NowPlayingButtonsRoot
 import com.sosauce.nekobites.animations.AnimatedFab
@@ -307,6 +309,13 @@ fun SettingsScreen(
                         SettingsDiagnostics()
                     }
                 }
+
+                entry<SettingsScreen.Plugins> {
+                    PluginsRoute(
+                        viewModel = koinViewModel<PluginsViewModel>(),
+                        contentPadding = paddingValues
+                    )
+                }
             }
         )
     }
@@ -360,6 +369,12 @@ private fun SettingsHome(
             name = stringResource(R.string.library),
             description = stringResource(R.string.library_desc),
             onClick = { backstack.navigate(SettingsScreen.Library) }
+        ),
+        SettingsEntry(
+            icon = R.drawable.extension,
+            name = stringResource(R.string.plugins),
+            description = stringResource(R.string.plugins_desc),
+            onClick = { backstack.navigate(SettingsScreen.Plugins) }
         ),
         SettingsEntry(
             icon = R.drawable.backup,

@@ -14,8 +14,22 @@ import com.sosauce.chocola.core.data.local.MIGRATION_2_3
 import com.sosauce.chocola.core.data.local.PlaylistCleanup
 import com.sosauce.chocola.core.data.local.PlaylistDatabase
 import com.sosauce.chocola.core.data.lyrics.LyricsParser
+import com.sosauce.chocola.core.data.plugin.AssetPluginLibrarySource
+import com.sosauce.chocola.core.data.plugin.HttpPluginSourceFetcher
+import com.sosauce.chocola.core.data.plugin.OkHttpPluginHttpClient
+import com.sosauce.chocola.core.data.plugin.OnlineMusicItemStore
+import com.sosauce.chocola.core.data.plugin.PluginHost
+import com.sosauce.chocola.core.data.plugin.PluginHttpClient
+import com.sosauce.chocola.core.data.plugin.PluginLogcat
+import com.sosauce.chocola.core.data.plugin.PluginManager
+import com.sosauce.chocola.core.data.plugin.PluginMusicService
+import com.sosauce.chocola.core.data.plugin.PluginOnlineLyricsProvider
+import com.sosauce.chocola.core.data.plugin.PluginOnlineMediaResolver
+import com.sosauce.chocola.core.data.plugin.PluginStore
+import com.sosauce.chocola.core.domain.online.OnlineLyricsProvider
 import com.sosauce.chocola.core.domain.online.OnlineMediaResolver
-import com.sosauce.chocola.core.domain.online.UnavailableOnlineMediaResolver
+import com.sosauce.chocola.feature.online.OnlineSearchViewModel
+import com.sosauce.chocola.feature.plugins.presentation.PluginsViewModel
 import com.sosauce.chocola.core.data.widgets.WidgetsHelper
 import com.sosauce.chocola.core.presentation.components.dialogs.DeletionViewModel
 import com.sosauce.chocola.core.presentation.components.dialogs.tracksDetails.TracksDetailsDialogViewModel
@@ -83,8 +97,37 @@ val appModule = module {
             .followSslRedirects(false)
             .build()
     }
-    // Placeholder until the plugin stage: no real music source is connected.
-    single<OnlineMediaResolver> { UnavailableOnlineMediaResolver }
+    // MusicFree-format plugins imported by the user. ByMusic ships no plugin and no source;
+    // without an imported plugin nothing here makes a network request.
+    single<PluginHttpClient> { OkHttpPluginHttpClient(get()) }
+    single {
+        val app = androidApplication()
+        val version = runCatching {
+            app.packageManager.getPackageInfo(app.packageName, 0).versionName
+        }.getOrNull() ?: "0.0.0"
+        PluginHost(
+            libraries = AssetPluginLibrarySource(app),
+            http = get(),
+            log = PluginLogcat::log,
+            appVersion = version
+        )
+    }
+    single { PluginStore(java.io.File(androidApplication().filesDir, PluginStore.DIR_NAME)) }
+    single {
+        OnlineMusicItemStore(
+            java.io.File(
+                java.io.File(androidApplication().filesDir, PluginStore.DIR_NAME),
+                OnlineMusicItemStore.FILE_NAME
+            )
+        )
+    }
+    single { PluginManager(get(), get(), HttpPluginSourceFetcher(get())) }
+    single { PluginMusicService(get(), get()) }
+    // getMediaSource from the track's plugin, highest quality first, one tier down at a time.
+    single<OnlineMediaResolver> { PluginOnlineMediaResolver(get()) }
+    single<OnlineLyricsProvider> { PluginOnlineLyricsProvider(get()) }
+    viewModelOf(::PluginsViewModel)
+    viewModelOf(::OnlineSearchViewModel)
 
     singleOf(::AbstractTracksScanner)
     singleOf(::LyricsParser)

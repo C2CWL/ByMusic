@@ -38,6 +38,8 @@ import com.sosauce.chocola.core.data.local.FavoritesDao
 import com.sosauce.chocola.core.data.lyrics.LyricsParser
 import com.sosauce.chocola.core.data.mapper.toMediaItem
 import com.sosauce.chocola.core.data.mapper.toSnapshot
+import com.sosauce.chocola.core.domain.online.OnlineLyricsProvider
+import com.sosauce.chocola.core.domain.online.OnlineMediaId
 import com.sosauce.chocola.core.domain.online.PlayableTrackLookup
 import com.sosauce.chocola.core.domain.library.orderAlbumTrackNumber
 import com.sosauce.chocola.core.domain.player.MusicState
@@ -67,7 +69,8 @@ class MusicViewModel(
     private val userPreferences: UserPreferences,
     private val lyricsParser: LyricsParser,
     private val abstractTracksScanner: AbstractTracksScanner,
-    private val favoritesDao: FavoritesDao
+    private val favoritesDao: FavoritesDao,
+    private val onlineLyrics: OnlineLyricsProvider
 ) : AndroidViewModel(application) {
 
     private var mediaController: MediaController? = null
@@ -113,8 +116,8 @@ class MusicViewModel(
                     }
                     loadNewArt(trackWithFavorite.artUri?.toUri())
                     if (trackWithFavorite.isOnline) {
-                        // Online lyrics come from plugins in a later stage; never read a local file.
-                        clearLyrics()
+                        // Online lyrics come from the plugin (getLyric); never read a local file.
+                        loadOnlineLyrics(trackWithFavorite.mediaId)
                     } else {
                         parseLyrics(trackWithFavorite.path)
                     }
@@ -344,6 +347,27 @@ class MusicViewModel(
         _musicState.update { it.copy(lyrics = emptyList()) }
     }
 
+    /** Asks the track's plugin for lyrics. Shows nothing until (and unless) they arrive. */
+    private fun loadOnlineLyrics(mediaId: String) {
+        clearLyrics()
+        val id = OnlineMediaId.parse(mediaId) ?: return
+        lyricsJob = viewModelScope.launch(Dispatchers.IO) {
+            val raw = try {
+                onlineLyrics.rawLyrics(id)
+            } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                null
+            }
+            if (raw.isNullOrBlank()) return@launch
+            val lyrics = lyricsParser.parseLyricsText(raw)
+            ensureActive()
+            _musicState.update { state ->
+                if (state.track.mediaId != mediaId) state else state.copy(lyrics = lyrics)
+            }
+        }
+    }
+
     private fun parseLyrics(trackPath: String, requireCurrentTrack: Boolean = true) {
         lyricsJob?.cancel()
         lyricsJob = viewModelScope.launch(Dispatchers.IO) {
@@ -484,7 +508,7 @@ class MusicViewModel(
 
         liveTrack?.let { track ->
             loadNewArt(track.artUri?.toUri())
-            if (track.isOnline) clearLyrics() else parseLyrics(track.path)
+            if (track.isOnline) loadOnlineLyrics(track.mediaId) else parseLyrics(track.path)
         }
     }
 

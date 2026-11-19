@@ -1,0 +1,15 @@
+{
+  "name": "bymusic-plugin-runtime-libs",
+  "private": true,
+  "description": "Rebuilds app/src/main/assets/plugin-runtime/lib/*.js (third-party libraries that imported plugins may require()). Not part of the Gradle build.",
+  "scripts": { "build": "sh build.sh" },
+  "dependencies": {
+    "big-integer": "1.6.52",
+    "cheerio": "1.0.0-rc.12",
+    "crypto-js": "4.2.0",
+    "dayjs": "1.11.13",
+    "he": "1.2.0",
+    "qs": "6.11.0"
+  },
+  "devDependencies": { "esbuild": "0.28.2" }
+}

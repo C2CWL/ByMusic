@@ -34,6 +34,8 @@ import androidx.navigation3.ui.NavDisplay
 import com.sosauce.chocola.R
 import com.sosauce.chocola.core.presentation.navigation.LocalScreen
 import com.sosauce.chocola.core.presentation.navigation.Screen
+import com.sosauce.chocola.core.domain.player.PlayerActions
+import com.sosauce.chocola.core.domain.player.PlaySource
 import com.sosauce.chocola.core.presentation.player.MusicViewModel
 import com.sosauce.chocola.core.presentation.preferences.rememberInitialScreenBlocking
 import com.sosauce.chocola.feature.bakery.presentation.story.BakeryStoryRoot
@@ -48,6 +50,7 @@ import com.sosauce.chocola.feature.library.presentation.artist.ArtistsViewModel
 import com.sosauce.chocola.feature.library.presentation.main.MainScreen
 import com.sosauce.chocola.feature.library.presentation.main.MainViewModel
 import com.sosauce.chocola.feature.online.OnlineMusicScreen
+import com.sosauce.chocola.feature.online.OnlineSearchViewModel
 import com.sosauce.chocola.feature.recognition.domain.RecognitionPluginRegistry
 import com.sosauce.chocola.feature.recognition.presentation.RecognitionHistoryRoute
 import com.sosauce.chocola.feature.recognition.presentation.RecognitionRoute
@@ -133,8 +136,30 @@ fun Nav(
                     entry<Screen.Online> {
                         val recognitionRegistry = koinInject<RecognitionPluginRegistry>()
                         val recognitionPlugins by recognitionRegistry.plugins.collectAsStateWithLifecycle()
+                        val onlineViewModel = koinViewModel<OnlineSearchViewModel>()
+                        val onlineState by onlineViewModel.state.collectAsStateWithLifecycle()
                         OnlineMusicScreen(
+                            state = onlineState,
                             onNavigateBack = backStack::navigateBack,
+                            onQueryChange = onlineViewModel::setQuery,
+                            onSearch = onlineViewModel::search,
+                            onSelectPlugin = onlineViewModel::select,
+                            onLoadMore = onlineViewModel::loadMore,
+                            onPlay = { track, queue ->
+                                musicViewModel.handlePlayerActions(
+                                    PlayerActions.PlayFromSource(
+                                        mediaId = track.mediaId,
+                                        source = PlaySource.ExplicitTracks(queue)
+                                    )
+                                )
+                            },
+                            onManagePlugins = {
+                                backStack.navigate(
+                                    Screen.Settings(
+                                        initialScreen = com.sosauce.chocola.feature.settings.presentation.components.SettingsScreen.Plugins
+                                    )
+                                )
+                            },
                             recognitionPlugins = recognitionPlugins.map { it.info },
                             onStartRecognition = {
                                 backStack.navigate(Screen.Recognition(autoStart = true))
