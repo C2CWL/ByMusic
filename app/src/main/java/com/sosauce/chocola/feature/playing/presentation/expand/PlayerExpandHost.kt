@@ -122,6 +122,51 @@ class PlayerExpandController internal constructor(
     val progress: Float get() = animatable.value
     val isRunning: Boolean get() = animatable.isRunning
 
+    /**
+     * Turntable page -> lyrics layer, inside the overlay. 0 = turntable page,
+     * 1 = lyrics page. Only moves while the page itself is settled.
+     */
+    private val lyrics = Animatable(0f)
+    private var lyricsJob: Job? = null
+
+    val lyricsProgress: Float get() = lyrics.value
+
+    /** Lyrics layer is open or on its way; back closes it first. */
+    var lyricsOpen by mutableStateOf(false)
+        private set
+
+    fun openLyrics() {
+        if (!PlayerExpandMath.isSettledExpanded(animatable.value)) return
+        lyricsOpen = true
+        runLyricsTo(1f, VinylLyricsMath.ENTER_MS)
+    }
+
+    fun closeLyrics() {
+        lyricsOpen = false
+        runLyricsTo(0f, VinylLyricsMath.EXIT_MS)
+    }
+
+    /** Drops the lyrics layer at once (player closing, leaving to another screen). */
+    fun dismissLyricsNow() {
+        lyricsOpen = false
+        lyricsJob?.cancel()
+        if (lyrics.value != 0f) {
+            lyricsJob = scope.launch { lyrics.snapTo(0f) }
+        }
+    }
+
+    private fun runLyricsTo(target: Float, durationMs: Int) {
+        lyricsJob?.cancel()
+        lyricsJob = scope.launch {
+            if (reduceMotion) {
+                lyrics.snapTo(target)
+            } else {
+                // Reversing mid-way starts from the current value: no jump.
+                lyrics.animateTo(target, tween(durationMs, easing = FastOutSlowInEasing))
+            }
+        }
+    }
+
     private val settleSpec = tween<Float>(
         durationMillis = PlayerExpandMath.DURATION_MS,
         easing = FastOutSlowInEasing
@@ -167,6 +212,7 @@ class PlayerExpandController internal constructor(
     }
 
     fun onPageDragStarted() {
+        dismissLyricsNow()
         pageDragging = true
     }
 
@@ -177,6 +223,7 @@ class PlayerExpandController internal constructor(
     }
 
     fun collapse() {
+        dismissLyricsNow()
         pageDragging = false
         pendingExpand = false
         if (reduceMotion) {
@@ -203,6 +250,7 @@ class PlayerExpandController internal constructor(
     }
 
     fun onPlayerNotReady() {
+        dismissLyricsNow()
         pendingExpand = false
         if (animatable.value > 0f) {
             if (reduceMotion) snapTo(0f) else animateTo(0f)
@@ -358,6 +406,12 @@ fun PlayerExpandOverlay(
         androidx.compose.ui.unit.DpSize(viewport.width.toDp(), viewport.height.toDp())
     }
 
+    // Registered after the player's own back handler, so back closes the
+    // lyrics layer first and lands on the turntable page.
+    androidx.activity.compose.BackHandler(enabled = controller.lyricsOpen) {
+        controller.closeLyrics()
+    }
+
     // Pin the popup to the activity window origin (not to the bottom bar it is
     // composed in), so popup coordinates == activity window coordinates.
     Popup(
@@ -388,6 +442,24 @@ fun PlayerExpandOverlay(
                 val keepPageReady = style == VinylExpandMath.Style.Vinyl &&
                     canDrawTransition &&
                     VinylExpandMath.shouldPrepareSettledPage(progress)
+                // Lyrics layer over the settled turntable page (0 = page, 1 = lyrics).
+                val lyricsProgress = if (style == VinylExpandMath.Style.Vinyl && settled) {
+                    controller.lyricsProgress
+                } else {
+                    0f
+                }
+                val lyricsActive = style == VinylExpandMath.Style.Vinyl && settled && fullArt != null &&
+                    (lyricsProgress > 0f || controller.lyricsOpen)
+                if (lyricsActive) {
+                    // The page (its backdrop included) fades out; this same opaque
+                    // backdrop stays under it, so nothing behind the overlay shows.
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.surface)
+                            .background(com.sosauce.chocola.feature.playing.presentation.components.turntableBackdropBrush())
+                    )
+                }
                 if (settled || controller.pendingMeasure ||
                     (controller.pendingExpand && !canDrawTransition) || keepPageReady ||
                     controller.pageDragging
@@ -398,9 +470,18 @@ fun PlayerExpandOverlay(
                     Box(
                         Modifier
                             .fillMaxSize()
-                            .graphicsLayer { alpha = if (hideForMeasure) 0f else 1f }
+                            .graphicsLayer {
+                                alpha = when {
+                                    hideForMeasure -> 0f
+                                    lyricsActive -> VinylLyricsMath.pageAlpha(lyricsProgress)
+                                    else -> 1f
+                                }
+                            }
                     ) {
-                        CompositionLocalProvider(LocalTurntableMotionPaused provides hideForMeasure) {
+                        CompositionLocalProvider(
+                            LocalTurntableMotionPaused provides (hideForMeasure || lyricsActive),
+                            com.sosauce.chocola.feature.playing.presentation.components.LocalTurntableRecordHidden provides lyricsActive
+                        ) {
                             NowPlaying(
                                 modifier = Modifier.fillMaxSize(),
                                 musicState = musicState,
@@ -470,11 +551,28 @@ fun PlayerExpandOverlay(
                     )
                 }
 
+                if (lyricsActive) {
+                    VinylLyricsLayer(
+                        progress = lyricsProgress,
+                        musicState = musicState,
+                        fullArt = fullArt!!,
+                        turntable = turntableShared,
+                        onClose = controller::closeLyrics,
+                        onNavigate = { screen ->
+                            controller.dismissLyricsNow()
+                            controller.collapse()
+                            onNavigate(screen)
+                        },
+                        onHandlePlayerActions = onHandlePlayerActions
+                    )
+                }
             }
         }
         CompositionLocalProvider(
             LocalTurntableEnabledOverride provides useTurntable,
-            LocalTurntableShared provides turntableShared
+            LocalTurntableShared provides turntableShared,
+            com.sosauce.chocola.feature.playing.presentation.components.LocalOpenVinylLyrics provides
+                if (style == VinylExpandMath.Style.Vinyl) ({ controller.openLyrics() }) else null
         ) {
             if (style == VinylExpandMath.Style.Vinyl) {
                 // One turntable color theme for the transition and the settled page,

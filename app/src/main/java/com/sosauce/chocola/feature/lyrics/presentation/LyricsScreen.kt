@@ -33,13 +33,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -70,6 +74,48 @@ fun LyricsScreen(
     musicState: MusicState,
     onHandlePlayerActions: (PlayerActions) -> Unit
 ) {
+    TurntableTheme(enabled = true, artworkUri = musicState.track.artUri) {
+        LyricsPage(
+            onNavigateBack = onNavigateBack,
+            onNavigate = onNavigate,
+            musicState = musicState,
+            onHandlePlayerActions = onHandlePlayerActions
+        )
+    }
+}
+
+/**
+ * How much of each part of the lyrics page is shown. [Settled] is the plain
+ * page; the turntable page's lyrics layer passes in-between values while the
+ * record flies into the header (see VinylLyricsMath).
+ */
+data class LyricsPageReveal(
+    val background: Float = 1f,
+    val header: Float = 1f,
+    val headerArtwork: Float = 1f,
+    val lyrics: Float = 1f,
+    val lyricsOffsetDp: Float = 0f,
+    val toolbar: Float = 1f
+) {
+    companion object {
+        val Settled = LyricsPageReveal()
+    }
+}
+
+/**
+ * Lyrics page body without its own color theme or backdrop. [LyricsScreen]
+ * wraps it in the turntable theme; the turntable page's lyrics layer draws it
+ * inside the overlay's theme, over the backdrop it already has.
+ */
+@Composable
+internal fun LyricsPage(
+    onNavigateBack: () -> Unit,
+    onNavigate: (Screen) -> Unit,
+    musicState: MusicState,
+    onHandlePlayerActions: (PlayerActions) -> Unit,
+    reveal: LyricsPageReveal = LyricsPageReveal.Settled,
+    onHeaderArtworkBounds: ((Rect) -> Unit)? = null
+) {
     val isLandscape = rememberIsLandscape()
     val artworkSize = if (isLandscape) LyricsLayout.CompactHeaderArtworkDp.dp else LyricsLayout.HeaderArtworkDp.dp
     val fadeHeight = LyricsLayout.FadeHeightDp.dp
@@ -83,20 +129,25 @@ fun LyricsScreen(
     val descTranslation = stringResource(R.string.lyrics_translation_desc)
     val descPhonetic = stringResource(R.string.lyrics_phonetic_desc)
 
-    TurntableTheme(enabled = true, artworkUri = musicState.track.artUri) {
       OledPageBackgroundTheme(enabled = applyOled) {
+        val oledBackground = MaterialTheme.colorScheme.background
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .then(
                     // OLED: a true-black page; accents still follow the cover colors.
-                    if (applyOled) Modifier.background(MaterialTheme.colorScheme.background) else Modifier
+                    if (applyOled) {
+                        Modifier.drawBehind { drawRect(oledBackground, alpha = reveal.background.coerceIn(0f, 1f)) }
+                    } else {
+                        Modifier
+                    }
                 )
                 .statusBarsPadding()
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .graphicsLayer { alpha = reveal.header }
                     .padding(
                         start = 4.dp,
                         end = LyricsLayout.HorizontalPaddingDp.dp,
@@ -117,7 +168,11 @@ fun LyricsScreen(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .size(artworkSize)
-                        .clip(RoundedCornerShape(8.dp))
+                        .onGloballyPositioned { coordinates ->
+                            onHeaderArtworkBounds?.invoke(coordinates.boundsInWindow())
+                        }
+                        .graphicsLayer { alpha = reveal.headerArtwork }
+                        .clip(RoundedCornerShape(LyricsLayout.HeaderArtworkCornerDp.dp))
                         .background(MaterialTheme.colorScheme.surfaceContainer)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
@@ -172,6 +227,10 @@ fun LyricsScreen(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
+                    .graphicsLayer {
+                        alpha = reveal.lyrics
+                        translationY = reveal.lyricsOffsetDp.dp.toPx()
+                    }
             ) {
                 LyricsList(
                     modifier = Modifier
@@ -212,6 +271,7 @@ fun LyricsScreen(
                         top = 8.dp,
                         bottom = LyricsLayout.ControlBarBottomGapDp.dp
                     )
+                    .graphicsLayer { alpha = reveal.toolbar }
             ) {
                 HorizontalFloatingToolbar(
                     expanded = true,
@@ -244,5 +304,4 @@ fun LyricsScreen(
             }
         }
       }
-    }
 }

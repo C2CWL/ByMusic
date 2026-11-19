@@ -74,16 +74,38 @@ import kotlinx.coroutines.flow.mapLatest
 @Composable
 private fun TurntableArtwork(
     musicState: MusicState,
-    blur: Int,
     showLyrics: Boolean,
     onHandlePlayerActions: (PlayerActions) -> Unit
 ) {
+    // Lyrics on the cover, turntable look: the record fades out and shrinks a
+    // little while the lyrics fade in, all within 300ms; no 1000ms blur.
+    val discAlpha by animateFloatAsState(
+        targetValue = if (showLyrics) 0f else 1f,
+        animationSpec = tween(TURNTABLE_ART_LYRICS_MS)
+    )
+    val discScale by animateFloatAsState(
+        targetValue = if (showLyrics) TURNTABLE_ART_LYRICS_DISC_SCALE else 1f,
+        animationSpec = tween(TURNTABLE_ART_LYRICS_MS)
+    )
+    // The expand overlay's lyrics layer draws its own flying copy of the record.
+    val recordHidden = LocalTurntableRecordHidden.current
     Box(contentAlignment = Alignment.Center) {
-        TurntableDisc(musicState = musicState, blur = blur)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    alpha = if (recordHidden) 0f else discAlpha
+                    scaleX = discScale
+                    scaleY = discScale
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            TurntableDisc(musicState = musicState, blur = 0)
+        }
         AnimatedVisibility(
             visible = showLyrics,
-            enter = slideInVertically { it } + fadeIn(),
-            exit = slideOutVertically { it } + fadeOut()
+            enter = fadeIn(tween(TURNTABLE_ART_LYRICS_MS)),
+            exit = fadeOut(tween(TURNTABLE_ART_LYRICS_MS))
         ) {
             LyricsList(
                 textShadow = true,
@@ -173,7 +195,6 @@ fun Artwork(
         if (useTurntable) {
             TurntableArtwork(
                 musicState = musicState,
-                blur = blur,
                 showLyrics = showLyrics,
                 onHandlePlayerActions = onHandlePlayerActions
             )

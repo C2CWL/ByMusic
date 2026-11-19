@@ -278,6 +278,8 @@ internal fun VinylControlBar(
     val isRateChanged = musicState.speed != 1.0f || musicState.pitch != 1.0f
     val timerRunning = musicState.sleepTimerRemainingDuration > 0
 
+    // Inside the expand overlay: lyrics open as a layer of the overlay.
+    val openVinylLyrics = com.sosauce.chocola.feature.playing.presentation.components.LocalOpenVinylLyrics.current
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -313,7 +315,7 @@ internal fun VinylControlBar(
                         .fillMaxHeight()
                         .clickable(role = Role.Button) {
                             when (button) {
-                                NowPlayingButton.LYRICS -> onNavigate(Screen.Lyrics)
+                                NowPlayingButton.LYRICS -> openVinylLyrics?.invoke() ?: onNavigate(Screen.Lyrics)
                                 NowPlayingButton.QUEUE -> {
                                     onShrinkToSearchbar()
                                     onNavigate(Screen.Queue)

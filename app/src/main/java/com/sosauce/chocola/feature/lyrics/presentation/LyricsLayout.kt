@@ -9,6 +9,7 @@ object LyricsLayout {
     const val HorizontalPaddingDp = 24
     const val HeaderArtworkDp = 52
     const val CompactHeaderArtworkDp = 40
+    const val HeaderArtworkCornerDp = 8
     const val HeaderVerticalPaddingDp = 8
     const val ControlBarMinHeightDp = 80
     const val ControlBarBottomGapDp = 16
