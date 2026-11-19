@@ -10,11 +10,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
@@ -46,17 +43,13 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.sosauce.chocola.R
-import com.sosauce.chocola.core.designsystem.components.ActionButtonsRow
-import com.sosauce.chocola.core.designsystem.components.CuteSlider
 import com.sosauce.chocola.core.domain.player.MusicState
 import com.sosauce.chocola.core.domain.player.PlayerActions
-import com.sosauce.chocola.core.presentation.components.TitleAndArtist
 import com.sosauce.chocola.core.presentation.navigation.Screen
 import com.sosauce.chocola.core.presentation.preferences.rememberHiddenNowPlayingButtons
 import com.sosauce.chocola.core.presentation.preferences.rememberIsLandscape
 import com.sosauce.chocola.feature.playing.presentation.NowPlayingLandscapeBody
-import com.sosauce.chocola.feature.playing.presentation.NowPlayingQuickActionsBar
-import com.sosauce.chocola.feature.playing.presentation.NowPlayingTopBar
+import com.sosauce.chocola.feature.playing.presentation.VinylNowPlayingBody
 import com.sosauce.chocola.feature.playing.presentation.components.TurntableMotion
 import com.sosauce.chocola.feature.playing.presentation.components.TurntableSharedState
 import com.sosauce.chocola.feature.playing.presentation.components.drawTurntableArm
@@ -258,9 +251,10 @@ internal fun VinylTransitionLayer(
 
 /**
  * Page controls during the vinyl transition, laid out with the settled page's
- * own pieces (top bar, quick actions bar, landscape body) so the last frame
- * matches the page. In portrait the title column rides 16 dp under the moving
- * artwork box, the same spacing the page column uses.
+ * own bodies ([VinylNowPlayingBody], landscape [NowPlayingLandscapeBody] in
+ * turntable mode) and an empty box in the artwork slot, so the last frame
+ * matches the page. The turntable page keeps every control at the bottom, so
+ * they fade in at their own final place instead of riding under the record.
  */
 @Composable
 private fun VinylTransitionChrome(
@@ -279,91 +273,49 @@ private fun VinylTransitionChrome(
     val hiddenButtons = rememberHiddenNowPlayingButtons()
     val isLandscape = rememberIsLandscape()
     val guardedCollapse: () -> Unit = { if (pointerEnabled) onCollapse() }
+    val guardedActions: (PlayerActions) -> Unit = { if (pointerEnabled) onHandlePlayerActions(it) }
+    val guardedNavigate: (Screen) -> Unit = { if (pointerEnabled) onNavigate(it) }
+    // Holds the artwork's measured place; the record itself is drawn by the layer.
+    val artPlaceholder: @Composable (Modifier) -> Unit = { modifier ->
+        Box(
+            modifier.size(
+                with(density) { fullArt.width.toDp() },
+                with(density) { fullArt.height.toDp() }
+            )
+        )
+    }
 
-    if (isLandscape) {
-        Scaffold(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer { alpha = chromeAlpha },
-            containerColor = Color.Transparent
-        ) { paddingValues ->
+    Scaffold(
+        modifier = Modifier
+            .fillMaxSize()
+            .graphicsLayer { alpha = chromeAlpha },
+        containerColor = Color.Transparent
+    ) { paddingValues ->
+        if (isLandscape) {
             NowPlayingLandscapeBody(
                 paddingValues = paddingValues,
                 musicState = musicState,
                 hiddenButtons = hiddenButtons,
-                onHandlePlayerActions = onHandlePlayerActions,
-                onNavigate = onNavigate,
+                onHandlePlayerActions = guardedActions,
+                onNavigate = guardedNavigate,
                 onShrinkToSearchbar = guardedCollapse,
                 onShowSpeedCard = {},
-                artwork = {
-                    // Holds the artwork's measured place; the record is drawn by the layer.
-                    Box(
-                        Modifier.size(
-                            with(density) { fullArt.width.toDp() },
-                            with(density) { fullArt.height.toDp() }
-                        )
-                    )
-                }
+                vinylLayout = true,
+                artwork = { artPlaceholder(Modifier) }
             )
-        }
-        return
-    }
-
-    val gapPx = with(density) { 16.dp.toPx() }
-    val columnTop = (artBox.bottom + gapPx - container.top).coerceAtLeast(0f)
-
-    Box(Modifier.fillMaxSize()) {
-        NowPlayingTopBar(
-            modifier = Modifier.graphicsLayer { alpha = topChromeAlpha },
-            musicState = musicState,
-            hiddenButtons = hiddenButtons,
-            onClose = guardedCollapse,
-            onNavigate = onNavigate,
-            onShrinkToSearchbar = guardedCollapse,
-            onHandlePlayerActions = onHandlePlayerActions
-        )
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .offset { IntOffset(0, columnTop.roundToInt()) }
-                .padding(horizontal = 15.dp)
-                .graphicsLayer { alpha = chromeAlpha },
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            TitleAndArtist(
-                title = musicState.track.title,
-                artist = musicState.track.artist,
-                album = musicState.track.album,
-                isFavorite = musicState.track.isFavorite,
-                onToggleFavorite = {
-                    if (pointerEnabled) {
-                        musicState.track.mediaId.toLongOrNull()
-                            ?.let { onHandlePlayerActions(PlayerActions.ToggleFavorite(it)) }
-                    }
-                },
-                hiddenButtons = hiddenButtons
-            )
-            CuteSlider(
-                musicState = musicState,
-                onHandlePlayerActions = onHandlePlayerActions
-            )
-            ActionButtonsRow(
-                musicState = musicState,
-                onHandlePlayerActions = onHandlePlayerActions,
-                hiddenButtons = hiddenButtons
-            )
-        }
-        Box(
-            Modifier
-                .align(Alignment.BottomCenter)
-                .graphicsLayer { alpha = chromeAlpha }
-        ) {
-            NowPlayingQuickActionsBar(
+        } else {
+            VinylNowPlayingBody(
+                paddingValues = paddingValues,
                 musicState = musicState,
                 hiddenButtons = hiddenButtons,
+                onHandlePlayerActions = guardedActions,
+                onNavigate = guardedNavigate,
+                onShrinkToSearchbar = guardedCollapse,
                 onShowSpeedCard = {},
-                onHandlePlayerActions = onHandlePlayerActions
+                handleAlpha = topChromeAlpha,
+                // The page caps the record size with this modifier; the
+                // placeholder is already the measured size.
+                artwork = { artPlaceholder(Modifier) }
             )
         }
     }
