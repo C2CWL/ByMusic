@@ -210,7 +210,7 @@ private fun LyricLineItem(
                     onClick = {
                         val newLyric = lyric.copy(
                             lineLyrics = textFieldState.text.toString()
-                        )
+                        ).withoutTimedExtras()
                         onModifyLyric(newLyric)
                         showLyricDialog = false
                     },
@@ -269,7 +269,7 @@ private fun LyricLineItem(
 
                         val newLyric = lyric.copy(
                             timestamp = timestamp
-                        )
+                        ).withoutTimedExtras()
 
                         onModifyLyric(newLyric)
                         showTimestampDialog = false

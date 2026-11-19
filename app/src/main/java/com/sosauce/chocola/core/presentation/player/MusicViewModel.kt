@@ -324,6 +324,23 @@ class MusicViewModel(
         }
     }
 
+    /**
+     * Imports a picked LRC or TTML file. Reads it through the content resolver first;
+     * if that yields nothing, falls back to the old path-based lookup.
+     */
+    private fun loadPickedLyrics(uri: Uri) {
+        lyricsJob?.cancel()
+        lyricsJob = viewModelScope.launch(Dispatchers.IO) {
+            var lyrics = lyricsParser.parseLyricsUri(uri)
+            if (lyrics.isEmpty()) {
+                val lyricsPath = uri.path
+                if (lyricsPath != null) lyrics = lyricsParser.parseLyrics(lyricsPath)
+            }
+            ensureActive()
+            _musicState.update { it.copy(lyrics = lyrics) }
+        }
+    }
+
     init {
         viewModelScope.launch {
             favoritesDao.observeTrackIds().collect { ids ->
@@ -660,10 +677,7 @@ class MusicViewModel(
                 }
             }
 
-            is PlayerActions.LoadLyrics -> {
-                val lyricsPath = action.uri.path ?: return
-                parseLyrics(lyricsPath, requireCurrentTrack = false)
-            }
+            is PlayerActions.LoadLyrics -> loadPickedLyrics(action.uri)
 
             is PlayerActions.ToggleFavorite -> viewModelScope.launch {
                 if (favoritesDao.isTrackFavorite(action.mediaId)) favoritesDao.removeTrack(action.mediaId)
