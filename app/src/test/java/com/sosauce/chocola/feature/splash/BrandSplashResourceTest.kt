@@ -46,7 +46,17 @@ class BrandSplashResourceTest {
             v31.contains("splash_system_background")
         )
         assertTrue(locate("src/main/res/drawable/splash_system_mark.xml").isFile)
-        assertTrue(locate("src/main/res/drawable/splash_system_mark_glyph.xml").isFile)
+        assertFalse(
+            "the system mark is now a single vector drawable",
+            listOf(
+                File("src/main/res/drawable/splash_system_mark_glyph.xml"),
+                File("app/src/main/res/drawable/splash_system_mark_glyph.xml")
+            ).any { it.isFile }
+        )
+        assertFalse(
+            "no icon background: the disc sits directly on the black field",
+            cute.contains("windowSplashScreenIconBackgroundColor")
+        )
     }
 
     @Test
@@ -70,6 +80,12 @@ class BrandSplashResourceTest {
         val superAt = onCreate.indexOf("super.onCreate")
         assertTrue(installAt >= 0 && superAt >= 0 && installAt < superAt)
         assertTrue(onCreate.contains("setKeepOnScreenCondition"))
+        assertTrue(
+            "system splash is removed directly, without the default exit animation",
+            main.substringAfter("override fun onCreate").contains("setOnExitAnimationListener")
+        )
+        assertTrue(main.contains("provider.remove()"))
+        assertTrue(main.contains("handoff = splashHandoff"))
         assertTrue(main.contains("BrandSplashHost("))
         assertTrue(main.contains("SetupScreen"))
         assertTrue(main.contains("hasMusicPermission"))
