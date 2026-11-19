@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,6 +31,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -50,21 +55,36 @@ import com.sosauce.chocola.R
 import com.sosauce.chocola.core.designsystem.theme.SystemUiController
 import com.sosauce.chocola.feature.splash.BrandSplashGate
 import com.sosauce.chocola.feature.splash.BrandSplashLayout
+import com.sosauce.chocola.feature.splash.BrandSplashMotion
+import com.sosauce.chocola.feature.splash.SplashIconBounds
 import kotlin.math.roundToInt
 
 private val cormorantGaramond = FontFamily(
     Font(resId = R.font.cormorant_garamond, weight = FontWeight.Normal)
 )
 
+/**
+ * In-app splash. [grow] and [chrome] are read only in draw / graphicsLayer
+ * lambdas, so the per-frame animation never recomposes this tree.
+ *
+ * Progress 0 draws exactly what the system splash shows: black plus the small
+ * disc at the system icon's place. [systemIcon] is that icon view's measured
+ * bounds in window pixels; without it the disc is centred at [BrandSplashMotion.DISC_DP].
+ */
 @Composable
 fun BrandSplashScreen(
     modifier: Modifier = Modifier,
+    grow: () -> Float = { 1f },
+    chrome: () -> Float = { 1f },
+    ringActive: Boolean = true,
+    systemIcon: SplashIconBounds? = null,
 ) {
     val activity = LocalActivity.current
     val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
     val animatorScale = rememberAnimatorDurationScale()
-    val animateRing = BrandSplashGate.shouldAnimateRing(animatorScale) &&
+    val animateRing = ringActive && BrandSplashGate.shouldAnimateRing(animatorScale) &&
         lifecycleState.isAtLeast(Lifecycle.State.STARTED)
+    var originInWindow by remember { mutableStateOf(Offset.Zero) }
 
     DisposableEffect(activity) {
         val window = activity?.window
@@ -79,18 +99,42 @@ fun BrandSplashScreen(
         modifier = modifier
             .fillMaxSize()
             .background(Color.Black)
+            .onGloballyPositioned { originInWindow = it.positionInWindow() }
             .semantics { contentDescription = "ByMusic" }
     ) {
         Image(
             painter = painterResource(R.drawable.splash_vinyl_bg),
             contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { alpha = BrandSplashMotion.artAlpha(grow()) },
             contentScale = ContentScale.Crop,
             alignment = Alignment.TopStart
         )
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val t = grow()
+            val discAlpha = BrandSplashMotion.discAlpha(t)
+            if (discAlpha <= 0f) return@Canvas
+            val origin = originInWindow
+            val start = systemIcon
+                ?.let {
+                    BrandSplashMotion.startFromIcon(
+                        it.copy(left = it.left - origin.x, top = it.top - origin.y)
+                    )
+                }
+                ?: BrandSplashMotion.defaultStart(size.width, size.height, density)
+            val end = BrandSplashMotion.recordGeometry(size.width, size.height)
+            val disc = BrandSplashMotion.discAt(t, start, end)
+            drawBrandDisc(
+                center = Offset(disc.centerX, disc.centerY),
+                radius = disc.radius,
+                alpha = discAlpha
+            )
+        }
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
+                .graphicsLayer { alpha = chrome().coerceIn(0f, 1f) }
                 .windowInsetsPadding(WindowInsets.safeDrawing)
         ) {
             val density = LocalDensity.current
@@ -200,7 +244,7 @@ private fun BrandSplashRing(
 }
 
 @Composable
-private fun rememberAnimatorDurationScale(): Float {
+internal fun rememberAnimatorDurationScale(): Float {
     val context = LocalContext.current
     return remember {
         runCatching {
