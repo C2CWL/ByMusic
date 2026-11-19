@@ -47,8 +47,13 @@ class PlayerExpandMathTest {
 
     @Test
     fun settleThresholdsOpenAndCloseWithoutClaimingExternalNumbers() {
-        assertEquals(1f, PlayerExpandMath.settleTarget(0.26f, 0f), 0f)
+        // Weak drag below the 0.25 open floor closes; at/above 0.75 stays open.
+        // Between those floors a weak drag goes to the nearer end (0.5).
+        // Strong flings override progress.
+        assertEquals(0f, PlayerExpandMath.settleTarget(0.26f, 0f), 0f)
         assertEquals(0f, PlayerExpandMath.settleTarget(0.2f, 0f), 0f)
+        assertEquals(0f, PlayerExpandMath.settleTarget(0.25f, 0f), 0f)
+        assertEquals(1f, PlayerExpandMath.settleTarget(0.75f, 0f), 0f)
         assertEquals(1f, PlayerExpandMath.settleTarget(0.05f, -900f), 0f)
         assertEquals(0f, PlayerExpandMath.settleTarget(0.95f, 900f), 0f)
         assertEquals(1f, PlayerExpandMath.settleTarget(0.6f, 0f), 0f)
