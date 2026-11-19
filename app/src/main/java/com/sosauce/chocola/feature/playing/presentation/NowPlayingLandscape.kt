@@ -7,6 +7,7 @@ package com.sosauce.chocola.feature.playing.presentation
 
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -38,10 +39,10 @@ import com.sosauce.chocola.core.presentation.components.TitleAndArtist
 import com.sosauce.chocola.core.presentation.components.dialogs.tracksDetails.TracksDetailsDialog
 import com.sosauce.chocola.core.presentation.navigation.Screen
 import com.sosauce.chocola.core.presentation.preferences.rememberSnapSpeedAndPitch
-import com.sosauce.chocola.core.presentation.preferences.rememberUseTurntable
 import com.sosauce.chocola.feature.playing.presentation.components.Artwork
 import com.sosauce.chocola.feature.playing.presentation.components.PlayingTopRow
 import com.sosauce.chocola.feature.playing.presentation.components.QuickActionsRow
+import com.sosauce.chocola.feature.playing.presentation.components.rememberTurntableEnabled
 
 @Composable
 fun NowPlayingLandscape(
@@ -58,7 +59,7 @@ fun NowPlayingLandscape(
 
     var showDetailsDialog by remember { mutableStateOf(false) }
 
-    val useTurntable by rememberUseTurntable()
+    val useTurntable = rememberTurntableEnabled()
     Scaffold(
         containerColor = if (useTurntable) Color.Transparent else MaterialTheme.colorScheme.background
     ) { paddingValues ->
@@ -88,14 +89,15 @@ fun NowPlayingLandscape(
             )
         }
 
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .padding(paddingValues)
-                .padding(horizontal = 15.dp)
-                .fillMaxSize()
-        ) {
-            Column {
+        NowPlayingLandscapeBody(
+            paddingValues = paddingValues,
+            musicState = musicState,
+            hiddenButtons = hiddenButtons,
+            onHandlePlayerActions = onHandlePlayerActions,
+            onNavigate = onNavigate,
+            onShrinkToSearchbar = onShrinkToSearchbar,
+            onShowSpeedCard = { showSpeedCard = true },
+            artwork = {
                 Artwork(
 //                    pagerModifier = Modifier
 //                        .fillMaxWidth(0.4f),
@@ -104,50 +106,79 @@ fun NowPlayingLandscape(
                     onArtworkBoundsChanged = onArtworkBoundsChanged
                 )
             }
-            Spacer(modifier = Modifier.width(10.dp))
+        )
+    }
+}
 
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                PlayingTopRow(
-                    musicState = musicState,
-                    onNavigate = onNavigate,
-                    onShrinkToSearchbar = onShrinkToSearchbar,
-                    onHandlePlayerActions = onHandlePlayerActions,
-                    hiddenButtons = hiddenButtons
-                )
-                TitleAndArtist(
-                    title = musicState.track.title,
-                    artist = musicState.track.artist,
-                    album = musicState.track.album,
-                    isFavorite = musicState.track.isFavorite,
-                    onToggleFavorite = {
-                        musicState.track.mediaId.toLongOrNull()
-                            ?.let { onHandlePlayerActions(PlayerActions.ToggleFavorite(it)) }
-                    },
-                    hiddenButtons = hiddenButtons
-                )
-                Spacer(Modifier.height(24.dp))
-                CuteSlider(
-                    musicState = musicState,
-                    onHandlePlayerActions = onHandlePlayerActions
-                )
-                ActionButtonsRow(
-                    musicState = musicState,
-                    onHandlePlayerActions = onHandlePlayerActions,
-                    hiddenButtons = hiddenButtons
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                QuickActionsRow(
-                    musicState = musicState,
-                    onShowSpeedCard = { showSpeedCard = true },
-                    onHandlePlayerActions = onHandlePlayerActions,
-                    hiddenButtons = hiddenButtons
-                )
-            }
-
+/**
+ * Landscape page body: artwork slot on the start side, controls column beside
+ * it. Shared with the expand transition, which passes an empty box the size of
+ * the measured artwork, so its last frame lays the controls out like the page.
+ */
+@Composable
+internal fun NowPlayingLandscapeBody(
+    paddingValues: PaddingValues,
+    musicState: MusicState,
+    hiddenButtons: Set<NowPlayingButton>,
+    onHandlePlayerActions: (PlayerActions) -> Unit,
+    onNavigate: (Screen) -> Unit,
+    onShrinkToSearchbar: () -> Unit,
+    onShowSpeedCard: () -> Unit,
+    artwork: @Composable () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .padding(paddingValues)
+            .padding(horizontal = 15.dp)
+            .fillMaxSize()
+    ) {
+        Column {
+            artwork()
         }
+        Spacer(modifier = Modifier.width(10.dp))
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            PlayingTopRow(
+                musicState = musicState,
+                onNavigate = onNavigate,
+                onShrinkToSearchbar = onShrinkToSearchbar,
+                onHandlePlayerActions = onHandlePlayerActions,
+                hiddenButtons = hiddenButtons
+            )
+            TitleAndArtist(
+                title = musicState.track.title,
+                artist = musicState.track.artist,
+                album = musicState.track.album,
+                isFavorite = musicState.track.isFavorite,
+                onToggleFavorite = {
+                    musicState.track.mediaId.toLongOrNull()
+                        ?.let { onHandlePlayerActions(PlayerActions.ToggleFavorite(it)) }
+                },
+                hiddenButtons = hiddenButtons
+            )
+            Spacer(Modifier.height(24.dp))
+            CuteSlider(
+                musicState = musicState,
+                onHandlePlayerActions = onHandlePlayerActions
+            )
+            ActionButtonsRow(
+                musicState = musicState,
+                onHandlePlayerActions = onHandlePlayerActions,
+                hiddenButtons = hiddenButtons
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            QuickActionsRow(
+                musicState = musicState,
+                onShowSpeedCard = onShowSpeedCard,
+                onHandlePlayerActions = onHandlePlayerActions,
+                hiddenButtons = hiddenButtons
+            )
+        }
+
     }
 }

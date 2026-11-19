@@ -63,7 +63,6 @@ import com.sosauce.chocola.core.presentation.preferences.rememberArtworkShape
 import com.sosauce.chocola.core.presentation.preferences.rememberCarousel
 import com.sosauce.chocola.core.presentation.preferences.rememberIsLandscape
 import com.sosauce.chocola.core.presentation.preferences.rememberNowPlayingShapeMorph
-import com.sosauce.chocola.core.presentation.preferences.rememberUseTurntable
 import com.sosauce.chocola.feature.lyrics.presentation.LyricsList
 import com.sosauce.nekobites.animations.rememberAnimatedShape
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -119,7 +118,7 @@ fun Artwork(
     var artworkShape by rememberArtworkShape()
     val artLyrics by rememberArtLyrics()
     val shapeMorph by rememberNowPlayingShapeMorph()
-    val useTurntable by rememberUseTurntable()
+    val useTurntable = rememberTurntableEnabled()
 
     val isLandscape = rememberIsLandscape()
     var showLyrics by remember { mutableStateOf(false) }
