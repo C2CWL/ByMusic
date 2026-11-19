@@ -94,6 +94,9 @@ data object PreferencesKeys {
     val NOW_PLAYING_HIDDEN_BUTTONS = stringSetPreferencesKey("NOW_PLAYING_HIDDEN_BUTTONS")
     val HIDE_SINGLE_ALBUM = booleanPreferencesKey("HIDE_SINGLE_ALBUM")
 
+    // Online music (user-imported plugins only): mockup 06 accepted
+    val ONLINE_DISCLAIMER_ACCEPTED = booleanPreferencesKey("ONLINE_DISCLAIMER_ACCEPTED")
+
 }
 
 

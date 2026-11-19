@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 效果图 06：首次使用说明 -->
+    <string name="online_disclaimer_title">用在线音乐前，先看这几条</string>
+    <string name="online_disclaimer_1_lead">ByMusic 只是播放器，</string>
+    <string name="online_disclaimer_1_bold">不内置、不提供、不推荐</string>
+    <string name="online_disclaimer_1_tail">任何音源。</string>
+    <string name="online_disclaimer_2">搜索结果、播放地址、歌词全部来自你自己导入的插件，内容是否合法由插件作者和使用者负责。</string>
+    <string name="online_disclaimer_3">请尊重版权、支持正版。下载的文件只供个人使用，不要传播。</string>
+    <string name="online_disclaimer_4">插件随时可能失效，那是插件的问题，不是 ByMusic 坏了。</string>
+    <string name="online_disclaimer_5">用在线功能时 ByMusic 会联网；不装插件就不会联网。</string>
+    <string name="online_disclaimer_accept">我知道了</string>
+    <string name="online_disclaimer_decline">先不用</string>
+</resources>

@@ -21,6 +21,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
@@ -49,7 +51,10 @@ import com.sosauce.chocola.feature.library.presentation.artist.ArtistsScreen
 import com.sosauce.chocola.feature.library.presentation.artist.ArtistsViewModel
 import com.sosauce.chocola.feature.library.presentation.main.MainScreen
 import com.sosauce.chocola.feature.library.presentation.main.MainViewModel
+import com.sosauce.chocola.feature.online.OnlineDisclaimerDialog
 import com.sosauce.chocola.feature.online.OnlineMusicScreen
+import com.sosauce.chocola.feature.online.acceptOnlineDisclaimer
+import com.sosauce.chocola.feature.online.rememberOnlineDisclaimerAccepted
 import com.sosauce.chocola.feature.online.OnlineSearchViewModel
 import com.sosauce.chocola.feature.recognition.domain.RecognitionPluginRegistry
 import com.sosauce.chocola.feature.recognition.presentation.RecognitionHistoryRoute
@@ -134,6 +139,10 @@ fun Nav(
                     }
 
                     entry<Screen.Online> {
+                        // Mockup 06: shown once, before anything online can happen.
+                        val disclaimerAccepted = rememberOnlineDisclaimerAccepted()
+                        val disclaimerScope = rememberCoroutineScope()
+                        val disclaimerContext = LocalContext.current
                         val recognitionRegistry = koinInject<RecognitionPluginRegistry>()
                         val recognitionPlugins by recognitionRegistry.plugins.collectAsStateWithLifecycle()
                         val onlineViewModel = koinViewModel<OnlineSearchViewModel>()
@@ -168,6 +177,12 @@ fun Nav(
                                 backStack.navigate(Screen.RecognitionHistory)
                             }
                         )
+                        if (disclaimerAccepted == false) {
+                            OnlineDisclaimerDialog(
+                                onAccept = { disclaimerScope.launch { disclaimerContext.acceptOnlineDisclaimer() } },
+                                onDecline = backStack::navigateBack
+                            )
+                        }
                     }
 
                     entry<Screen.Recognition> { key ->
