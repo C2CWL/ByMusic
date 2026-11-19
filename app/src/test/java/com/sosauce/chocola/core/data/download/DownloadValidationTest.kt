@@ -10,7 +10,7 @@ import org.junit.Test
 
 class DownloadValidationTest {
     @Test
-    fun acceptsOnlyTierActuallyDeliveredAndStepsDownOncePerMusicFreeKey() = runBlocking {
+    fun acceptsOnlyTierActuallyDeliveredAndStepsDown() = runBlocking {
         val calls = mutableListOf<String>()
         val removed = mutableListOf<String>()
         val request = QualityRequest.autoFromTop()
@@ -33,6 +33,22 @@ class DownloadValidationTest {
         assertEquals("standard", (outcome as DownloadValidation.Accepted<String>).value)
         assertEquals(QualityTier.LOSSY_320, outcome.measuredQuality)
         assertTrue(outcome.downgraded)
+    }
+
+    @Test
+    fun triesEachMusicFreeKeyOnlyOnceWhenAllTiersFail() = runBlocking {
+        val calls = mutableListOf<String>()
+        val result = validateDownload<String>(
+            QualityRequest.autoFromTop(),
+            expectedDurationMs = null,
+            discard = { error("no file was produced") },
+            attempt = { key ->
+                calls += key
+                DownloadAttempt.Failed(DownloadRejection.UNAVAILABLE)
+            }
+        )
+        assertEquals(listOf("super", "high", "standard", "low"), calls)
+        assertEquals(calls, (result as DownloadValidation.Rejected).failures.map { it.key })
     }
 
     @Test
