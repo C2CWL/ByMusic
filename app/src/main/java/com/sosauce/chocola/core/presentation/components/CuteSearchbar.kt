@@ -131,7 +131,10 @@ import com.sosauce.chocola.core.presentation.preferences.rememberSortAlbumsAscen
 import com.sosauce.chocola.core.presentation.preferences.rememberSortArtistsAscending
 import com.sosauce.chocola.core.presentation.preferences.rememberSortTracksAscending
 import com.sosauce.chocola.core.presentation.preferences.rememberTrackSort
-import com.sosauce.chocola.feature.playing.presentation.NowPlaying
+import com.sosauce.chocola.feature.playing.presentation.expand.PlayerExpandMath
+import com.sosauce.chocola.feature.playing.presentation.expand.PlayerExpandOverlay
+import com.sosauce.chocola.feature.playing.presentation.expand.rememberPlayerExpandController
+import com.sosauce.chocola.feature.playing.presentation.expand.systemAnimationsDisabled
 import com.sosauce.nekobites.animations.AnimatedDrawable
 import com.sosauce.nekobites.animations.AnimatedDrawableFile
 import com.sosauce.nekobites.animations.AnimatedFab
@@ -154,283 +157,80 @@ fun SharedTransitionScope.CuteSearchbar(
     backButton: @Composable (() -> Unit)? = null,
     sortMenu: @Composable () -> Unit
 ) {
-    val scope = rememberCoroutineScope()
-    val density = LocalDensity.current
+    var showFullPlayerSaved by rememberSaveable { mutableStateOf(false) }
+    val controller = rememberPlayerExpandController(initiallyExpanded = showFullPlayerSaved)
+    controller.reduceMotion = systemAnimationsDisabled()
+    val progress = controller.progress
     val windowInfo = LocalWindowInfo.current
 
-    var showFullPlayerSaved by rememberSaveable { mutableStateOf(false) }
-    // Continuous transition progress: 0f = collapsed mini player, 1f = full-screen NowPlaying
-    val expandProgress = remember { Animatable(if (showFullPlayerSaved) 1f else 0f) }
-
-    // Critically damped spring: smooth, responsive, zero overshoot, and supports mid-drag spring rebound
-    val playerSpringSpec = remember {
-        spring<Float>(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = Spring.StiffnessMediumLow
-        )
-    }
-
-    val isFullPlayer by remember {
-        derivedStateOf { expandProgress.value > 0.5f }
-    }
-    LaunchedEffect(isFullPlayer) {
-        onFullPlayerChanged(isFullPlayer)
-    }
-    LaunchedEffect(expandProgress.value) {
-        if (expandProgress.value == 0f) {
+    LaunchedEffect(progress) {
+        if (PlayerExpandMath.isSettledCollapsed(progress)) {
             showFullPlayerSaved = false
-        } else if (expandProgress.value == 1f) {
+        } else if (PlayerExpandMath.isSettledExpanded(progress)) {
             showFullPlayerSaved = true
         }
     }
+    LaunchedEffect(progress > 0f) {
+        onFullPlayerChanged(progress > 0f)
+    }
     LaunchedEffect(musicState.isPlayerReady) {
-        if (!musicState.isPlayerReady && expandProgress.value > 0f) {
-            expandProgress.animateTo(0f, playerSpringSpec)
+        if (!musicState.isPlayerReady) {
+            controller.onPlayerNotReady()
+        } else if (controller.fullArt == null) {
+            controller.requestMeasure()
+        }
+    }
+    LaunchedEffect(windowInfo.containerSize) {
+        controller.invalidateFullArt()
+        if (musicState.isPlayerReady) {
+            controller.requestMeasure()
         }
     }
 
-    // Track root-space rectangles of the mini player card, mini artwork, and full-screen artwork
-    var miniCardBoundsInRoot by remember { mutableStateOf<Rect?>(null) }
-    var miniArtBoundsInRoot by remember { mutableStateOf<Rect?>(null) }
-    var fullArtBoundsInRoot by remember { mutableStateOf<Rect?>(null) }
-
-    val progress = expandProgress.value
-    val miniBarAlpha = (1f - progress * 3.5f).coerceIn(0f, 1f)
-    val miniArtAlpha = if (progress > 0f) 0f else 1f
-
-    if (progress > 0f) {
-        BackHandler {
-            scope.launch {
-                expandProgress.animateTo(0f, playerSpringSpec)
-            }
-        }
+    BackHandler(enabled = progress > 0f) {
+        controller.collapse()
     }
 
-    // Keep the mini player mounted underneath until fully expanded so its bounds remain anchored
-    if (progress < 1f) {
-        Box(
-            modifier = modifier.graphicsLayer {
-                alpha = miniBarAlpha
-            }
-        ) {
-            CuteSearchbarContent(
-                modifier = Modifier,
-                musicState = musicState,
-                textFieldState = textFieldState,
-                onHandlePlayerActions = onHandlePlayerActions,
-                onOpenFullPlayer = {
-                    scope.launch {
-                        expandProgress.animateTo(1f, playerSpringSpec)
-                    }
-                },
-                onInteractiveExpandDelta = { deltaFraction ->
-                    scope.launch {
-                        val next = (expandProgress.value + deltaFraction).coerceIn(0f, 1f)
-                        expandProgress.snapTo(next)
-                    }
-                },
-                onInteractiveExpandSettled = { velocity ->
-                    val screenHeightPx = windowInfo.containerSize.height.toFloat().coerceAtLeast(1f)
-                    val shouldOpen = velocity < -900f || expandProgress.value >= 0.22f
-                    scope.launch {
-                        if (shouldOpen) {
-                            expandProgress.animateTo(
-                                targetValue = 1f,
-                                animationSpec = playerSpringSpec,
-                                initialVelocity = (-velocity / screenHeightPx)
-                            )
-                        } else {
-                            expandProgress.animateTo(
-                                targetValue = 0f,
-                                animationSpec = playerSpringSpec,
-                                initialVelocity = (-velocity / screenHeightPx)
-                            )
-                        }
-                    }
-                },
-                expandProgress = progress,
-                miniArtAlpha = miniArtAlpha,
-                onMiniCardBoundsChanged = { miniCardBoundsInRoot = it },
-                onMiniArtBoundsChanged = { miniArtBoundsInRoot = it },
-                sortMenu = sortMenu,
-                onNavigate = onNavigate,
-                libraryStyle = libraryStyle,
-                fab = fab,
-                backButton = backButton
-            )
+    // Keep the mini player mounted (even when fully expanded, visually hidden)
+    // so the scaffold bottom bar does not jump and mini bounds stay valid.
+    Box(
+        modifier = modifier.graphicsLayer {
+            alpha = if (PlayerExpandMath.isSettledExpanded(progress)) 0f else 1f
         }
+    ) {
+        CuteSearchbarContent(
+            modifier = Modifier,
+            musicState = musicState,
+            textFieldState = textFieldState,
+            onHandlePlayerActions = onHandlePlayerActions,
+            onOpenFullPlayer = { controller.open() },
+            onInteractiveExpandDelta = { deltaFraction ->
+                controller.onDragDelta(deltaFraction)
+            },
+            onInteractiveExpandSettled = { velocity ->
+                controller.onDragSettled(velocity)
+            },
+            expandProgress = progress,
+            miniArtAlpha = if (progress > 0f) 0f else 1f,
+            onMiniCardBoundsChanged = { controller.onMiniContainer(it) },
+            onMiniArtBoundsChanged = { controller.onMiniArt(it) },
+            sortMenu = sortMenu,
+            onNavigate = onNavigate,
+            libraryStyle = libraryStyle,
+            fab = fab,
+            backButton = backButton
+        )
     }
 
-    // Interactive shared-element morphing container + full-screen NowPlaying
-    if (progress > 0f) {
-        var overlayOriginInRoot by remember { mutableStateOf(Offset.Zero) }
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .onGloballyPositioned { coords ->
-                    overlayOriginInRoot = coords.positionInRoot()
-                }
-        ) {
-            val containerWidthPx = windowInfo.containerSize.width.toFloat().coerceAtLeast(1f)
-            val containerHeightPx = windowInfo.containerSize.height.toFloat().coerceAtLeast(1f)
-
-            val fallbackMiniHeightPx = with(density) { 64.dp.toPx() }
-            val fallbackHorizontalMarginPx = with(density) { 24.dp.toPx() }
-            val fallbackBottomMarginPx = with(density) { 16.dp.toPx() }
-            val fallbackMiniArtSizePx = with(density) { 44.dp.toPx() }
-
-            val localMiniCard = miniCardBoundsInRoot?.translate(-overlayOriginInRoot)
-                ?: Rect(
-                    left = fallbackHorizontalMarginPx,
-                    top = containerHeightPx - fallbackMiniHeightPx - fallbackBottomMarginPx,
-                    right = containerWidthPx - fallbackHorizontalMarginPx,
-                    bottom = containerHeightPx - fallbackBottomMarginPx
-                )
-
-            val localMiniArt = miniArtBoundsInRoot?.translate(-overlayOriginInRoot)
-                ?: Rect(
-                    left = localMiniCard.left + with(density) { 12.dp.toPx() },
-                    top = localMiniCard.top + (localMiniCard.height - fallbackMiniArtSizePx) / 2f,
-                    right = localMiniCard.left + with(density) { 12.dp.toPx() } + fallbackMiniArtSizePx,
-                    bottom = localMiniCard.top + (localMiniCard.height + fallbackMiniArtSizePx) / 2f
-                )
-
-            val fallbackFullArtSizePx = (containerWidthPx - with(density) { 64.dp.toPx() }).coerceAtLeast(1f)
-            val localFullArt = fullArtBoundsInRoot?.translate(-overlayOriginInRoot)
-                ?: Rect(
-                    left = (containerWidthPx - fallbackFullArtSizePx) / 2f,
-                    top = containerHeightPx * 0.14f,
-                    right = (containerWidthPx + fallbackFullArtSizePx) / 2f,
-                    bottom = containerHeightPx * 0.14f + fallbackFullArtSizePx
-                )
-
-            val miniCardCornerDp = if (libraryStyle) 0.dp else 24.dp
-            val containerCornerDp = lerp(miniCardCornerDp, 0.dp, progress)
-            val containerElevation = lerp(if (libraryStyle) 0.dp else 6.dp, 0.dp, progress)
-
-            val morphedLeft = lerp(localMiniCard.left, 0f, progress)
-            val morphedTop = lerp(localMiniCard.top, 0f, progress)
-            val morphedWidthPx = lerp(localMiniCard.width, containerWidthPx, progress).coerceAtLeast(1f)
-            val morphedHeightPx = lerp(localMiniCard.height, containerHeightPx, progress).coerceAtLeast(1f)
-
-            val morphedWidthDp = with(density) { morphedWidthPx.toDp() }
-            val morphedHeightDp = with(density) { morphedHeightPx.toDp() }
-
-            val dragTravelPx = (containerHeightPx - localMiniCard.height).coerceAtLeast(1f)
-            val fullPlayerDragState = rememberDraggableState { dragAmount ->
-                val next = (expandProgress.value - dragAmount / dragTravelPx).coerceIn(0f, 1f)
-                scope.launch {
-                    expandProgress.snapTo(next)
-                }
-            }
-
-            // 1. Expanding / shrinking player container
-            Box(
-                modifier = Modifier
-                    .offset {
-                        IntOffset(
-                            x = morphedLeft.roundToInt(),
-                            y = morphedTop.roundToInt()
-                        )
-                    }
-                    .width(morphedWidthDp)
-                    .height(morphedHeightDp)
-                    .shadow(
-                        elevation = containerElevation,
-                        shape = RoundedCornerShape(containerCornerDp)
-                    )
-                    .clip(RoundedCornerShape(containerCornerDp))
-                    .background(MaterialTheme.colorScheme.background)
-                    .draggable(
-                        state = fullPlayerDragState,
-                        orientation = Orientation.Vertical,
-                        onDragStopped = { velocity ->
-                            val normalizedVelocity = -velocity / dragTravelPx
-                            // Dismiss only if flicked downward fast or dragged down past ~28% of screen;
-                            // otherwise spring smoothly back to full screen (1f) with zero overshoot.
-                            val shouldCollapse = velocity > 1100f || expandProgress.value < 0.72f
-                            scope.launch {
-                                if (shouldCollapse) {
-                                    expandProgress.animateTo(
-                                        targetValue = 0f,
-                                        animationSpec = playerSpringSpec,
-                                        initialVelocity = normalizedVelocity
-                                    )
-                                } else {
-                                    expandProgress.animateTo(
-                                        targetValue = 1f,
-                                        animationSpec = playerSpringSpec,
-                                        initialVelocity = normalizedVelocity
-                                    )
-                                }
-                            }
-                        }
-                    )
-            ) {
-                NowPlaying(
-                    modifier = Modifier.fillMaxSize(),
-                    musicState = musicState,
-                    onHandlePlayerActions = onHandlePlayerActions,
-                    onNavigate = onNavigate,
-                    onShrinkToSearchbar = {
-                        scope.launch {
-                            expandProgress.animateTo(0f, playerSpringSpec)
-                        }
-                    },
-                    transitionProgress = progress,
-                    onArtworkBoundsChanged = { bounds ->
-                        fullArtBoundsInRoot = bounds
-                    }
-                )
-            }
-
-            // 2. Shared-element morphing album artwork gliding continuously between mini & full bounds
-            if (progress < 1f) {
-                val artLeft = lerp(localMiniArt.left, localFullArt.left, progress)
-                val artTop = lerp(localMiniArt.top, localFullArt.top, progress)
-                val artWidthDp = with(density) {
-                    lerp(localMiniArt.width, localFullArt.width, progress).coerceAtLeast(1f).toDp()
-                }
-                val artHeightDp = with(density) {
-                    lerp(localMiniArt.height, localFullArt.height, progress).coerceAtLeast(1f).toDp()
-                }
-                val startArtCorner = if (libraryStyle) 5.dp else 10.dp
-                val artCornerDp = lerp(startArtCorner, 24.dp, progress)
-                val overlayArtAlpha = (1f - ((progress - 0.92f) / 0.08f).coerceIn(0f, 1f))
-
-                Box(
-                    modifier = Modifier
-                        .offset {
-                            IntOffset(
-                                x = artLeft.roundToInt(),
-                                y = artTop.roundToInt()
-                            )
-                        }
-                        .width(artWidthDp)
-                        .height(artHeightDp)
-                        .graphicsLayer { alpha = overlayArtAlpha }
-                        .clip(RoundedCornerShape(artCornerDp))
-                        .background(MaterialTheme.colorScheme.surfaceContainer),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.music_note),
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(0.4f),
-                        tint = contentColorFor(MaterialTheme.colorScheme.surfaceContainer)
-                    )
-                    AsyncImage(
-                        model = musicState.track.artUri,
-                        contentDescription = stringResource(R.string.artwork),
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-            }
-        }
-    }
+    PlayerExpandOverlay(
+        controller = controller,
+        musicState = musicState,
+        libraryStyle = libraryStyle,
+        onHandlePlayerActions = onHandlePlayerActions,
+        onNavigate = onNavigate
+    )
 }
+
 
 @Composable
 private fun SharedTransitionScope.CuteSearchbarContent(

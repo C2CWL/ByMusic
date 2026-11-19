@@ -49,7 +49,8 @@ fun NowPlayingLandscape(
     musicState: MusicState,
     hiddenButtons: Set<NowPlayingButton>,
     onNavigate: (Screen) -> Unit,
-    onShrinkToSearchbar: () -> Unit
+    onShrinkToSearchbar: () -> Unit,
+    onArtworkBoundsChanged: ((androidx.compose.ui.geometry.Rect) -> Unit)? = null
 ) {
     var showSpeedCard by remember { mutableStateOf(false) }
     var snap by rememberSnapSpeedAndPitch()
@@ -99,7 +100,8 @@ fun NowPlayingLandscape(
 //                    pagerModifier = Modifier
 //                        .fillMaxWidth(0.4f),
                     musicState = musicState,
-                    onHandlePlayerActions = onHandlePlayerActions
+                    onHandlePlayerActions = onHandlePlayerActions,
+                    onArtworkBoundsChanged = onArtworkBoundsChanged
                 )
             }
             Spacer(modifier = Modifier.width(10.dp))
