@@ -117,24 +117,38 @@ class OledBlackAppearanceTest {
     }
 
     @Test
-    fun oledOverridesGrayAndDynamicDarkPageBackgroundsButKeepsCardsAndAccents() {
+    fun oledFlattensGrayAndDynamicDarkSurfacesButKeepsAccentsAndOutlines() {
         val grayDark = darkColorScheme(
             background = Color(0xFF121212),
             surface = Color(0xFF1E1E1E),
             surfaceDim = Color(0xFF141414),
+            surfaceBright = Color(0xFF3A3A3A),
             surfaceContainerLowest = Color(0xFF0F0F0F),
+            surfaceContainerLow = Color(0xFF1C1C1C),
             surfaceContainer = Color(0xFF2A2A2A),
             surfaceContainerHigh = Color(0xFF333333),
-            primary = Color(0xFFAA88FF)
+            surfaceContainerHighest = Color(0xFF3D3D3D),
+            primary = Color(0xFFAA88FF),
+            secondaryContainer = Color(0xFF335566),
+            onSurface = Color(0xFFE6E1E5),
+            outline = Color(0xFF938F99),
+            outlineVariant = Color(0xFF49454F)
         )
         val dynamicDark = darkColorScheme(
             background = Color(0xFF1A1216),
             surface = Color(0xFF20181C),
             surfaceDim = Color(0xFF161014),
+            surfaceBright = Color(0xFF3A2A30),
             surfaceContainerLowest = Color(0xFF140E12),
+            surfaceContainerLow = Color(0xFF24181C),
             surfaceContainer = Color(0xFF2C2226),
             surfaceContainerHigh = Color(0xFF382A30),
-            primary = Color(0xFFFF88AA)
+            surfaceContainerHighest = Color(0xFF44343A),
+            primary = Color(0xFFFF88AA),
+            secondaryContainer = Color(0xFF553344),
+            onSurface = Color(0xFFFFD8E4),
+            outline = Color(0xFF9A8A90),
+            outlineVariant = Color(0xFF504348)
         )
 
         listOf(grayDark, dynamicDark).forEach { scheme ->
@@ -142,12 +156,25 @@ class OledBlackAppearanceTest {
             assertEquals(Color.Black, applied.background)
             assertEquals(Color.Black, applied.surface)
             assertEquals(Color.Black, applied.surfaceDim)
+            assertEquals(Color.Black, applied.surfaceBright)
             assertEquals(Color.Black, applied.surfaceContainerLowest)
+            assertEquals(Color.Black, applied.surfaceContainerLow)
+            assertEquals(Color.Black, applied.surfaceContainer)
+            assertEquals(Color.Black, applied.surfaceContainerHigh)
+            assertEquals(Color.Black, applied.surfaceContainerHighest)
             assertEquals(Color(0xFF000000), applied.background)
-            assertEquals(scheme.surfaceContainer, applied.surfaceContainer)
-            assertEquals(scheme.surfaceContainerHigh, applied.surfaceContainerHigh)
             assertEquals(scheme.primary, applied.primary)
+            assertEquals(scheme.secondaryContainer, applied.secondaryContainer)
+            assertEquals(scheme.onSurface, applied.onSurface)
+            assertEquals(scheme.outline, applied.outline)
+            assertEquals(scheme.outlineVariant, applied.outlineVariant)
         }
+    }
+
+    @Test
+    fun normalDarkDoesNotApplyOledWhenTheSwitchIsOff() {
+        assertFalse(shouldApplyOledBlack(CuteTheme.DARK, storedOled = false, systemDark = true))
+        assertFalse(shouldApplyOledBlack(CuteTheme.SYSTEM, storedOled = false, systemDark = true))
     }
 
     @Test

@@ -14,6 +14,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -50,6 +51,7 @@ import androidx.compose.runtime.retain.retain
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
@@ -391,7 +393,12 @@ private fun SettingsHome(
             onClick = { backstack.navigate(SettingsScreen.Bakery) }
         )
         Spacer(Modifier.height(20.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier
+                .border(1.dp, colors.outlineVariant, RoundedCornerShape(24.dp))
+                .clip(RoundedCornerShape(24.dp))
+        ) {
             screens.fastForEachIndexed { index, screen ->
                 val containerColor = palettes[index % 3]
                 SettingsCard(
@@ -433,6 +440,7 @@ fun FeaturedCard(
         interactionSource = interactionSource,
         modifier = Modifier
             .fillMaxWidth()
+            .border(1.dp, colors.outlineVariant, RoundedCornerShape(24.dp))
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
