@@ -6,7 +6,9 @@ import com.mocharealm.accompanist.lyrics.core.model.synced.SyncedLine
 import com.mocharealm.accompanist.lyrics.core.model.synced.mapper.toSyncedLine
 import com.mocharealm.accompanist.lyrics.core.parser.AutoParser
 import com.mocharealm.accompanist.lyrics.core.parser.EnhancedLrcParser
+import com.mocharealm.accompanist.lyrics.core.parser.TTMLParser
 import com.sosauce.chocola.core.data.diagnostics.DiagLogger
+import com.sosauce.chocola.core.domain.model.LyricWord
 import com.sosauce.chocola.core.domain.model.Lyrics
 import java.nio.charset.StandardCharsets
 import kotlin.coroutines.cancellation.CancellationException
@@ -122,14 +124,63 @@ internal object LyricsTextParser {
         }
     }
 
-    private fun mapLines(lines: List<ISyncedLine>): List<Lyrics> {
+    internal fun mapLines(lines: List<ISyncedLine>): List<Lyrics> {
         return lines.mapNotNull { line ->
-            val synced = when (line) {
-                is SyncedLine -> line
-                is KaraokeLine -> line.toSyncedLine()
-                else -> return@mapNotNull null
+            when (line) {
+                is SyncedLine -> Lyrics(
+                    timestamp = line.start,
+                    lineLyrics = line.content,
+                    endTimestamp = line.end,
+                    translation = line.translation.cleanExtra(),
+                    phonetic = line.phonetic.cleanExtra()
+                )
+                is KaraokeLine -> {
+                    // Line text stays exactly what the old flattening produced.
+                    val synced = line.toSyncedLine()
+                    Lyrics(
+                        timestamp = synced.start,
+                        lineLyrics = synced.content,
+                        endTimestamp = line.end,
+                        words = line.syllables
+                            .filter { it.content.isNotEmpty() }
+                            .map { LyricWord(it.content, it.start, it.end, it.phonetic.cleanExtra()) },
+                        translation = line.translation.cleanExtra(),
+                        phonetic = line.phonetic.cleanExtra(),
+                        isAccompaniment = line is KaraokeLine.AccompanimentKaraokeLine
+                    )
+                }
+                else -> null
             }
-            Lyrics(timestamp = synced.start, lineLyrics = synced.content)
+        }
+    }
+
+    private fun String?.cleanExtra(): String? = this?.trim()?.takeIf { it.isNotEmpty() }
+
+    private val ttmlParser = TTMLParser()
+
+    fun looksLikeTtml(raw: String): Boolean = ttmlParser.canParse(raw)
+
+    /**
+     * Parses a TTML sidecar or imported file. Text that is not TTML (for example an LRC
+     * file saved with a .ttml name) goes through the normal LRC path instead.
+     */
+    fun parseTtmlText(
+        raw: String,
+        officialParse: (String) -> List<Lyrics> = { mapLines(ttmlParser.parse(it).lines) }
+    ): List<Lyrics> {
+        val text = raw.trimStart('\uFEFF')
+        if (!looksLikeTtml(text)) return parseLyricText(text, LyricSource.SIDECAR)
+        return try {
+            runCancellableParse { officialParse(text) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            DiagLogger.w(
+                "Lyrics",
+                "ttml parse failed chars=${text.length} error=${e::class.java.simpleName}: ${e.message ?: ""}",
+                e
+            )
+            emptyList()
         }
     }
 

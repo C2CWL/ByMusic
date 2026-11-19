@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sosauce.chocola.R
+import com.sosauce.chocola.core.data.lyrics.LyricsSidecar
 import com.sosauce.chocola.core.domain.player.MusicState
 import com.sosauce.chocola.core.domain.player.PlayerActions
 import com.sosauce.chocola.core.presentation.navigation.Screen
@@ -255,7 +256,7 @@ fun DefaultEmptyLyricsScreen(
 
             if (uri == null) return@rememberLauncherForActivityResult
 
-            if (!uri.toString().endsWith(".lrc")) {
+            if (!LyricsSidecar.isSupportedLyricsName(uri.toString())) {
                 Toast.makeText(
                     context,
                     resources.getString(R.string.not_a_lyric_file),

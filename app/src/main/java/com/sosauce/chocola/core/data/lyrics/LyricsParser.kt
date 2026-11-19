@@ -23,16 +23,21 @@ class LyricsParser(private val context: Context) {
     ): List<Lyrics> = withContext(Dispatchers.IO) {
         try {
             ensureActive()
-            val parent = path.substringBeforeLast('/')
-            val fileName = path.substringAfterLast('/').replaceAfterLast('.', "lrc")
-            val lyricsFile = File(parent, fileName)
+            val sidecar = LyricsSidecar.find(path) { File(it).exists() }
 
-            if (lyricsFile.exists()) {
-                val raw = LyricsTextParser.decodeLyricBytes(lyricsFile.readBytes())
-                LyricsTextParser.parseLyricText(raw, LyricSource.SIDECAR)
-            } else {
-                val embeddedLyrics = loadEmbeddedLyrics(path) ?: return@withContext emptyList()
-                LyricsTextParser.parseLyricText(embeddedLyrics, LyricSource.EMBEDDED)
+            when (sidecar?.kind) {
+                LyricsSidecar.Kind.LRC -> {
+                    val raw = LyricsTextParser.decodeLyricBytes(File(sidecar.path).readBytes())
+                    LyricsTextParser.parseLyricText(raw, LyricSource.SIDECAR)
+                }
+                LyricsSidecar.Kind.TTML -> {
+                    val raw = LyricsTextParser.decodeLyricBytes(File(sidecar.path).readBytes())
+                    LyricsTextParser.parseTtmlText(raw)
+                }
+                null -> {
+                    val embeddedLyrics = loadEmbeddedLyrics(path) ?: return@withContext emptyList()
+                    LyricsTextParser.parseLyricText(embeddedLyrics, LyricSource.EMBEDDED)
+                }
             }
         } catch (e: CancellationException) {
             throw e
@@ -41,6 +46,33 @@ class LyricsParser(private val context: Context) {
             DiagLogger.w(
                 "Lyrics",
                 "lyrics load failed error=${e::class.java.simpleName}: ${e.message ?: ""}",
+                e
+            )
+            emptyList()
+        }
+    }
+
+    /**
+     * Reads a lyrics file the user picked (LRC or TTML) through the content resolver,
+     * so picker URIs that are not plain file paths also work.
+     */
+    suspend fun parseLyricsUri(uri: Uri): List<Lyrics> = withContext(Dispatchers.IO) {
+        try {
+            ensureActive()
+            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                ?: return@withContext emptyList()
+            val raw = LyricsTextParser.decodeLyricBytes(bytes)
+            if (LyricsTextParser.looksLikeTtml(raw)) {
+                LyricsTextParser.parseTtmlText(raw)
+            } else {
+                LyricsTextParser.parseLyricText(raw, LyricSource.SIDECAR)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            DiagLogger.w(
+                "Lyrics",
+                "lyrics import failed error=${e::class.java.simpleName}: ${e.message ?: ""}",
                 e
             )
             emptyList()
