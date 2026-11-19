@@ -32,7 +32,7 @@ import kotlinx.coroutines.flow.map
 
 /**
  * "用在线音乐前，先看这几条" (mockup 06). Shown the first time the online page opens; after
- * "我知道了" it is not shown again and can be reread from Settings → 在线与下载.
+ * "我知道了" it is not shown again and can be reread from Settings → 在线音乐使用说明.
  *
  * @param onDecline null when reread from settings (only one button then).
  */
