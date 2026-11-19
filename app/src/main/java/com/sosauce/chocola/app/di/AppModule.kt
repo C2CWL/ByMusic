@@ -14,6 +14,8 @@ import com.sosauce.chocola.core.data.local.MIGRATION_2_3
 import com.sosauce.chocola.core.data.local.PlaylistCleanup
 import com.sosauce.chocola.core.data.local.PlaylistDatabase
 import com.sosauce.chocola.core.data.lyrics.LyricsParser
+import com.sosauce.chocola.core.domain.online.OnlineMediaResolver
+import com.sosauce.chocola.core.domain.online.UnavailableOnlineMediaResolver
 import com.sosauce.chocola.core.data.widgets.WidgetsHelper
 import com.sosauce.chocola.core.presentation.components.dialogs.DeletionViewModel
 import com.sosauce.chocola.core.presentation.components.dialogs.tracksDetails.TracksDetailsDialogViewModel
@@ -41,6 +43,8 @@ import org.koin.android.ext.koin.androidApplication
 import org.koin.core.module.dsl.singleOf
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 
 val appModule = module {
     single {
@@ -62,6 +66,18 @@ val appModule = module {
     }
 
     single { CoroutineScope(Dispatchers.IO + SupervisorJob()) }
+
+    // Online playback foundation. Koin singles are created on first use only.
+    single {
+        OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .followRedirects(true)
+            .followSslRedirects(false)
+            .build()
+    }
+    // Placeholder until the plugin stage: no real music source is connected.
+    single<OnlineMediaResolver> { UnavailableOnlineMediaResolver }
 
     singleOf(::AbstractTracksScanner)
     singleOf(::LyricsParser)

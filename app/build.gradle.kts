@@ -134,6 +134,7 @@ dependencies {
     implementation(libs.androidx.media3.session)
     implementation(libs.androidx.media3.transformer)
     implementation(libs.androidx.media3.effect)
+    implementation(libs.androidx.media3.datasource.okhttp)
     implementation(libs.taglib)
     implementation(libs.lyrics.core)
 
@@ -143,12 +144,17 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     implementation(libs.kotlinx.serialization.json)
 
+    // Networking for online playback
+    implementation(libs.okhttp)
+
     // Widgets
     implementation(libs.androidx.glance)
     implementation(libs.androidx.glance.appwidget)
 
     // Images & Theming
     implementation(libs.coil.compose)
+    // Online cover art (http/https); auto-registered with Coil.
+    implementation(libs.coil.network.okhttp)
     implementation(libs.material.kolor)
     implementation(libs.kmpalette.core)
 

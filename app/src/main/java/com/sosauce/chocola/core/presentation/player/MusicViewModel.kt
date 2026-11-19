@@ -12,7 +12,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.util.fastFilter
-import androidx.compose.ui.util.fastFirstOrNull
 import androidx.compose.ui.util.fastMap
 import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
@@ -38,6 +37,8 @@ import com.sosauce.chocola.core.data.local.FavoriteTrackEntity
 import com.sosauce.chocola.core.data.local.FavoritesDao
 import com.sosauce.chocola.core.data.lyrics.LyricsParser
 import com.sosauce.chocola.core.data.mapper.toMediaItem
+import com.sosauce.chocola.core.data.mapper.toSnapshot
+import com.sosauce.chocola.core.domain.online.PlayableTrackLookup
 import com.sosauce.chocola.core.domain.library.orderAlbumTrackNumber
 import com.sosauce.chocola.core.domain.player.MusicState
 import com.sosauce.chocola.core.domain.player.PlaySource
@@ -96,9 +97,12 @@ class MusicViewModel(
 
                 if (mediaItem == null) return
 
-                tracks.value.fastFirstOrNull { track ->
-                    track.mediaId == mediaItem.mediaId
-                }?.also { track ->
+                // Local library first (unchanged); online ids fall back to the item's own metadata.
+                PlayableTrackLookup.find(
+                    mediaId = mediaItem.mediaId,
+                    library = tracks.value,
+                    snapshot = { mediaItem.toSnapshot() }
+                )?.also { track ->
                     val trackWithFavorite =
                         track.copy(isFavorite = track.mediaId.toLongOrNull() in favoriteTrackIds)
                     _musicState.update {
@@ -107,7 +111,12 @@ class MusicViewModel(
                         )
                     }
                     loadNewArt(trackWithFavorite.artUri?.toUri())
-                    parseLyrics(trackWithFavorite.path)
+                    if (trackWithFavorite.isOnline) {
+                        // Online lyrics come from plugins in a later stage; never read a local file.
+                        clearLyrics()
+                    } else {
+                        parseLyrics(trackWithFavorite.path)
+                    }
 
                 }
             }
@@ -264,8 +273,12 @@ class MusicViewModel(
             while (currentWindowIndex != C.INDEX_UNSET) {
                 timeline.getWindow(currentWindowIndex, window)
 
-                val mediaId = window.mediaItem.mediaId
-                val found = allTracks.fastFirstOrNull { it.mediaId == mediaId }
+                val mediaItem = window.mediaItem
+                val found = PlayableTrackLookup.find(
+                    mediaId = mediaItem.mediaId,
+                    library = allTracks,
+                    snapshot = { mediaItem.toSnapshot() }
+                )
                 found?.let { add(it) }
 
                 currentWindowIndex = timeline.getNextWindowIndex(
@@ -310,6 +323,11 @@ class MusicViewModel(
     private fun stopPositionUpdates() {
         positionJob?.cancel()
         positionJob = null
+    }
+
+    private fun clearLyrics() {
+        lyricsJob?.cancel()
+        _musicState.update { it.copy(lyrics = emptyList()) }
     }
 
     private fun parseLyrics(trackPath: String, requireCurrentTrack: Boolean = true) {
@@ -405,8 +423,12 @@ class MusicViewModel(
      * Restores playback from service if it was already running
      */
     private fun syncFromLiveController(controller: MediaController) {
-        val liveTrack = controller.currentMediaItem?.mediaId?.let { mediaId ->
-            tracks.value.fastFirstOrNull { it.mediaId == mediaId }
+        val liveTrack = controller.currentMediaItem?.let { mediaItem ->
+            PlayableTrackLookup.find(
+                mediaId = mediaItem.mediaId,
+                library = tracks.value,
+                snapshot = { mediaItem.toSnapshot() }
+            )
         }
         liveTrack?.let { track ->
             val trackWithFavorite =
@@ -430,7 +452,7 @@ class MusicViewModel(
 
         liveTrack?.let { track ->
             loadNewArt(track.artUri?.toUri())
-            parseLyrics(track.path)
+            if (track.isOnline) clearLyrics() else parseLyrics(track.path)
         }
     }
 

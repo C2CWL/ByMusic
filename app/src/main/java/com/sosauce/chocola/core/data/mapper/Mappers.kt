@@ -4,6 +4,7 @@ import androidx.core.net.toUri
 import androidx.datastore.preferences.core.Preferences
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.util.UnstableApi
 import com.sosauce.chocola.core.data.backup.SettingType
 import com.sosauce.chocola.core.data.backup.SettingsWithType
 import com.sosauce.chocola.core.data.datastore.PreferencesKeys.HIDDEN_FOLDERS
@@ -12,9 +13,11 @@ import com.sosauce.chocola.core.data.datastore.PreferencesKeys.SAF_TRACKS
 import com.sosauce.chocola.core.data.datastore.PreferencesKeys.WHITELISTED_FOLDERS
 import com.sosauce.chocola.core.domain.model.CuteTrack
 import com.sosauce.chocola.core.domain.model.Folder
+import com.sosauce.chocola.core.domain.online.MediaItemSnapshot
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 
+@androidx.annotation.OptIn(UnstableApi::class)
 fun CuteTrack.toMediaItem(): MediaItem {
 
     val metadata = MediaMetadata.Builder()
@@ -25,6 +28,10 @@ fun CuteTrack.toMediaItem(): MediaItem {
         .setArtist(artist)
         .setAlbumTitle(album)
         .setArtworkUri(artUri?.toUri())
+        .apply {
+            // Online tracks have no local file for the UI to read the duration from.
+            if (isOnline && durationMillis > 0) setDurationMs(durationMillis)
+        }
         .build()
 
     return MediaItem.Builder()
@@ -33,6 +40,17 @@ fun CuteTrack.toMediaItem(): MediaItem {
         .setMediaMetadata(metadata)
         .build()
 }
+
+/** Plain copy of the metadata needed to show a track that is not in the local library. */
+@androidx.annotation.OptIn(UnstableApi::class)
+fun MediaItem.toSnapshot(): MediaItemSnapshot = MediaItemSnapshot(
+    mediaId = mediaId,
+    title = mediaMetadata.title?.toString().orEmpty(),
+    artist = mediaMetadata.artist?.toString().orEmpty(),
+    album = mediaMetadata.albumTitle?.toString().orEmpty(),
+    artworkUri = mediaMetadata.artworkUri?.toString(),
+    durationMillis = mediaMetadata.durationMs ?: 0L
+)
 
 fun Preferences.toJsonMap(): Map<String, SettingsWithType> {
 
