@@ -41,4 +41,8 @@ sealed class SettingsScreen : NavKey {
 
     @Serializable
     data object Diagnostics : SettingsScreen()
+
+    /** MusicFree-format plugin manager. */
+    @Serializable
+    data object Plugins : SettingsScreen()
 }

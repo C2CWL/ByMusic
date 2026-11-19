@@ -68,6 +68,10 @@ class OnlineDataSourceResolver(
     }
 
     companion object {
-        const val DEFAULT_TIMEOUT_MS = 15_000L
+        /**
+         * Whole resolve, all quality tiers included. Plugins get up to 8 s per MusicFree
+         * quality key (4 keys), so this is a little above 4 × 8 s.
+         */
+        const val DEFAULT_TIMEOUT_MS = 35_000L
     }
 }

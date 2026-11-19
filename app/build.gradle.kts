@@ -147,6 +147,9 @@ dependencies {
     // Networking for online playback
     implementation(libs.okhttp)
 
+    // Sandboxed JavaScript engine for user-imported MusicFree-format plugins.
+    implementation(libs.quickjs.kt)
+
     // Widgets
     implementation(libs.androidx.glance)
     implementation(libs.androidx.glance.appwidget)
@@ -168,3 +171,11 @@ dependencies {
     testImplementation(libs.junit)
 }
 
+// Local JVM unit tests cannot load the Android QuickJS .so; use the desktop JVM artifact
+// (same API, ships linux/macos/windows natives) as documented by quickjs-kt.
+configurations.matching { it.name.endsWith("UnitTestRuntimeClasspath") }.configureEach {
+    resolutionStrategy.dependencySubstitution {
+        substitute(module("io.github.dokar3:quickjs-kt-android"))
+            .using(module("io.github.dokar3:quickjs-kt-jvm:${libs.versions.quickjsKt.get()}"))
+    }
+}

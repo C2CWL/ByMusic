@@ -1,0 +1,191 @@
+package com.sosauce.chocola.core.data.plugin
+
+import com.sosauce.chocola.core.data.plugin.MusicFreeItems.string
+import com.sosauce.chocola.core.domain.model.CuteTrack
+import com.sosauce.chocola.core.domain.online.OnlineLyricsProvider
+import com.sosauce.chocola.core.domain.online.OnlineMediaId
+import com.sosauce.chocola.core.domain.online.OnlineMediaResolver
+import com.sosauce.chocola.core.domain.online.OnlineResolveException
+import com.sosauce.chocola.core.domain.online.OnlineUrlPolicy
+import com.sosauce.chocola.core.domain.online.QualityTier
+import com.sosauce.chocola.core.domain.online.ResolveRequest
+import com.sosauce.chocola.core.domain.online.ResolvedMedia
+import com.sosauce.chocola.core.domain.online.tryInOrder
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
+
+/** One page of music search results from one plugin. */
+data class OnlineSearchPage(
+    val pluginId: String,
+    val tracks: List<CuteTrack>,
+    val isEnd: Boolean
+)
+
+/** What getMediaSource returned for one quality key. */
+data class PluginMediaSource(
+    val url: String,
+    val headers: Map<String, String>,
+    val userAgent: String?,
+    val quality: String?
+)
+
+/**
+ * The MusicFree calls ByMusic's screens and player use: search (music), getMediaSource,
+ * getLyric and getMusicInfo. Other protocol methods are callable through
+ * [PluginManager.call] and get their screens in later steps.
+ */
+class PluginMusicService(
+    private val manager: PluginManager,
+    private val items: OnlineMusicItemStore
+) {
+
+    suspend fun searchMusic(pluginId: String, query: String, page: Int): OnlineSearchPage {
+        val runtime = manager.runtime(pluginId)
+        val manifest = runtime.manifest
+        if (!manifest.canSearchMusic) throw PluginException(PluginErrorType.METHOD_MISSING, "这个插件不支持搜歌")
+        val result = runtime.call(
+            "search",
+            listOf(JsonPrimitive(query), JsonPrimitive(page), JsonPrimitive("music"))
+        ) as? JsonObject ?: return OnlineSearchPage(pluginId, emptyList(), true)
+        val data = result["data"] as? kotlinx.serialization.json.JsonArray
+        val remembered = LinkedHashMap<OnlineMediaId, JsonObject>()
+        val tracks = data.orEmpty().mapNotNull { element ->
+            val item = element as? JsonObject ?: return@mapNotNull null
+            val withPlatform = MusicFreeItems.withPlatform(item, manifest.platform)
+            val track = MusicFreeItems.toTrack(pluginId, manifest.effectivePrimaryKey, withPlatform)
+                ?: return@mapNotNull null
+            OnlineMediaId.parse(track.mediaId)?.let { remembered[it] = withPlatform }
+            track
+        }.distinctBy { it.mediaId }
+        withContext(Dispatchers.IO) { items.putAll(remembered) }
+        val isEnd = (result["isEnd"] as? JsonPrimitive)?.booleanOrNull ?: true
+        return OnlineSearchPage(pluginId, tracks, isEnd || tracks.isEmpty())
+    }
+
+    /** Loads the plugin if needed; throws when it is missing, disabled or fails to load. */
+    suspend fun ensureUsable(pluginId: String) {
+        manager.runtime(pluginId)
+    }
+
+    /** The item to hand back to the plugin: the one it returned earlier, or a minimal one. */
+    suspend fun itemFor(id: OnlineMediaId, platform: String): JsonObject {
+        val stored = withContext(Dispatchers.IO) { items.get(id) }
+        if (stored != null) return stored
+        return JsonObject(mapOf("id" to JsonPrimitive(id.trackId), "platform" to JsonPrimitive(platform)))
+    }
+
+    suspend fun mediaSource(id: OnlineMediaId, qualityKey: String, timeoutMillis: Long): PluginMediaSource? {
+        val runtime = manager.runtime(id.pluginId)
+        val item = itemFor(id, runtime.manifest.platform)
+        if (!runtime.manifest.has("getMediaSource")) {
+            // Protocol: without getMediaSource the item's own `url` is the source.
+            val url = item.string("url") ?: return null
+            return PluginMediaSource(url, emptyMap(), null, null)
+        }
+        val result = runtime.call(
+            "getMediaSource",
+            listOf(item, JsonPrimitive(qualityKey)),
+            timeoutMillis
+        ) as? JsonObject ?: return null
+        val url = result.string("url") ?: return null
+        val headers = (result["headers"] as? JsonObject).orEmpty()
+            .mapNotNull { (k, v) -> (v as? JsonPrimitive)?.contentOrNull?.let { k to it } }
+            .toMap()
+        return PluginMediaSource(url, headers, result.string("userAgent"), result.string("quality"))
+    }
+
+    /** getLyric → rawLrc; without getLyric, the item's own rawLrc. Translation is not used yet. */
+    suspend fun lyrics(id: OnlineMediaId): String? {
+        val runtime = manager.runtime(id.pluginId)
+        val item = itemFor(id, runtime.manifest.platform)
+        if (!runtime.manifest.has("getLyric")) return item.string("rawLrc")
+        val result = runtime.call("getLyric", listOf(item)) as? JsonObject ?: return item.string("rawLrc")
+        return result.string("rawLrc") ?: item.string("rawLrc")
+    }
+
+    /** getMusicInfo: merges the extra fields into the remembered item. */
+    suspend fun refreshInfo(id: OnlineMediaId): JsonObject? {
+        val runtime = manager.runtime(id.pluginId)
+        if (!runtime.manifest.has("getMusicInfo")) return null
+        val item = itemFor(id, runtime.manifest.platform)
+        val extra = runtime.call("getMusicInfo", listOf(item)) as? JsonObject ?: return null
+        val merged = JsonObject(item + extra + ("platform" to JsonPrimitive(runtime.manifest.platform)))
+        withContext(Dispatchers.IO) { items.putAll(mapOf(id to merged)) }
+        return merged
+    }
+}
+
+/**
+ * Connects the player's resolve step (#36) to the plugin's getMediaSource. Quality is
+ * requested from the top of [ResolveRequest.quality] (by default the highest tier) and
+ * steps down one tier at a time. Tiers that share a MusicFree key are asked only once.
+ */
+class PluginOnlineMediaResolver(
+    private val service: PluginMusicService,
+    private val perTierTimeoutMillis: Long = PER_TIER_TIMEOUT_MS
+) : OnlineMediaResolver {
+
+    override suspend fun resolve(request: ResolveRequest): ResolvedMedia {
+        // A missing, disabled or broken plugin fails right away instead of once per tier.
+        try {
+            service.ensureUsable(request.id.pluginId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            throw OnlineResolveException(e.message ?: "插件不可用", e)
+        }
+
+        val asked = HashMap<String, Result<PluginMediaSource?>>()
+        var lastError: String? = null
+        val outcome = request.quality.tryInOrder { tier ->
+            val key = tier.musicFreeKey
+            val result = asked.getOrPut(key) {
+                try {
+                    Result.success(service.mediaSource(request.id, key, perTierTimeoutMillis))
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    lastError = e.message
+                    Result.failure(e)
+                }
+            }
+            val source = result.getOrThrow() ?: return@tryInOrder null
+            if (!OnlineUrlPolicy.isAllowed(source.url)) {
+                lastError = "插件给的不是 http(s) 链接"
+                throw OnlineResolveException(lastError!!)
+            }
+            source
+        } ?: throw OnlineResolveException(
+            "插件没有给出可播放的地址" + (lastError?.let { "（$it）" } ?: "")
+        )
+
+        val source = outcome.value
+        return ResolvedMedia(
+            url = source.url,
+            headers = source.headers,
+            userAgent = source.userAgent,
+            // Only what the plugin reports; real quality is measured in a later step.
+            servedTier = QualityTier.fromMusicFreeKey(source.quality),
+            attempts = outcome.attempts
+        )
+    }
+
+    companion object {
+        const val PER_TIER_TIMEOUT_MS = 8_000L
+    }
+}
+
+class PluginOnlineLyricsProvider(private val service: PluginMusicService) : OnlineLyricsProvider {
+    override suspend fun rawLyrics(id: OnlineMediaId): String? = try {
+        service.lyrics(id)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        null
+    }
+}
