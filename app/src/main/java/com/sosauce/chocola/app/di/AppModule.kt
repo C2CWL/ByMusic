@@ -14,6 +14,8 @@ import com.sosauce.chocola.core.data.local.MIGRATION_2_3
 import com.sosauce.chocola.core.data.local.PlaylistCleanup
 import com.sosauce.chocola.core.data.local.PlaylistDatabase
 import com.sosauce.chocola.core.data.lyrics.LyricsParser
+import com.sosauce.chocola.core.domain.online.OnlineMediaResolver
+import com.sosauce.chocola.core.domain.online.UnavailableOnlineMediaResolver
 import com.sosauce.chocola.core.data.widgets.WidgetsHelper
 import com.sosauce.chocola.core.presentation.components.dialogs.DeletionViewModel
 import com.sosauce.chocola.core.presentation.components.dialogs.tracksDetails.TracksDetailsDialogViewModel
@@ -28,6 +30,13 @@ import com.sosauce.chocola.feature.metadata.presentation.MetadataViewModel
 import com.sosauce.chocola.feature.playlists.presentation.PlaylistDetailsViewModel
 import com.sosauce.chocola.feature.playlists.presentation.PlaylistViewModel
 import com.sosauce.chocola.feature.quickplay.presentation.QuickPlayViewModel
+import com.sosauce.chocola.feature.recognition.data.AndroidAudioRecorder
+import com.sosauce.chocola.feature.recognition.data.RecognitionAudioFiles
+import com.sosauce.chocola.feature.recognition.data.RecognitionHistoryStore
+import com.sosauce.chocola.feature.recognition.data.RecognitionSession
+import com.sosauce.chocola.feature.recognition.domain.EmptyRecognitionPluginRegistry
+import com.sosauce.chocola.feature.recognition.domain.RecognitionPluginRegistry
+import com.sosauce.chocola.feature.recognition.presentation.RecognitionViewModel
 import com.sosauce.chocola.feature.settings.presentation.BackupViewModel
 import com.sosauce.chocola.feature.settings.presentation.PlaybackSettingsViewModel
 import com.sosauce.chocola.feature.settings.presentation.SettingsLibraryViewModel
@@ -41,6 +50,8 @@ import org.koin.android.ext.koin.androidApplication
 import org.koin.core.module.dsl.singleOf
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 
 val appModule = module {
     single {
@@ -62,6 +73,18 @@ val appModule = module {
     }
 
     single { CoroutineScope(Dispatchers.IO + SupervisorJob()) }
+
+    // Online playback foundation. Koin singles are created on first use only.
+    single {
+        OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .followRedirects(true)
+            .followSslRedirects(false)
+            .build()
+    }
+    // Placeholder until the plugin stage: no real music source is connected.
+    single<OnlineMediaResolver> { UnavailableOnlineMediaResolver }
 
     singleOf(::AbstractTracksScanner)
     singleOf(::LyricsParser)
@@ -95,4 +118,23 @@ val appModule = module {
     viewModelOf(::SetupViewModel)
     viewModelOf(::TracksDetailsDialogViewModel)
     viewModelOf(::BackupViewModel)
+
+    // Song recognition: plugin-provided only. No plugin runtime yet, so the registry is
+    // empty and no entry is shown. No built-in service, no keys.
+    single<RecognitionPluginRegistry> { EmptyRecognitionPluginRegistry }
+    single {
+        RecognitionHistoryStore(
+            java.io.File(androidApplication().filesDir, RecognitionHistoryStore.FILE_NAME)
+        )
+    }
+    single { RecognitionAudioFiles(androidApplication().cacheDir) }
+    factory {
+        RecognitionSession(
+            recorder = AndroidAudioRecorder(androidApplication()),
+            audioFiles = get(),
+            registry = get(),
+            history = get()
+        )
+    }
+    viewModelOf(::RecognitionViewModel)
 }

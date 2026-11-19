@@ -54,11 +54,11 @@ import com.sosauce.chocola.core.presentation.preferences.rememberHiddenNowPlayin
 import com.sosauce.chocola.core.presentation.preferences.rememberIsLandscape
 import com.sosauce.chocola.core.presentation.preferences.rememberSnapSpeedAndPitch
 import com.sosauce.chocola.core.presentation.preferences.rememberUseArtAsBackground
-import com.sosauce.chocola.core.presentation.preferences.rememberUseTurntable
 import com.sosauce.chocola.feature.playing.presentation.components.Artwork
 import com.sosauce.chocola.feature.playing.presentation.components.MoreOptionsButton
 import com.sosauce.chocola.feature.playing.presentation.components.QuickActionsRow
 import com.sosauce.chocola.feature.playing.presentation.components.TurntableTheme
+import com.sosauce.chocola.feature.playing.presentation.components.rememberTurntableEnabled
 import com.sosauce.chocola.feature.playing.presentation.components.hasVisibleQuickActions
 
 @Composable
@@ -96,7 +96,7 @@ fun NowPlayingLayout(
     onArtworkBoundsChanged: ((Rect) -> Unit)? = null
 ) {
     val isLandscape = rememberIsLandscape()
-    val useTurntable by rememberUseTurntable()
+    val useTurntable = rememberTurntableEnabled()
     TurntableTheme(enabled = useTurntable, artworkUri = musicState.track.artUri) {
         if (isLandscape) {
             NowPlayingLandscape(
@@ -137,7 +137,7 @@ private fun NowPlayingContent(
     var showPlaylistDialog by remember { mutableStateOf(false) }
     var showDetailsDialog by remember { mutableStateOf(false) }
     val useArtBackground by rememberUseArtAsBackground()
-    val useTurntable by rememberUseTurntable()
+    val useTurntable = rememberTurntableEnabled()
 
     if (showDetailsDialog) {
         TracksDetailsDialog(
@@ -167,68 +167,22 @@ private fun NowPlayingContent(
         modifier = modifier,
         containerColor = if (useTurntable) Color.Transparent else MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(
-                modifier = Modifier,
-                title = {},
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent
-                ),
-                navigationIcon = {
-                    AnimatedVisibility(
-                        visible = NowPlayingButton.CLOSE !in hiddenButtons,
-                        enter = fadeIn() + expandHorizontally(),
-                        exit = fadeOut() + shrinkHorizontally()
-                    ) {
-                        IconButton(
-                            onClick = onShrinkToSearchbar,
-                            shapes = IconButtonDefaults.shapes(),
-                            colors = IconButtonDefaults.filledIconButtonColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                                contentColor = contentColorFor(MaterialTheme.colorScheme.surfaceContainer)
-                            ),
-                            modifier = Modifier
-                                .padding(start = 15.dp)
-                                .size(IconButtonDefaults.smallContainerSize(IconButtonDefaults.IconButtonWidthOption.Wide))
-
-                        ) {
-                            Icon(
-                                painter = painterResource(R.drawable.arrow_down),
-                                contentDescription = null,
-                                modifier = Modifier.size(28.dp)
-                            )
-                        }
-                    }
-                },
-                actions = {
-                    MoreOptionsButton(
-                        modifier = Modifier.padding(end = 15.dp),
-                        musicState = musicState,
-                        onNavigate = onNavigate,
-                        onShrinkToSearchbar = onShrinkToSearchbar,
-                        onHandlePlayerActions = onHandlePlayerActions,
-                        hiddenButtons = hiddenButtons
-                    )
-                }
+            NowPlayingTopBar(
+                musicState = musicState,
+                hiddenButtons = hiddenButtons,
+                onClose = onShrinkToSearchbar,
+                onNavigate = onNavigate,
+                onShrinkToSearchbar = onShrinkToSearchbar,
+                onHandlePlayerActions = onHandlePlayerActions
             )
         },
         bottomBar = {
-            AnimatedVisibility(
-                visible = hasVisibleQuickActions(hiddenButtons),
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
-            ) {
-                BottomAppBar(
-                    modifier = Modifier,
-                    containerColor = Color.Transparent
-                ) {
-                    QuickActionsRow(
-                        musicState = musicState,
-                        onShowSpeedCard = { showSpeedCard = true },
-                        onHandlePlayerActions = onHandlePlayerActions,
-                        hiddenButtons = hiddenButtons
-                    )
-                }
-            }
+            NowPlayingQuickActionsBar(
+                musicState = musicState,
+                hiddenButtons = hiddenButtons,
+                onShowSpeedCard = { showSpeedCard = true },
+                onHandlePlayerActions = onHandlePlayerActions
+            )
         }
     ) { paddingValues ->
 
@@ -288,4 +242,90 @@ private fun NowPlayingContent(
     }
 
 
+}
+
+/**
+ * Top bar of the portrait now playing page. Shared with the expand transition
+ * so the turntable transition's last frame lays it out exactly like the page.
+ */
+@Composable
+internal fun NowPlayingTopBar(
+    musicState: MusicState,
+    hiddenButtons: Set<NowPlayingButton>,
+    onClose: () -> Unit,
+    onNavigate: (Screen) -> Unit,
+    onShrinkToSearchbar: () -> Unit,
+    onHandlePlayerActions: (PlayerActions) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    TopAppBar(
+        modifier = modifier,
+        title = {},
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = Color.Transparent
+        ),
+        navigationIcon = {
+            AnimatedVisibility(
+                visible = NowPlayingButton.CLOSE !in hiddenButtons,
+                enter = fadeIn() + expandHorizontally(),
+                exit = fadeOut() + shrinkHorizontally()
+            ) {
+                IconButton(
+                    onClick = onClose,
+                    shapes = IconButtonDefaults.shapes(),
+                    colors = IconButtonDefaults.filledIconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                        contentColor = contentColorFor(MaterialTheme.colorScheme.surfaceContainer)
+                    ),
+                    modifier = Modifier
+                        .padding(start = 15.dp)
+                        .size(IconButtonDefaults.smallContainerSize(IconButtonDefaults.IconButtonWidthOption.Wide))
+
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.arrow_down),
+                        contentDescription = null,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            }
+        },
+        actions = {
+            MoreOptionsButton(
+                modifier = Modifier.padding(end = 15.dp),
+                musicState = musicState,
+                onNavigate = onNavigate,
+                onShrinkToSearchbar = onShrinkToSearchbar,
+                onHandlePlayerActions = onHandlePlayerActions,
+                hiddenButtons = hiddenButtons
+            )
+        }
+    )
+}
+
+/** Bottom quick actions bar of the portrait page. Shared with the expand transition. */
+@Composable
+internal fun NowPlayingQuickActionsBar(
+    musicState: MusicState,
+    hiddenButtons: Set<NowPlayingButton>,
+    onShowSpeedCard: () -> Unit,
+    onHandlePlayerActions: (PlayerActions) -> Unit
+) {
+    AnimatedVisibility(
+        visible = hasVisibleQuickActions(hiddenButtons),
+        enter = fadeIn() + expandVertically(),
+        exit = fadeOut() + shrinkVertically()
+    ) {
+        BottomAppBar(
+            modifier = Modifier,
+            containerColor = Color.Transparent
+        ) {
+            QuickActionsRow(
+                musicState = musicState,
+                onShowSpeedCard = onShowSpeedCard,
+                onHandlePlayerActions = onHandlePlayerActions,
+                hiddenButtons = hiddenButtons
+            )
+        }
+    }
 }

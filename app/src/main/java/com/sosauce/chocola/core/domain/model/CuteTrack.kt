@@ -1,6 +1,7 @@
 package com.sosauce.chocola.core.domain.model
 
 import androidx.core.net.toUri
+import com.sosauce.chocola.core.domain.online.OnlineMediaId
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -22,6 +23,14 @@ data class CuteTrack(
 ) {
     val uri
         get() = uriString.toUri()
+
+    /** Raw playback URI text; lets JVM tests check it without android.net.Uri. */
+    val uriText: String
+        get() = uriString
+
+    /** True for tracks from an online plugin (mediaId `online:<plugin>:<id>`). */
+    val isOnline: Boolean
+        get() = OnlineMediaId.isOnline(mediaId)
 
 }
 
