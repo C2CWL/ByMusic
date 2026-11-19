@@ -9,4 +9,6 @@
     <color name="onPrimaryContainer">#EADDFF</color>
     <color name="onSurface">#E6E1E5</color>
     <color name="onSurfaceVariant">#CAC4D0</color>
+    <!-- Brand splash system first-frame only; not the in-app theme. -->
+    <color name="splash_system_background">#000000</color>
 </resources>

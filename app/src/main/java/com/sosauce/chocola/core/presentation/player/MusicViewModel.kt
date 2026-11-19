@@ -73,6 +73,9 @@ class MusicViewModel(
     private val _musicState = MutableStateFlow(MusicState())
     val musicState = _musicState.asStateFlow()
 
+    private val _isControllerConnected = MutableStateFlow(false)
+    val isControllerConnected = _isControllerConnected.asStateFlow()
+
     private val tracks = abstractTracksScanner.latestTracks()
     private var lyricsJob: Job? = null
     private var positionJob: Job? = null
@@ -344,6 +347,7 @@ class MusicViewModel(
                     {
                         mediaController = get()
                         mediaController!!.addListener(playerListener)
+                        _isControllerConnected.value = true
                         loadPlaybackPreferences()
                     },
                     MoreExecutors.directExecutor()
@@ -434,6 +438,7 @@ class MusicViewModel(
     override fun onCleared() {
         stopPositionUpdates()
         runBlocking { userPreferences.saveSavedMusicState(musicState.value) }
+        _isControllerConnected.value = false
         mediaController!!.removeListener(playerListener)
         mediaController!!.release()
     }

@@ -1,0 +1,17 @@
+ByMusic brand splash artwork (direction A, vinyl close-up)
+
+This still is an original image created on 2026-11-19 from a written description
+(GenerateImage). It is not derived from, and does not copy, a user-provided
+private attachment.
+
+The native generated file was 720×1280. The shipped drawable is a 1.5× Lanczos
+upscale to 1080×1920, then compressed as WebP. It is not a native 1080p
+photograph.
+
+The bitmap is the background only. The "ByMusic" wordmark and the loading ring
+are drawn at runtime as a separate UI layer. The ring may rotate; the artwork
+does not.
+
+Wordmark typeface: Cormorant Garamond (SIL Open Font License 1.1), see
+CormorantGaramond-OFL.txt in this folder. The bundled font is a subset of a
+weight-450 instance, limited to the wordmark glyphs.
