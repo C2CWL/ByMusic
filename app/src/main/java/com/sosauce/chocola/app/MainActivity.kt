@@ -22,6 +22,7 @@ import com.sosauce.chocola.core.designsystem.theme.ChocolaTheme
 import com.sosauce.chocola.core.presentation.player.MusicViewModel
 import com.sosauce.chocola.core.presentation.util.hasMusicPermission
 import com.sosauce.chocola.feature.setup.presentation.SetupScreen
+import com.sosauce.chocola.feature.splash.presentation.BrandSplashHost
 import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
 import org.koin.androidx.compose.koinViewModel
@@ -31,11 +32,14 @@ class MainActivity : ComponentActivity() {
     private val playlistCleanup by inject<PlaylistCleanup>()
     private val foldersClassifier by inject<FoldersClassifier>()
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        installSplashScreen()
-        enableEdgeToEdge()
+    @Volatile
+    private var keepSystemSplash = true
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        val splash = installSplashScreen()
+        splash.setKeepOnScreenCondition { keepSystemSplash }
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
 
         setContent {
             val musicViewModel = koinViewModel<MusicViewModel>()
@@ -45,31 +49,37 @@ class MainActivity : ComponentActivity() {
             ) {
 
                 var canProceedToApp by remember { mutableStateOf(hasMusicPermission()) }
-                if (canProceedToApp) {
 
-                    val lifecycleOwner = LocalLifecycleOwner.current
+                BrandSplashHost(
+                    hasMusicPermission = canProceedToApp,
+                    isControllerConnected = musicViewModel.isControllerConnected,
+                    onLeaveSystemSplash = { keepSystemSplash = false }
+                ) {
+                    if (canProceedToApp) {
 
-                    // don't run cleanup jobs in setup
-                    LaunchedEffect(Unit) {
-                        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                            launch { playlistCleanup.startCleanup() }
-                            launch { foldersClassifier.start() }
-                            launch {
-                                // recheck has permissions when app comes back to foreground
-                                canProceedToApp = hasMusicPermission()
+                        val lifecycleOwner = LocalLifecycleOwner.current
+
+                        // don't run cleanup jobs in setup
+                        LaunchedEffect(Unit) {
+                            lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                                launch { playlistCleanup.startCleanup() }
+                                launch { foldersClassifier.start() }
+                                launch {
+                                    // recheck has permissions when app comes back to foreground
+                                    canProceedToApp = hasMusicPermission()
+                                }
                             }
                         }
-                    }
 
-                    SelectOverlayHost(state = rememberSelectOverlayState()) {
-                        Nav(
-                            musicViewModel = musicViewModel
-                        )
+                        SelectOverlayHost(state = rememberSelectOverlayState()) {
+                            Nav(
+                                musicViewModel = musicViewModel
+                            )
+                        }
+                    } else {
+                        SetupScreen { canProceedToApp = true }
                     }
-                } else {
-                    SetupScreen { canProceedToApp = true }
                 }
-
             }
         }
 
