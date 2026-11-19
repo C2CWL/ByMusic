@@ -30,6 +30,7 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
@@ -76,6 +77,13 @@ import com.sosauce.chocola.feature.playing.presentation.NowPlaying
 import com.sosauce.chocola.feature.playing.presentation.components.MoreOptionsButton
 import com.sosauce.chocola.feature.playing.presentation.components.QuickActionsRow
 import com.sosauce.chocola.feature.playing.presentation.expand.PlayerExpandMath.Phase
+import com.sosauce.chocola.core.presentation.preferences.rememberUseTurntable
+import com.sosauce.chocola.feature.playing.presentation.components.LocalTurntableEnabledOverride
+import com.sosauce.chocola.feature.playing.presentation.components.LocalTurntableMotionPaused
+import com.sosauce.chocola.feature.playing.presentation.components.LocalTurntableShared
+import com.sosauce.chocola.feature.playing.presentation.components.TurntableColors
+import com.sosauce.chocola.feature.playing.presentation.components.TurntableSharedState
+import com.sosauce.chocola.feature.playing.presentation.components.rememberTurntableThemeState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -289,6 +297,19 @@ fun PlayerExpandOverlay(
     onHandlePlayerActions: (PlayerActions) -> Unit,
     onNavigate: (Screen) -> Unit
 ) {
+    // Read and prepared while the overlay is hidden, so an open starts with the
+    // turntable switch loaded and the artwork colors already picked.
+    val useTurntable by rememberUseTurntable()
+    val turntableThemeState = rememberTurntableThemeState(
+        artworkUri = if (useTurntable) musicState.track.artUri else null
+    )
+    val turntableShared = remember { TurntableSharedState() }
+    val miniBarTheme = MiniBarTheme(
+        colorScheme = MaterialTheme.colorScheme,
+        typography = MaterialTheme.typography,
+        shapes = MaterialTheme.shapes
+    )
+
     val progress = controller.progress
     val showOverlay = progress > 0f ||
         controller.pendingMeasure ||
@@ -331,47 +352,98 @@ fun PlayerExpandOverlay(
             excludeFromSystemGesture = false
         )
     ) {
-        Box(
-            modifier = Modifier.requiredSize(viewportDp.width, viewportDp.height)
-        ) {
-            val settled = PlayerExpandMath.isSettledExpanded(progress)
-            val miniContainer = controller.miniContainer
-            val miniArt = controller.miniArt
-            val fullArt = controller.fullArt
-            val canDrawTransition = PlayerExpandMath.boundsReady(miniContainer, miniArt, fullArt)
+        val style = VinylExpandMath.styleFor(useTurntable)
+        val overlayBody: @Composable () -> Unit = {
+            Box(
+                modifier = Modifier.requiredSize(viewportDp.width, viewportDp.height)
+            ) {
+                val settled = PlayerExpandMath.isSettledExpanded(progress)
+                val miniContainer = controller.miniContainer
+                val miniArt = controller.miniArt
+                val fullArt = controller.fullArt
+                val canDrawTransition = PlayerExpandMath.boundsReady(miniContainer, miniArt, fullArt)
 
-            if (!settled && canDrawTransition) {
-                TransitionLayer(
-                    progress = progress,
-                    libraryStyle = libraryStyle,
-                    musicState = musicState,
-                    miniContainer = miniContainer!!,
-                    miniArt = miniArt!!,
-                    fullArt = fullArt!!,
-                    viewport = viewport,
-                    onDragDelta = { px ->
-                        val travel = PlayerExpandMath.travelPx(viewport.height, miniContainer.height)
-                        controller.onDragDelta(PlayerExpandMath.dragDeltaProgress(px, travel))
-                    },
-                    onDragSettled = controller::onDragSettled,
-                    onCollapse = controller::collapse,
-                    onHandlePlayerActions = onHandlePlayerActions,
-                    onNavigate = onNavigate
-                )
+                // The page is composed first so the transition layer sits above it
+                // and its slot never moves between transition and settled states.
+                val keepPageReady = style == VinylExpandMath.Style.Vinyl &&
+                    canDrawTransition &&
+                    VinylExpandMath.shouldPrepareSettledPage(progress)
+                if (settled || controller.pendingMeasure ||
+                    (controller.pendingExpand && !canDrawTransition) || keepPageReady
+                ) {
+                    val hideForMeasure = !settled
+                    // Hide the whole page, backdrop included (the turntable backdrop is
+                    // drawn outside the page's own modifier).
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .graphicsLayer { alpha = if (hideForMeasure) 0f else 1f }
+                    ) {
+                        CompositionLocalProvider(LocalTurntableMotionPaused provides hideForMeasure) {
+                            NowPlaying(
+                                modifier = Modifier.fillMaxSize(),
+                                musicState = musicState,
+                                onHandlePlayerActions = onHandlePlayerActions,
+                                onNavigate = onNavigate,
+                                onShrinkToSearchbar = controller::collapse,
+                                onArtworkBoundsChanged = controller::onFullArt
+                            )
+                        }
+                    }
+                }
+
+                if (!settled && canDrawTransition && style == VinylExpandMath.Style.Vinyl) {
+                    VinylTransitionLayer(
+                        progress = progress,
+                        libraryStyle = libraryStyle,
+                        musicState = musicState,
+                        miniContainer = miniContainer!!,
+                        miniArt = miniArt!!,
+                        fullArt = fullArt!!,
+                        viewport = viewport,
+                        miniBarTheme = miniBarTheme,
+                        turntable = turntableShared,
+                        onDragDelta = { px ->
+                            val travel = PlayerExpandMath.travelPx(viewport.height, miniContainer.height)
+                            controller.onDragDelta(PlayerExpandMath.dragDeltaProgress(px, travel))
+                        },
+                        onDragSettled = controller::onDragSettled,
+                        onCollapse = controller::collapse,
+                        onHandlePlayerActions = onHandlePlayerActions,
+                        onNavigate = onNavigate
+                    )
+                } else if (!settled && canDrawTransition) {
+                    TransitionLayer(
+                        progress = progress,
+                        libraryStyle = libraryStyle,
+                        musicState = musicState,
+                        miniContainer = miniContainer!!,
+                        miniArt = miniArt!!,
+                        fullArt = fullArt!!,
+                        viewport = viewport,
+                        onDragDelta = { px ->
+                            val travel = PlayerExpandMath.travelPx(viewport.height, miniContainer.height)
+                            controller.onDragDelta(PlayerExpandMath.dragDeltaProgress(px, travel))
+                        },
+                        onDragSettled = controller::onDragSettled,
+                        onCollapse = controller::collapse,
+                        onHandlePlayerActions = onHandlePlayerActions,
+                        onNavigate = onNavigate
+                    )
+                }
+
             }
-
-            if (settled || controller.pendingMeasure || (controller.pendingExpand && !canDrawTransition)) {
-                val hideForMeasure = !settled
-                NowPlaying(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer { alpha = if (hideForMeasure) 0f else 1f },
-                    musicState = musicState,
-                    onHandlePlayerActions = onHandlePlayerActions,
-                    onNavigate = onNavigate,
-                    onShrinkToSearchbar = controller::collapse,
-                    onArtworkBoundsChanged = controller::onFullArt
-                )
+        }
+        CompositionLocalProvider(
+            LocalTurntableEnabledOverride provides useTurntable,
+            LocalTurntableShared provides turntableShared
+        ) {
+            if (style == VinylExpandMath.Style.Vinyl) {
+                // One turntable color theme for the transition and the settled page,
+                // so landing on the page does not pick colors again.
+                TurntableColors(turntableThemeState) { overlayBody() }
+            } else {
+                overlayBody()
             }
         }
     }
@@ -603,7 +675,7 @@ private fun TransitionChrome(
 }
 
 @Composable
-private fun MiniChromeGhost(
+internal fun MiniChromeGhost(
     musicState: MusicState,
     libraryStyle: Boolean,
     miniContainer: Rect,
