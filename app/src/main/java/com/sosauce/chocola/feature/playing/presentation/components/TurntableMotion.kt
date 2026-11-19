@@ -23,17 +23,7 @@ internal object TurntableMotion {
     fun playPauseArmTarget(isPlaying: Boolean): Float =
         if (isPlaying) ARM_ON_DISC_DEGREES else ARM_REST_DEGREES
 
-    /**
-     * Track changes reuse the existing rest angle, then return to the disc only
-     * if playback is still active. A paused change stays at rest so the arm does
-     * not land on the incoming record.
-     */
-    fun trackChangeArmTargets(isPlaying: Boolean): List<Float> =
-        if (isPlaying) {
-            listOf(ARM_REST_DEGREES, ARM_ON_DISC_DEGREES)
-        } else {
-            listOf(ARM_REST_DEGREES)
-        }
+    // Track changes: see [NeedleDirector] in TurntableNeedle.kt.
 
     fun starRadius(birthRadius: Float, life: Float, endRadius: Float = STAR_END_RADIUS): Float {
         val t = life.coerceIn(0f, 1f)

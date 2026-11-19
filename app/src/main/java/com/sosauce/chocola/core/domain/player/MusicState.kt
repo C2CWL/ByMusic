@@ -11,6 +11,8 @@ import kotlinx.serialization.Serializable
 data class MusicState(
     val track: CuteTrack = CuteTrack(),
     val isPlaying: Boolean = false,
+    /** User intent to play (Player.playWhenReady); stays true while a new track buffers. */
+    val playWhenReady: Boolean = false,
     val duration: Long = 0L,
     val position: Long = 0L,
     val speed: Float = 1.0f,

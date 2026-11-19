@@ -2,6 +2,7 @@
 
 package com.sosauce.chocola.feature.playing.presentation.components
 
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,6 +31,7 @@ import com.materialkolor.DynamicMaterialThemeState
 import com.materialkolor.rememberDynamicMaterialThemeState
 import com.sosauce.chocola.core.designsystem.theme.anyDarkColorScheme
 import com.sosauce.chocola.core.presentation.preferences.rememberUseTurntable
+import kotlinx.coroutines.delay
 
 /**
  * Set by the mini-player expand overlay, which already wraps both the
@@ -71,6 +73,10 @@ fun rememberTurntableThemeState(artworkUri: String?): DynamicMaterialThemeState 
             seed = null
             return@LaunchedEffect
         }
+        // Fast skipping: the previous colors stay until skipping settles, and a
+        // further skip cancels this effect before any decode or color pick.
+        // The very first pick (no seed yet) runs at once.
+        if (seed != null) delay(TurntableNeedle.SKIP_SETTLE_MS)
         val request =
             ImageRequest
                 .Builder(context)
@@ -94,13 +100,18 @@ fun rememberTurntableThemeState(artworkUri: String?): DynamicMaterialThemeState 
     return rememberDynamicMaterialThemeState(seedColor = seed ?: fallback, isDark = true)
 }
 
+/** Color change for the track the user stopped on (design value: 300ms). */
+private val turntableColorSpec = tween<Color>(TURNTABLE_COLOR_CHANGE_MS)
+
+internal const val TURNTABLE_COLOR_CHANGE_MS = 300
+
 /** Applies a turntable color state without drawing anything. */
 @Composable
 fun TurntableColors(
     state: DynamicMaterialThemeState,
     content: @Composable () -> Unit,
 ) {
-    DynamicMaterialExpressiveTheme(state = state, animate = true) {
+    DynamicMaterialExpressiveTheme(state = state, animate = true, animationSpec = turntableColorSpec) {
         CompositionLocalProvider(LocalTurntableThemeHoisted provides true) {
             content()
         }
@@ -138,7 +149,7 @@ fun TurntableTheme(
         return
     }
     val state = rememberTurntableThemeState(artworkUri)
-    DynamicMaterialExpressiveTheme(state = state, animate = true) {
+    DynamicMaterialExpressiveTheme(state = state, animate = true, animationSpec = turntableColorSpec) {
         Box(Modifier.fillMaxSize().background(turntableBackdropBrush())) {
             content()
         }
