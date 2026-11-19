@@ -161,7 +161,9 @@ class PluginOnlineServicesTest {
     fun lyricsComeFromGetLyric() = runBlocking {
         install(fictionalPlugin)
         service.searchMusic("虚构音源", "周", 1)
-        assertEquals("[00:01.00]晴&天", service.lyrics(OnlineMediaId("虚构音源", "1")))
+        val lyrics = service.lyrics(OnlineMediaId("虚构音源", "1"))!!
+        assertEquals("[00:01.00]晴&天", lyrics.raw)
+        assertEquals("[00:01.00]译文", lyrics.translation)
     }
 
     @Test

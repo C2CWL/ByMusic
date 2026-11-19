@@ -353,14 +353,14 @@ class MusicViewModel(
         val id = OnlineMediaId.parse(mediaId) ?: return
         lyricsJob = viewModelScope.launch(Dispatchers.IO) {
             val raw = try {
-                onlineLyrics.rawLyrics(id)
+                onlineLyrics.lyrics(id)
             } catch (e: kotlin.coroutines.cancellation.CancellationException) {
                 throw e
             } catch (e: Exception) {
                 null
             }
-            if (raw.isNullOrBlank()) return@launch
-            val lyrics = lyricsParser.parseLyricsText(raw)
+            if (raw == null || raw.raw.isBlank()) return@launch
+            val lyrics = lyricsParser.parseLyricsText(raw.raw, raw.translation)
             ensureActive()
             _musicState.update { state ->
                 if (state.track.mediaId != mediaId) state else state.copy(lyrics = lyrics)

@@ -3,6 +3,7 @@ package com.sosauce.chocola.core.data.plugin
 import com.sosauce.chocola.core.data.plugin.MusicFreeItems.string
 import com.sosauce.chocola.core.domain.model.CuteTrack
 import com.sosauce.chocola.core.domain.online.OnlineLyricsProvider
+import com.sosauce.chocola.core.domain.online.OnlineLyricsText
 import com.sosauce.chocola.core.domain.online.OnlineMediaId
 import com.sosauce.chocola.core.domain.online.OnlineMediaResolver
 import com.sosauce.chocola.core.domain.online.OnlineResolveException
@@ -99,13 +100,15 @@ class PluginMusicService(
         return PluginMediaSource(url, headers, result.string("userAgent"), result.string("quality"))
     }
 
-    /** getLyric → rawLrc; without getLyric, the item's own rawLrc. Translation is not used yet. */
-    suspend fun lyrics(id: OnlineMediaId): String? {
+    /** getLyric → rawLrc + translation; without getLyric, the item's own rawLrc. */
+    suspend fun lyrics(id: OnlineMediaId): OnlineLyricsText? {
         val runtime = manager.runtime(id.pluginId)
         val item = itemFor(id, runtime.manifest.platform)
-        if (!runtime.manifest.has("getLyric")) return item.string("rawLrc")
-        val result = runtime.call("getLyric", listOf(item)) as? JsonObject ?: return item.string("rawLrc")
-        return result.string("rawLrc") ?: item.string("rawLrc")
+        val fallback = item.string("rawLrc")?.let { OnlineLyricsText(it, item.string("translation")) }
+        if (!runtime.manifest.has("getLyric")) return fallback
+        val result = runtime.call("getLyric", listOf(item)) as? JsonObject ?: return fallback
+        val raw = result.string("rawLrc") ?: return fallback
+        return OnlineLyricsText(raw, result.string("translation"))
     }
 
     /** getMusicInfo: merges the extra fields into the remembered item. */
@@ -181,7 +184,7 @@ class PluginOnlineMediaResolver(
 }
 
 class PluginOnlineLyricsProvider(private val service: PluginMusicService) : OnlineLyricsProvider {
-    override suspend fun rawLyrics(id: OnlineMediaId): String? = try {
+    override suspend fun lyrics(id: OnlineMediaId): OnlineLyricsText? = try {
         service.lyrics(id)
     } catch (e: CancellationException) {
         throw e

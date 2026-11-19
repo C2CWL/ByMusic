@@ -81,28 +81,39 @@ class LyricsParser(private val context: Context) {
 
     /**
      * Parses lyrics text that did not come from a file, e.g. a plugin's getLyric result
-     * (LRC or TTML). Never touches the file system.
+     * (LRC or TTML). A separate [translation] LRC is attached to the matching lines.
+     * Never touches the file system.
      */
-    suspend fun parseLyricsText(raw: String): List<Lyrics> = withContext(Dispatchers.Default) {
-        try {
-            ensureActive()
-            if (raw.isBlank()) return@withContext emptyList()
-            if (LyricsTextParser.looksLikeTtml(raw)) {
-                LyricsTextParser.parseTtmlText(raw)
-            } else {
-                LyricsTextParser.parseLyricText(raw, LyricSource.SIDECAR)
+    suspend fun parseLyricsText(raw: String, translation: String? = null): List<Lyrics> =
+        withContext(Dispatchers.Default) {
+            try {
+                ensureActive()
+                if (raw.isBlank()) return@withContext emptyList()
+                val original = if (LyricsTextParser.looksLikeTtml(raw)) {
+                    LyricsTextParser.parseTtmlText(raw)
+                } else {
+                    LyricsTextParser.parseLyricText(raw, LyricSource.SIDECAR)
+                }
+                if (translation.isNullOrBlank()) return@withContext original
+                val translated = try {
+                    LyricsTextParser.parseLyricText(translation, LyricSource.SIDECAR)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    emptyList()
+                }
+                LyricsTranslationMerger.merge(original, translated)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                DiagLogger.w(
+                    "Lyrics",
+                    "online lyrics parse failed error=${e::class.java.simpleName}: ${e.message ?: ""}",
+                    e
+                )
+                emptyList()
             }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            DiagLogger.w(
-                "Lyrics",
-                "online lyrics parse failed error=${e::class.java.simpleName}: ${e.message ?: ""}",
-                e
-            )
-            emptyList()
         }
-    }
 
     private fun loadEmbeddedLyrics(path: String): String? {
         val fd = getFileDescriptorFromPath(context, path) ?: return null
