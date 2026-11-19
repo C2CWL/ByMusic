@@ -94,6 +94,11 @@ data object PreferencesKeys {
     val NOW_PLAYING_HIDDEN_BUTTONS = stringSetPreferencesKey("NOW_PLAYING_HIDDEN_BUTTONS")
     val HIDE_SINGLE_ALBUM = booleanPreferencesKey("HIDE_SINGLE_ALBUM")
 
+    // Online music (user-imported plugins only)
+    val ONLINE_DISCLAIMER_ACCEPTED = booleanPreferencesKey("ONLINE_DISCLAIMER_ACCEPTED")
+    val DOWNLOAD_WIFI_ONLY = booleanPreferencesKey("DOWNLOAD_WIFI_ONLY")
+    val DOWNLOAD_AUTO_DOWNGRADE = booleanPreferencesKey("DOWNLOAD_AUTO_DOWNGRADE")
+
 }
 
 

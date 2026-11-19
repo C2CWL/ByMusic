@@ -31,6 +31,8 @@ import com.sosauce.chocola.core.data.datastore.PreferencesKeys.LYRICS_ALIGNMENT
 import com.sosauce.chocola.core.data.datastore.PreferencesKeys.LYRICS_FONT_SIZE
 import com.sosauce.chocola.core.data.datastore.PreferencesKeys.LYRICS_SHOW_PHONETIC
 import com.sosauce.chocola.core.data.datastore.PreferencesKeys.LYRICS_SHOW_TRANSLATION
+import com.sosauce.chocola.core.data.datastore.PreferencesKeys.DOWNLOAD_AUTO_DOWNGRADE
+import com.sosauce.chocola.core.data.datastore.PreferencesKeys.DOWNLOAD_WIFI_ONLY
 import com.sosauce.chocola.core.data.datastore.PreferencesKeys.MATCH_CASE_FILTER
 import com.sosauce.chocola.core.data.datastore.PreferencesKeys.MIN_TRACK_DURATION
 import com.sosauce.chocola.core.data.datastore.PreferencesKeys.NEW_FOLDER_POLICY
@@ -345,3 +347,18 @@ fun rememberLightweightGlass() = rememberPreference(
     key = com.sosauce.chocola.core.data.datastore.PreferencesKeys.LIGHTWEIGHT_GLASS,
     defaultValue = true
 )
+
+@Composable
+fun rememberDownloadWifiOnly() =
+    rememberPreference(key = DOWNLOAD_WIFI_ONLY, defaultValue = DownloadDefaults.WIFI_ONLY)
+
+@Composable
+fun rememberDownloadAutoDowngrade() =
+    rememberPreference(key = DOWNLOAD_AUTO_DOWNGRADE, defaultValue = DownloadDefaults.AUTO_DOWNGRADE)
+
+/** Defaults shared by the settings UI and the download worker. */
+object DownloadDefaults {
+    const val WIFI_ONLY = true
+    const val AUTO_DOWNGRADE = true
+}
+
