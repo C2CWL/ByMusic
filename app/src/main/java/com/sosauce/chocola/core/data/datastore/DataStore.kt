@@ -64,6 +64,8 @@ data object PreferencesKeys {
     val SHOW_ALBUM_NAME = booleanPreferencesKey("SHOW_ALBUM_NAME")
     val LYRICS_ALIGNMENT = stringPreferencesKey("LYRICS_ALIGNMENT")
     val LYRICS_FONT_SIZE = intPreferencesKey("LYRICS_FONT_SIZE")
+    val LYRICS_SHOW_TRANSLATION = booleanPreferencesKey("LYRICS_SHOW_TRANSLATION")
+    val LYRICS_SHOW_PHONETIC = booleanPreferencesKey("LYRICS_SHOW_PHONETIC")
 
     val SORT_ARTISTS_ASCENDING = booleanPreferencesKey("SORT_ARTISTS_ASCENDING")
     val SORT_ALBUMS_ASCENDING = booleanPreferencesKey("SORT_ALBUMS_ASCENDING")
