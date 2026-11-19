@@ -4,6 +4,8 @@ import androidx.room.Room
 import com.sosauce.chocola.core.data.audio.EqualizerManager
 import com.sosauce.chocola.core.data.auto.AndroidAutoHelper
 import com.sosauce.chocola.core.data.datastore.UserPreferences
+import com.sosauce.chocola.core.data.download.DownloadTransfer
+import com.sosauce.chocola.core.data.download.OnlineDownloadPipeline
 import com.sosauce.chocola.core.data.library.AbstractTracksScanner
 import com.sosauce.chocola.core.data.library.FoldersClassifier
 import com.sosauce.chocola.core.data.library.FoldersRepository
@@ -123,6 +125,7 @@ val appModule = module {
     }
     single { PluginManager(get(), get(), HttpPluginSourceFetcher(get())) }
     single { PluginMusicService(get(), get()) }
+    single { OnlineDownloadPipeline(androidApplication(), get(), DownloadTransfer(get())) }
     // getMediaSource from the track's plugin, highest quality first, one tier down at a time.
     single<OnlineMediaResolver> { PluginOnlineMediaResolver(get()) }
     single<OnlineLyricsProvider> { PluginOnlineLyricsProvider(get()) }
