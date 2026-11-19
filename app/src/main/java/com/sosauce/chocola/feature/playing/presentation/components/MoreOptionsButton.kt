@@ -175,7 +175,7 @@ private val moreOptionsGroup = listOf(
 )
 
 @Composable
-private fun NowPlayingTrackDropdownMenu(
+internal fun NowPlayingTrackDropdownMenu(
     track: CuteTrack,
     isExpanded: Boolean,
     onDismissRequest: () -> Unit,

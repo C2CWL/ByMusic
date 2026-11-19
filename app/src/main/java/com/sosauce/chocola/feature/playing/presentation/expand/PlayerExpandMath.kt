@@ -113,6 +113,19 @@ object PlayerExpandMath {
         return if (p >= OPEN_PROGRESS_THRESHOLD) 1f else 0f
     }
 
+    /**
+     * Swipe-down-to-close on the settled page: a short pull already closes
+     * (it starts fully open, so the generic nearest-end rule would bounce
+     * back until past halfway). A downward fling closes, an upward one stays.
+     */
+    const val PAGE_DRAG_CLOSE_BELOW = 0.8f
+
+    fun pageDragSettleTarget(progress: Float, velocityPxPerSec: Float): Float {
+        if (velocityPxPerSec >= CLOSE_VELOCITY_PX_PER_SEC) return 0f
+        if (velocityPxPerSec <= OPEN_VELOCITY_PX_PER_SEC) return 1f
+        return if (progress.coerceIn(0f, 1f) < PAGE_DRAG_CLOSE_BELOW) 0f else 1f
+    }
+
     fun applyDragDelta(progress: Float, deltaProgress: Float): Float =
         (progress + deltaProgress).coerceIn(0f, 1f)
 
