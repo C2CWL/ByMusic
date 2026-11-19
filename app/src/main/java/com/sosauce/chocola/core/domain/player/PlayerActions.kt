@@ -16,6 +16,8 @@ sealed interface PlayerActions {
     data class SeekTo(val position: Long) : PlayerActions
     data class PlayTrack(val track: CuteTrack) : PlayerActions
     data class SeekToSlider(val position: Long) : PlayerActions
+    /** Jump to [position] and make sure playback runs (tap on a lyric). */
+    data class SeekToAndPlay(val position: Long) : PlayerActions
     data class RewindTo(val position: Long) : PlayerActions
     data class SetSpeed(val speed: Float) : PlayerActions
     data class SetPitch(val pitch: Float) : PlayerActions

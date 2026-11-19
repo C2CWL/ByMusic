@@ -3,6 +3,7 @@ package com.sosauce.chocola.feature.lyrics.presentation
 import android.app.SearchManager
 import android.content.ClipData
 import android.content.Intent
+import android.os.SystemClock
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.compose.LocalActivity
@@ -11,7 +12,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,6 +37,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.LongState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -47,7 +49,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
@@ -57,12 +61,20 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -198,11 +210,18 @@ private fun LyricsListContent(
         }
     }
 
+    // Plain holder (not state): only read when a tap starts.
+    val userScroll = remember { UserScrollTracker() }
+
     LaunchedEffect(lazyListState) {
         snapshotFlow { lazyListState.isScrollInProgress }
             .collect { inProgress ->
                 if (inProgress && !programmaticScroll) {
                     suppressAutoScroll = true
+                    userScroll.active = true
+                } else if (!inProgress && userScroll.active) {
+                    userScroll.active = false
+                    userScroll.lastEndMs = SystemClock.uptimeMillis()
                 }
             }
     }
@@ -247,14 +266,19 @@ private fun LyricsListContent(
                     onArtwork = textShadow,
                     showTranslation = showTranslation,
                     showPhonetic = showPhonetic,
-                    onClick = {
-                        onHandlePlayerActions(
-                            PlayerActions.SeekToSlider(
-                                lyric.timestamp.toLong()
-                            )
+                    isTapBlocked = {
+                        LyricsTapTarget.isTapBlocked(
+                            userScrolling = userScroll.active,
+                            nowMs = SystemClock.uptimeMillis(),
+                            lastUserScrollEndMs = userScroll.lastEndMs
                         )
                     },
-                    onLongClick = {
+                    onSeek = { targetMs ->
+                        onHandlePlayerActions(PlayerActions.SeekToAndPlay(targetMs))
+                        // Follow the music again right away after a deliberate tap.
+                        suppressAutoScroll = false
+                    },
+                    onCopy = {
                         scope.launch {
                             clipboardManager.setClipEntry(
                                 ClipEntry(
@@ -288,8 +312,9 @@ private fun LyricLine(
     onArtwork: Boolean,
     showTranslation: Boolean,
     showPhonetic: Boolean,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
+    isTapBlocked: () -> Boolean,
+    onSeek: (Long) -> Unit,
+    onCopy: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val isCurrent = distance == 0
@@ -337,12 +362,60 @@ private fun LyricLine(
     )
     val phonetic = lyric.phonetic?.takeIf { showPhonetic }
     val translation = lyric.translation?.takeIf { showTranslation }
+    val wordTap = lyric.hasWordTiming && LyricsKaraoke.canFill(ranges)
+    val geometry = remember { TapGeometry() }
+    var pressed by remember { mutableStateOf(false) }
+    var pressedChar by remember { mutableIntStateOf(-1) }
+    val pressAlpha by animateFloatAsState(
+        targetValue = if (pressed) LyricsLineStyle.PressedLineAlpha else 0f,
+        animationSpec = tween(LyricsLineStyle.PressFadeMs),
+        label = "lyricPress"
+    )
+    val highlight = MaterialTheme.colorScheme.onSurface
+    val latestSeek by rememberUpdatedState(onSeek)
+    val latestCopy by rememberUpdatedState(onCopy)
+    val latestBlocked by rememberUpdatedState(isTapBlocked)
+    val latestWordTap by rememberUpdatedState(wordTap)
+    val seekTarget: (Int?) -> Long = { charIndex -> LyricsTapTarget.seekTargetMs(lyric, ranges, charIndex) }
+    val latestTarget by rememberUpdatedState(seekTarget)
 
     Column(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            // Quiet press feedback: a faint tint, no scaling or movement.
+            .drawBehind { if (pressAlpha > 0f) drawRect(highlight.copy(alpha = pressAlpha)) }
+            .onPlaced { geometry.line = it }
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = { offset ->
+                        val blocked = latestBlocked()
+                        geometry.blocked = blocked
+                        if (!blocked) {
+                            pressed = true
+                            pressedChar = if (latestWordTap) geometry.charAt(offset) ?: -1 else -1
+                        }
+                        try {
+                            tryAwaitRelease()
+                        } finally {
+                            pressed = false
+                            pressedChar = -1
+                        }
+                    },
+                    onTap = { offset ->
+                        if (!geometry.blocked) {
+                            val charIndex = if (latestWordTap) geometry.charAt(offset) else null
+                            latestSeek(latestTarget(charIndex))
+                        }
+                    },
+                    onLongPress = { if (!geometry.blocked) latestCopy() }
+                )
+            }
+            .semantics {
+                role = Role.Button
+                onClick { latestSeek(latestTarget(null)); true }
+                onLongClick { latestCopy(); true }
+            }
             .padding(vertical = 8.dp)
             .graphicsLayer {
                 this.alpha = alpha
@@ -355,7 +428,25 @@ private fun LyricLine(
                 else Modifier
             )
     ) {
-        Box(modifier = Modifier.fillMaxWidth()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .onPlaced { geometry.text = it }
+                .drawBehind {
+                    val layout = geometry.layout
+                    val index = pressedChar
+                    if (layout != null && index in 0 until layout.layoutInput.text.length) {
+                        val box = layout.getBoundingBox(index)
+                        val pad = LyricsLineStyle.PressedCharPadDp.dp.toPx()
+                        drawRoundRect(
+                            color = highlight.copy(alpha = LyricsLineStyle.PressedCharAlpha),
+                            topLeft = Offset(box.left - pad, box.top),
+                            size = Size(box.width + pad * 2f, box.height),
+                            cornerRadius = CornerRadius(pad * 2f)
+                        )
+                    }
+                }
+        ) {
             Text(
                 text = lyric.lineLyrics,
                 softWrap = true,
@@ -365,6 +456,7 @@ private fun LyricLine(
                     color = if (wordFill) contentColor.copy(alpha = LyricsLineStyle.UnsungAlpha) else contentColor,
                     shadow = shadow
                 ),
+                onTextLayout = { geometry.layout = it },
                 modifier = Modifier.fillMaxWidth()
             )
             if (wordFill) {
@@ -383,6 +475,46 @@ private fun LyricLine(
         if (translation != null) {
             Text(text = translation, style = extraStyle, modifier = Modifier.fillMaxWidth())
         }
+    }
+}
+
+/** When the user last scrolled the list by hand; read only when a tap starts. */
+private class UserScrollTracker {
+    var active: Boolean = false
+    var lastEndMs: Long = Long.MIN_VALUE / 2
+}
+
+/**
+ * Layout of one lyric line, kept outside Compose state so taps can map a touch
+ * point to a character without causing recompositions.
+ */
+private class TapGeometry {
+    var line: LayoutCoordinates? = null
+    var text: LayoutCoordinates? = null
+    var layout: TextLayoutResult? = null
+    var blocked: Boolean = false
+
+    /**
+     * Character under [tap] (in line coordinates). The vertical position is clamped
+     * into the text, so taps on the padding or the translation pick the closest
+     * text row; horizontally the closest character center wins, so gaps never miss.
+     */
+    fun charAt(tap: Offset): Int? {
+        val lineCoords = line ?: return null
+        val textCoords = text ?: return null
+        val result = layout ?: return null
+        if (!lineCoords.isAttached || !textCoords.isAttached) return null
+        val textLength = result.layoutInput.text.length
+        if (textLength == 0) return null
+        val local = textCoords.localPositionOf(lineCoords, tap)
+        val maxY = (result.size.height - 1).toFloat().coerceAtLeast(0f)
+        val row = result.getLineForVerticalPosition(local.y.coerceIn(0f, maxY))
+        val start = result.getLineStart(row)
+        val end = result.getLineEnd(row, visibleEnd = true).coerceAtMost(textLength)
+        if (end <= start) return null
+        val centers = (start until end).map { result.getBoundingBox(it).center.x }
+        val nearest = LyricsTapTarget.nearestCharIndex(centers, local.x)
+        return if (nearest < 0) null else start + nearest
     }
 }
 

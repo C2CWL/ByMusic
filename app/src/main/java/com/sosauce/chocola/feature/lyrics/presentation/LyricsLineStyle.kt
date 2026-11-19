@@ -25,6 +25,12 @@ object LyricsLineStyle {
     /** Soft edge of the word fill. */
     const val FillEdgeDp = 14
 
+    /** Press feedback: a faint tint on the line and around the pressed character. */
+    const val PressedLineAlpha = 0.06f
+    const val PressedCharAlpha = 0.14f
+    const val PressedCharPadDp = 3
+    const val PressFadeMs = 120
+
     fun currentSizeFactor(onArtwork: Boolean): Float = if (onArtwork) 1f else PageCurrentSizeFactor
 
     /** Scale of non-current lines so they read at the user's normal font size. */
