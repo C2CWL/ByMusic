@@ -45,7 +45,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.painterResource
@@ -157,7 +157,7 @@ fun Artwork(
                 }
         }
             .onGloballyPositioned { coordinates ->
-                onArtworkBoundsChanged?.invoke(coordinates.boundsInRoot())
+                onArtworkBoundsChanged?.invoke(coordinates.boundsInWindow())
             }
             .clickable(
                 enabled = artLyrics && artworkContentAlpha > 0.9f,

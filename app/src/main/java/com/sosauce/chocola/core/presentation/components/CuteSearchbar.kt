@@ -98,7 +98,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
@@ -346,7 +346,7 @@ private fun SharedTransitionScope.CuteSearchbarContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .onGloballyPositioned { coords ->
-                    onMiniCardBoundsChanged(coords.boundsInRoot())
+                    onMiniCardBoundsChanged(coords.boundsInWindow())
                 }
         ) {
             // Controls
@@ -386,7 +386,7 @@ private fun SharedTransitionScope.CuteSearchbarContent(
                             .padding(start = 8.dp, top = 6.dp, bottom = 6.dp)
                             .size(42.dp)
                             .onGloballyPositioned { coords ->
-                                onMiniArtBoundsChanged(coords.boundsInRoot())
+                                onMiniArtBoundsChanged(coords.boundsInWindow())
                             }
                             .graphicsLayer { alpha = miniArtAlpha }
                             .clip(RoundedCornerShape(10.dp))
@@ -1103,7 +1103,7 @@ private fun LibraryMiniPlayer(
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         modifier = Modifier.onGloballyPositioned { coords ->
-            onMiniCardBoundsChanged(coords.boundsInRoot())
+            onMiniCardBoundsChanged(coords.boundsInWindow())
         }
     ) {
         Column(Modifier.navigationBarsPadding()) {
@@ -1119,7 +1119,7 @@ private fun LibraryMiniPlayer(
                     modifier = Modifier
                         .size(48.dp)
                         .onGloballyPositioned { coords ->
-                            onMiniArtBoundsChanged(coords.boundsInRoot())
+                            onMiniArtBoundsChanged(coords.boundsInWindow())
                         }
                         .graphicsLayer { alpha = miniArtAlpha }
                         .clip(RoundedCornerShape(5.dp))
