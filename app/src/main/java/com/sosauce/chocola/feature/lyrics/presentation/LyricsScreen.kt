@@ -3,6 +3,7 @@
 package com.sosauce.chocola.feature.lyrics.presentation
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingToolbarDefaults
 import androidx.compose.material3.HorizontalFloatingToolbar
 import androidx.compose.material3.Icon
@@ -25,14 +27,23 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -42,7 +53,13 @@ import com.sosauce.chocola.core.designsystem.components.PlayPauseButton
 import com.sosauce.chocola.core.domain.player.MusicState
 import com.sosauce.chocola.core.domain.player.PlayerActions
 import com.sosauce.chocola.core.presentation.navigation.Screen
+import com.sosauce.chocola.core.designsystem.theme.OledPageBackgroundTheme
+import com.sosauce.chocola.core.designsystem.theme.shouldApplyOledBlack
+import com.sosauce.chocola.core.presentation.preferences.rememberAppTheme
 import com.sosauce.chocola.core.presentation.preferences.rememberIsLandscape
+import com.sosauce.chocola.core.presentation.preferences.rememberLyricsShowPhonetic
+import com.sosauce.chocola.core.presentation.preferences.rememberLyricsShowTranslation
+import com.sosauce.chocola.core.presentation.preferences.rememberOledBlack
 import com.sosauce.chocola.core.presentation.util.selfAlignHorizontally
 import com.sosauce.chocola.feature.playing.presentation.components.TurntableTheme
 
@@ -56,12 +73,25 @@ fun LyricsScreen(
     val isLandscape = rememberIsLandscape()
     val artworkSize = if (isLandscape) LyricsLayout.CompactHeaderArtworkDp.dp else LyricsLayout.HeaderArtworkDp.dp
     val fadeHeight = LyricsLayout.FadeHeightDp.dp
+    val theme by rememberAppTheme()
+    val oledBlack by rememberOledBlack()
+    val applyOled = shouldApplyOledBlack(theme, oledBlack, isSystemInDarkTheme())
+    var showTranslation by rememberLyricsShowTranslation()
+    var showPhonetic by rememberLyricsShowPhonetic()
+    val hasTranslation = remember(musicState.lyrics) { musicState.lyrics.any { it.translation != null } }
+    val hasPhonetic = remember(musicState.lyrics) { musicState.lyrics.any { it.phonetic != null } }
+    val descTranslation = stringResource(R.string.lyrics_translation_desc)
+    val descPhonetic = stringResource(R.string.lyrics_phonetic_desc)
 
     TurntableTheme(enabled = true, artworkUri = musicState.track.artUri) {
-        val surface = MaterialTheme.colorScheme.surface
+      OledPageBackgroundTheme(enabled = applyOled) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .then(
+                    // OLED: a true-black page; accents still follow the cover colors.
+                    if (applyOled) Modifier.background(MaterialTheme.colorScheme.background) else Modifier
+                )
                 .statusBarsPadding()
         ) {
             Row(
@@ -107,6 +137,35 @@ fun LyricsScreen(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
+                if (hasTranslation) {
+                    FilterChip(
+                        selected = showTranslation,
+                        onClick = { showTranslation = !showTranslation },
+                        label = {
+                            Text(
+                                text = stringResource(R.string.lyrics_translation_short),
+                                modifier = Modifier.semantics {
+                                    contentDescription = descTranslation
+                                }
+                            )
+                        }
+                    )
+                }
+                if (hasPhonetic) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    FilterChip(
+                        selected = showPhonetic,
+                        onClick = { showPhonetic = !showPhonetic },
+                        label = {
+                            Text(
+                                text = stringResource(R.string.lyrics_phonetic_short),
+                                modifier = Modifier.semantics {
+                                    contentDescription = descPhonetic
+                                }
+                            )
+                        }
+                    )
+                }
             }
 
             Box(
@@ -115,6 +174,22 @@ fun LyricsScreen(
                     .fillMaxWidth()
             ) {
                 LyricsList(
+                    modifier = Modifier
+                        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                        .drawWithContent {
+                            drawContent()
+                            // Soft top/bottom edges that work on any background, including OLED black.
+                            val fade = (fadeHeight.toPx() / size.height).coerceIn(0f, 0.5f)
+                            drawRect(
+                                brush = Brush.verticalGradient(
+                                    0f to Color.Transparent,
+                                    fade to Color.Black,
+                                    1f - fade to Color.Black,
+                                    1f to Color.Transparent
+                                ),
+                                blendMode = BlendMode.DstIn
+                            )
+                        },
                     musicState = musicState,
                     onHandlePlayerActions = onHandlePlayerActions,
                     horizontalPadding = LyricsLayout.HorizontalPaddingDp.dp,
@@ -126,28 +201,6 @@ fun LyricsScreen(
                             onHandlePlayerActions = onHandlePlayerActions
                         )
                     }
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(fadeHeight)
-                        .align(Alignment.TopCenter)
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(surface.copy(alpha = 0.45f), Color.Transparent)
-                            )
-                        )
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(fadeHeight)
-                        .align(Alignment.BottomCenter)
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(Color.Transparent, surface.copy(alpha = 0.55f))
-                            )
-                        )
                 )
             }
 
@@ -190,5 +243,6 @@ fun LyricsScreen(
                 }
             }
         }
+      }
     }
 }

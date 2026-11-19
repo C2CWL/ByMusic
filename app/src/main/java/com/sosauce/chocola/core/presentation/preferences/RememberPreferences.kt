@@ -29,6 +29,8 @@ import com.sosauce.chocola.core.data.datastore.PreferencesKeys.INITIAL_SCREEN
 import com.sosauce.chocola.core.data.datastore.PreferencesKeys.KEEP_ALIVE
 import com.sosauce.chocola.core.data.datastore.PreferencesKeys.LYRICS_ALIGNMENT
 import com.sosauce.chocola.core.data.datastore.PreferencesKeys.LYRICS_FONT_SIZE
+import com.sosauce.chocola.core.data.datastore.PreferencesKeys.LYRICS_SHOW_PHONETIC
+import com.sosauce.chocola.core.data.datastore.PreferencesKeys.LYRICS_SHOW_TRANSLATION
 import com.sosauce.chocola.core.data.datastore.PreferencesKeys.MATCH_CASE_FILTER
 import com.sosauce.chocola.core.data.datastore.PreferencesKeys.MIN_TRACK_DURATION
 import com.sosauce.chocola.core.data.datastore.PreferencesKeys.NEW_FOLDER_POLICY
@@ -191,6 +193,14 @@ fun rememberLyricsAlignment() =
 @Composable
 fun rememberLyricsFontSize() =
     rememberPreference(key = LYRICS_FONT_SIZE, defaultValue = 22)
+
+@Composable
+fun rememberLyricsShowTranslation() =
+    rememberPreference(key = LYRICS_SHOW_TRANSLATION, defaultValue = true)
+
+@Composable
+fun rememberLyricsShowPhonetic() =
+    rememberPreference(key = LYRICS_SHOW_PHONETIC, defaultValue = true)
 
 @Composable
 fun rememberSortArtistsAscending() =

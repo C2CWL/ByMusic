@@ -188,6 +188,10 @@
     <string name="date">日期</string>
     <string name="unknown_error">未知错误</string>
     <string name="no_lyrics_desc">未找到这首歌内置的歌词或外部.lrc文件！</string>
+    <string name="lyrics_translation_short">译</string>
+    <string name="lyrics_translation_desc">显示歌词翻译</string>
+    <string name="lyrics_phonetic_short">音</string>
+    <string name="lyrics_phonetic_desc">显示歌词注音</string>
     <string name="shape_morph">形状变换</string>
     <string name="shape_morph_desc">专辑封面会随音乐是否播放而改变形状</string>
     <string name="dynamic_duration">动态时长</string>
