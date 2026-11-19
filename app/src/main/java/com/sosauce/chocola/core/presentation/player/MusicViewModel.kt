@@ -507,6 +507,11 @@ class MusicViewModel(
             is PlayerActions.SeekToPreviousMusic -> mediaController!!.seekToPreviousMediaItem()
             is PlayerActions.SeekTo -> mediaController!!.seekTo(mediaController!!.currentPosition + action.position)
             is PlayerActions.SeekToSlider -> mediaController!!.seekTo(action.position)
+            is PlayerActions.SeekToAndPlay -> {
+                val controller = mediaController!!
+                controller.seekTo(action.position)
+                if (!controller.isPlaying) controller.play()
+            }
             is PlayerActions.RewindTo -> mediaController!!.seekTo(mediaController!!.currentPosition - action.position)
             is PlayerActions.PlayTrack -> {
                 val targetMediaId = action.track.mediaId

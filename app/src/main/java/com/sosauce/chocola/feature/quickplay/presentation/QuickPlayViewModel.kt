@@ -153,6 +153,10 @@ class QuickPlayViewModel(
             }
 
             is PlayerActions.SeekToSlider -> player.seekTo(action.position)
+            is PlayerActions.SeekToAndPlay -> {
+                player.seekTo(action.position)
+                if (!player.isPlaying) player.play()
+            }
             is PlayerActions.SeekTo -> player.seekTo(player.currentPosition + action.position)
             is PlayerActions.RewindTo -> player.seekTo(player.currentPosition - action.position)
             is PlayerActions.ChangeRepeatMode -> player.changeRepeatMode()
