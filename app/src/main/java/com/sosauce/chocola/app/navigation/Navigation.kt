@@ -48,6 +48,10 @@ import com.sosauce.chocola.feature.library.presentation.artist.ArtistsViewModel
 import com.sosauce.chocola.feature.library.presentation.main.MainScreen
 import com.sosauce.chocola.feature.library.presentation.main.MainViewModel
 import com.sosauce.chocola.feature.online.OnlineMusicScreen
+import com.sosauce.chocola.feature.recognition.domain.RecognitionPluginRegistry
+import com.sosauce.chocola.feature.recognition.presentation.RecognitionHistoryRoute
+import com.sosauce.chocola.feature.recognition.presentation.RecognitionRoute
+import com.sosauce.chocola.feature.recognition.presentation.RecognitionViewModel
 import com.sosauce.chocola.feature.lyrics.presentation.LyricsEditorScreen
 import com.sosauce.chocola.feature.lyrics.presentation.LyricsScreen
 import com.sosauce.chocola.feature.metadata.presentation.MetadataActions
@@ -62,6 +66,7 @@ import com.sosauce.chocola.feature.playlists.presentation.PlaylistsScreen
 import com.sosauce.chocola.feature.settings.presentation.SettingsScreen
 import com.sosauce.nekobites.helpers.ObserveAsEvents
 import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 
 @Composable
@@ -126,7 +131,34 @@ fun Nav(
                     }
 
                     entry<Screen.Online> {
-                        OnlineMusicScreen(onNavigateBack = backStack::navigateBack)
+                        val recognitionRegistry = koinInject<RecognitionPluginRegistry>()
+                        val recognitionPlugins by recognitionRegistry.plugins.collectAsStateWithLifecycle()
+                        OnlineMusicScreen(
+                            onNavigateBack = backStack::navigateBack,
+                            recognitionPlugins = recognitionPlugins.map { it.info },
+                            onStartRecognition = {
+                                backStack.navigate(Screen.Recognition(autoStart = true))
+                            },
+                            onOpenRecognitionHistory = {
+                                backStack.navigate(Screen.RecognitionHistory)
+                            }
+                        )
+                    }
+
+                    entry<Screen.Recognition> { key ->
+                        RecognitionRoute(
+                            viewModel = koinViewModel<RecognitionViewModel>(),
+                            autoStart = key.autoStart,
+                            onNavigateBack = backStack::navigateBack,
+                            onOpenHistory = { backStack.navigate(Screen.RecognitionHistory) }
+                        )
+                    }
+
+                    entry<Screen.RecognitionHistory> {
+                        RecognitionHistoryRoute(
+                            viewModel = koinViewModel<RecognitionViewModel>(),
+                            onNavigateBack = backStack::navigateBack
+                        )
                     }
 
                     entry<Screen.Albums> {

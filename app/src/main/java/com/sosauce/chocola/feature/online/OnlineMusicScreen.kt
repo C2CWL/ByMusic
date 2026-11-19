@@ -19,10 +19,18 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.sosauce.chocola.R
+import com.sosauce.chocola.feature.recognition.domain.RecognitionPluginInfo
+import com.sosauce.chocola.feature.recognition.presentation.RecognitionEntryButton
+import com.sosauce.chocola.feature.recognition.presentation.RecognitionEntrySection
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OnlineMusicScreen(onNavigateBack: () -> Unit) {
+fun OnlineMusicScreen(
+    onNavigateBack: () -> Unit,
+    recognitionPlugins: List<RecognitionPluginInfo> = emptyList(),
+    onStartRecognition: () -> Unit = {},
+    onOpenRecognitionHistory: () -> Unit = {}
+) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -31,6 +39,10 @@ fun OnlineMusicScreen(onNavigateBack: () -> Unit) {
                     IconButton(onClick = onNavigateBack) {
                         Icon(painterResource(R.drawable.back), stringResource(R.string.close))
                     }
+                },
+                actions = {
+                    // Hidden until an imported plugin declares song recognition.
+                    RecognitionEntryButton(recognitionPlugins, onStartRecognition)
                 }
             )
         }
@@ -47,6 +59,12 @@ fun OnlineMusicScreen(onNavigateBack: () -> Unit) {
                 textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            RecognitionEntrySection(
+                plugins = recognitionPlugins,
+                onStart = onStartRecognition,
+                onOpenHistory = onOpenRecognitionHistory,
+                modifier = Modifier.padding(top = 24.dp)
             )
         }
     }
