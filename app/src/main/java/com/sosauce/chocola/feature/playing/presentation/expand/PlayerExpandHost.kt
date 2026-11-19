@@ -4,6 +4,7 @@ package com.sosauce.chocola.feature.playing.presentation.expand
 
 import android.provider.Settings
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -88,7 +89,7 @@ import kotlin.math.roundToInt
 @Stable
 class PlayerExpandController internal constructor(
     private val scope: CoroutineScope,
-    private val animatable: Animatable<Float>
+    private val animatable: Animatable<Float, AnimationVector1D>
 ) {
     var phase by mutableStateOf(Phase.Collapsed)
         private set
