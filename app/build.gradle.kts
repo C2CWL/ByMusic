@@ -146,6 +146,7 @@ dependencies {
 
     // Networking for online playback
     implementation(libs.okhttp)
+    implementation(libs.androidx.work.runtime)
 
     // Sandboxed JavaScript engine for user-imported MusicFree-format plugins.
     implementation(libs.quickjs.kt)

@@ -15,9 +15,8 @@
     <!-- Online music (plugins). Only used when the user plays online tracks. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission
-        android:name="android.permission.RECEIVE_BOOT_COMPLETED"
-        tools:node="remove" />
+    <!-- Allows WorkManager to reschedule pending downloads after a reboot. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Song recognition: requested at runtime only after the user taps start, foreground only. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
