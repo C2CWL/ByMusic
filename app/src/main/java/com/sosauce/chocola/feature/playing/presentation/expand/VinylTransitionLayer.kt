@@ -60,9 +60,9 @@ import com.sosauce.chocola.feature.playing.presentation.NowPlayingTopBar
 import com.sosauce.chocola.feature.playing.presentation.components.TurntableMotion
 import com.sosauce.chocola.feature.playing.presentation.components.TurntableSharedState
 import com.sosauce.chocola.feature.playing.presentation.components.drawTurntableArm
-import com.sosauce.chocola.feature.playing.presentation.components.drawTurntableGlow
-import com.sosauce.chocola.feature.playing.presentation.components.drawTurntableStars
 import com.sosauce.chocola.feature.playing.presentation.components.turntableBackdropBrush
+import com.sosauce.chocola.feature.playing.presentation.components.turntableHalo
+import com.sosauce.chocola.feature.playing.presentation.components.turntableSheen
 import com.sosauce.chocola.feature.playing.presentation.components.turntableVinyl
 import kotlin.math.roundToInt
 
@@ -77,8 +77,9 @@ internal class MiniBarTheme(
  * Expand transition when the turntable page is on. Must be composed inside the
  * same turntable color theme as the settled page (the overlay does this), so
  * colors never change on landing. Every frame is a turntable frame: no square
- * full-size cover, no classic backdrop. The record is still (no spin, no star
- * motion) while moving; the settled page continues from the same angle/stars.
+ * full-size cover, no classic backdrop. The record is still (no spin, no glint
+ * motion) while moving; the settled page continues from the same angle/glints.
+ * Halo, body and sheen use the exact drawing of the settled page.
  */
 @Composable
 internal fun VinylTransitionLayer(
@@ -171,11 +172,12 @@ internal fun VinylTransitionLayer(
 
             // Glow under the record (artwork-box space).
             if (discAlpha > 0f) {
-                Canvas(
+                Box(
                     Modifier
                         .placeAt(artBox, container)
                         .graphicsLayer { alpha = discAlpha }
-                ) { drawTurntableGlow(accent) }
+                        .turntableHalo(surface, accent)
+                )
 
                 // Record body, grown around the cover.
                 Box(
@@ -187,6 +189,16 @@ internal fun VinylTransitionLayer(
                         }
                         .clip(CircleShape)
                         .turntableVinyl(surface, accent)
+                )
+
+                // Fixed sheen (does not spin), under the cover so its square
+                // corners mid-transition stay on top. Glints fade in late,
+                // on the same curve the old star points used.
+                Box(
+                    Modifier
+                        .placeAt(disc, container)
+                        .graphicsLayer { alpha = discAlpha }
+                        .turntableSheen(surface, accent, turntable.glint, glintAlpha = starsAlpha)
                 )
             }
 
@@ -211,15 +223,6 @@ internal fun VinylTransitionLayer(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
-            }
-
-            // Still star points, same field the settled page animates from.
-            if (starsAlpha > 0f) {
-                Canvas(
-                    Modifier
-                        .placeAt(disc, container)
-                        .graphicsLayer { rotationZ = recordDegrees }
-                ) { drawTurntableStars(turntable.stars, accent, starsAlpha) }
             }
 
             if (armAlpha > 0f) {

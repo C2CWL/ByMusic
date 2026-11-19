@@ -60,12 +60,13 @@ internal fun TurntableDisc(
     val armAngle = remember {
         Animatable(TurntableMotion.playPauseArmTarget(musicState.isPlaying))
     }
-    val stars = shared?.stars ?: remember { TurntableStarField() }
-    var starFrame by remember { mutableIntStateOf(0) }
+    val glint = shared?.glint ?: remember { TurntableGlintClock() }
     var seenMediaId by remember { mutableStateOf(musicState.track.mediaId) }
     var lastCover by remember { mutableStateOf<Painter?>(null) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val motionPaused = LocalTurntableMotionPaused.current
+    // "Remove animations" on: glints stay still (the sheen itself is static).
+    val glintsStill = com.sosauce.chocola.feature.playing.presentation.expand.systemAnimationsDisabled()
     LaunchedEffect(musicState.isPlaying, lifecycle, motionPaused) {
         // Stop producing frames when the host lifecycle leaves the foreground.
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -86,8 +87,8 @@ internal fun TurntableDisc(
                     withFrameNanos { now ->
                         val dt = if (lastFrame == 0L) 0f else ((now - lastFrame) / 1_000_000_000f)
                         lastFrame = now
-                        stars.update(dt)
-                        starFrame = starFrame + 1
+                        // Glints only; read at draw time, so this redraws the sheen, no recomposition.
+                        if (!glintsStill) glint.advance(dt)
                     }
                 }
             }
@@ -130,10 +131,13 @@ internal fun TurntableDisc(
         }
     }
 
+    // The page recomposes on every position tick; remembering the drawing
+    // modifiers keeps their caches (brushes, strokes) until size/color change.
+    val haloLayer = remember(surface, accent) { Modifier.turntableHalo(surface, accent) }
+    val vinylLayer = remember(surface, accent) { Modifier.turntableVinyl(surface, accent) }
+    val sheenLayer = remember(surface, accent, glint) { Modifier.turntableSheen(surface, accent, glint) }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.fillMaxSize()) {
-            drawTurntableGlow(accent)
-        }
+        Box(Modifier.fillMaxSize().then(haloLayer))
         Box(
             modifier =
                 Modifier
@@ -141,7 +145,7 @@ internal fun TurntableDisc(
                     .align(Alignment.CenterStart)
                     .graphicsLayer { rotationZ = rotation.value }
                     .clip(CircleShape)
-                    .turntableVinyl(surface, accent),
+                    .then(vinylLayer),
             contentAlignment = Alignment.Center,
         ) {
             Box(
@@ -172,11 +176,15 @@ internal fun TurntableDisc(
                     modifier = Modifier.fillMaxSize().cloudy(radius = blur, enabled = blur > 0),
                 )
             }
-            Canvas(Modifier.fillMaxSize()) {
-                // Reading starFrame invalidates this draw once per star update.
-                if (starFrame >= 0) drawTurntableStars(stars, accent)
-            }
         }
+        // Light does not turn with the record: the sheen sits on top, unrotated.
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxSize(TURNTABLE_DISC_FRACTION)
+                    .align(Alignment.CenterStart)
+                    .then(sheenLayer),
+        )
         Canvas(Modifier.fillMaxSize()) {
             drawTurntableArm(armAngle.value, surface, metal)
         }
