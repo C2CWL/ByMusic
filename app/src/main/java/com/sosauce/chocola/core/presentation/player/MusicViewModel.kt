@@ -80,6 +80,7 @@ class MusicViewModel(
     private val tracks = abstractTracksScanner.latestTracks()
     private var lyricsJob: Job? = null
     private var positionJob: Job? = null
+    private var artJob: Job? = null
     @Volatile
     private var favoriteTrackIds: Set<Long> = emptySet()
 
@@ -154,6 +155,11 @@ class MusicViewModel(
                         pitch = playbackParameters.pitch
                     )
                 }
+            }
+
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                super.onPlayWhenReadyChanged(playWhenReady, reason)
+                _musicState.update { it.copy(playWhenReady = playWhenReady) }
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -251,13 +257,21 @@ class MusicViewModel(
         }
 
     private fun loadNewArt(art: Uri?) {
-        viewModelScope.launch {
+        // Fast skipping: drop the cover job of the track skipped past, so an
+        // older, slower decode can never land after the newer one.
+        artJob?.cancel()
+        val keepPrevious = artworkImageBitmap != null
+        artJob = viewModelScope.launch {
+            // This bitmap only seeds the app colors. Wait until skipping has
+            // settled before recoloring, and decode at a bounded size.
+            if (keepPrevious) delay(ART_SETTLE_MS)
             val request = ImageRequest.Builder(application)
                 .data(art)
+                .size(ART_DECODE_PX)
                 //.allowHardware(false)
                 .build()
             val result = application.imageLoader.execute(request)
-
+            ensureActive()
             artworkImageBitmap = result.image?.toBitmap()?.asImageBitmap()
         }
     }
@@ -457,6 +471,7 @@ class MusicViewModel(
         _musicState.update {
             it.copy(
                 isPlaying = controller.isPlaying,
+                playWhenReady = controller.playWhenReady,
                 position = controller.currentPosition.coerceAtLeast(0),
                 duration = sanitizeDuration(controller.duration, it.duration),
                 shuffle = controller.shuffleModeEnabled,
@@ -756,3 +771,9 @@ class MusicViewModel(
         }
     }
 }
+
+/** Same settle time the vinyl tonearm waits after a skip before landing. */
+private const val ART_SETTLE_MS = 350L
+
+/** The app-color bitmap is only used for color picking; no full-size decode. */
+private const val ART_DECODE_PX = 512

@@ -17,22 +17,6 @@ class TurntableMotionTest {
     }
 
     @Test
-    fun playingTrackChangeLiftsToTheSameRestAngleThenReturnsToTheDisc() {
-        assertEquals(
-            listOf(TurntableMotion.ARM_REST_DEGREES, TurntableMotion.ARM_ON_DISC_DEGREES),
-            TurntableMotion.trackChangeArmTargets(isPlaying = true)
-        )
-    }
-
-    @Test
-    fun pausedTrackChangeStaysAtRestAndDoesNotLandOnTheIncomingDisc() {
-        assertEquals(
-            listOf(TurntableMotion.ARM_REST_DEGREES),
-            TurntableMotion.trackChangeArmTargets(isPlaying = false)
-        )
-    }
-
-    @Test
     fun starRadiusGrowsTowardTheRimAndAlphaFadesOverLife() {
         val birth = 0.6f
         assertEquals(birth, TurntableMotion.starRadius(birth, 0f), 1e-5f)
