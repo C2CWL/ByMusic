@@ -68,7 +68,6 @@ fun NowPlaying(
     onHandlePlayerActions: (PlayerActions) -> Unit,
     onNavigate: (Screen) -> Unit,
     onShrinkToSearchbar: () -> Unit = {},
-    transitionProgress: Float = 1f,
     onArtworkBoundsChanged: ((Rect) -> Unit)? = null
 ) {
     NowPlayingLayout(
@@ -78,7 +77,6 @@ fun NowPlaying(
         onHandlePlayerActions = onHandlePlayerActions,
         onNavigate = onNavigate,
         onShrinkToSearchbar = onShrinkToSearchbar,
-        transitionProgress = transitionProgress,
         onArtworkBoundsChanged = onArtworkBoundsChanged
     )
 }
@@ -95,7 +93,6 @@ fun NowPlayingLayout(
     onHandlePlayerActions: (PlayerActions) -> Unit,
     onNavigate: (Screen) -> Unit,
     onShrinkToSearchbar: () -> Unit = {},
-    transitionProgress: Float = 1f,
     onArtworkBoundsChanged: ((Rect) -> Unit)? = null
 ) {
     val isLandscape = rememberIsLandscape()
@@ -107,7 +104,8 @@ fun NowPlayingLayout(
                 hiddenButtons = hiddenButtons,
                 onHandlePlayerActions = onHandlePlayerActions,
                 onNavigate = onNavigate,
-                onShrinkToSearchbar = onShrinkToSearchbar
+                onShrinkToSearchbar = onShrinkToSearchbar,
+                onArtworkBoundsChanged = onArtworkBoundsChanged
             )
         } else {
             NowPlayingContent(
@@ -117,7 +115,6 @@ fun NowPlayingLayout(
                 onHandlePlayerActions = onHandlePlayerActions,
                 onNavigate = onNavigate,
                 onShrinkToSearchbar = onShrinkToSearchbar,
-                transitionProgress = transitionProgress,
                 onArtworkBoundsChanged = onArtworkBoundsChanged
             )
         }
@@ -133,7 +130,6 @@ private fun NowPlayingContent(
     onHandlePlayerActions: (PlayerActions) -> Unit,
     onNavigate: (Screen) -> Unit,
     onShrinkToSearchbar: () -> Unit,
-    transitionProgress: Float = 1f,
     onArtworkBoundsChanged: ((Rect) -> Unit)? = null
 ) {
     var snap by rememberSnapSpeedAndPitch()
@@ -142,14 +138,6 @@ private fun NowPlayingContent(
     var showDetailsDialog by remember { mutableStateOf(false) }
     val useArtBackground by rememberUseArtAsBackground()
     val useTurntable by rememberUseTurntable()
-
-    // Fade full-screen controls out early on downward drag so text/sliders never overlap the shrinking artwork
-    val chromeAlpha = ((transitionProgress - 0.45f) / 0.55f).coerceIn(0f, 1f)
-    val artworkHandoffAlpha = if (transitionProgress >= 0.999f) {
-        1f
-    } else {
-        ((transitionProgress - 0.88f) / 0.12f).coerceIn(0f, 1f)
-    }
 
     if (showDetailsDialog) {
         TracksDetailsDialog(
@@ -180,7 +168,7 @@ private fun NowPlayingContent(
         containerColor = if (useTurntable) Color.Transparent else MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                modifier = Modifier.graphicsLayer { alpha = chromeAlpha },
+                modifier = Modifier,
                 title = {},
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent
@@ -230,7 +218,7 @@ private fun NowPlayingContent(
                 exit = fadeOut() + shrinkVertically()
             ) {
                 BottomAppBar(
-                    modifier = Modifier.graphicsLayer { alpha = chromeAlpha },
+                    modifier = Modifier,
                     containerColor = Color.Transparent
                 ) {
                     QuickActionsRow(
@@ -251,7 +239,6 @@ private fun NowPlayingContent(
                 contentDescription = null,
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer { alpha = transitionProgress }
                     .cloudy(100),
                 contentScale = ContentScale.Crop,
                 colorFilter = ColorFilter.tint(
@@ -276,34 +263,27 @@ private fun NowPlayingContent(
                 musicState = musicState,
                 onHandlePlayerActions = onHandlePlayerActions,
                 onArtworkBoundsChanged = onArtworkBoundsChanged,
-                artworkContentAlpha = artworkHandoffAlpha
             )
-            Box(modifier = Modifier.graphicsLayer { alpha = chromeAlpha }) {
-                TitleAndArtist(
-                    title = musicState.track.title,
-                    artist = musicState.track.artist,
-                    album = musicState.track.album,
-                    isFavorite = musicState.track.isFavorite,
-                    onToggleFavorite = {
-                        musicState.track.mediaId.toLongOrNull()
-                            ?.let { onHandlePlayerActions(PlayerActions.ToggleFavorite(it)) }
-                    },
-                    hiddenButtons = hiddenButtons
-                )
-            }
-            Box(modifier = Modifier.graphicsLayer { alpha = chromeAlpha }) {
-                CuteSlider(
-                    musicState = musicState,
-                    onHandlePlayerActions = onHandlePlayerActions
-                )
-            }
-            Box(modifier = Modifier.graphicsLayer { alpha = chromeAlpha }) {
-                ActionButtonsRow(
-                    musicState = musicState,
-                    onHandlePlayerActions = onHandlePlayerActions,
-                    hiddenButtons = hiddenButtons
-                )
-            }
+            TitleAndArtist(
+                title = musicState.track.title,
+                artist = musicState.track.artist,
+                album = musicState.track.album,
+                isFavorite = musicState.track.isFavorite,
+                onToggleFavorite = {
+                    musicState.track.mediaId.toLongOrNull()
+                        ?.let { onHandlePlayerActions(PlayerActions.ToggleFavorite(it)) }
+                },
+                hiddenButtons = hiddenButtons
+            )
+            CuteSlider(
+                musicState = musicState,
+                onHandlePlayerActions = onHandlePlayerActions
+            )
+            ActionButtonsRow(
+                musicState = musicState,
+                onHandlePlayerActions = onHandlePlayerActions,
+                hiddenButtons = hiddenButtons
+            )
         }
     }
 
