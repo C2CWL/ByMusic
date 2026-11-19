@@ -37,19 +37,23 @@ class DownloadTransferTest {
     }
 
     @Test fun rejectsLocalRedirectBeforeConnecting() = runBlocking {
+        val hosts = mutableListOf<String>()
         val transfer = transfer { request ->
-            assertEquals("source.example", request.url.host)
+            hosts += request.url.host
             response(request, 302, location = "https://localhost/song")
         }
         assertFalse(transfer.fetch(source(), files.newFile()))
+        assertEquals(listOf("source.example"), hosts)
     }
 
     @Test fun rejectsPartialResponse() = runBlocking {
+        val requests = mutableListOf<Request>()
         val transfer = transfer { request ->
-            assertNull(request.header("Range"))
+            requests += request
             response(request, 206, body = "partial")
         }
         assertFalse(transfer.fetch(source(), files.newFile()))
+        assertNull(requests.single().header("Range"))
     }
 
     private fun source() = PluginMediaSource(
