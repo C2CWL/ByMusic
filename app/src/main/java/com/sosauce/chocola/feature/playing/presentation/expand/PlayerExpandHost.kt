@@ -275,7 +275,9 @@ fun systemAnimationsDisabled(): Boolean {
 
 /**
  * Full-screen expand overlay. Rendered in a [Popup] so the library bottom bar
- * does not remeasure to the screen height while the page is opening.
+ * does not remeasure to the screen height while the page is opening. The popup
+ * is pinned to the activity window origin (see [PlayerExpandPopup]); all bounds
+ * fed to the controller are `boundsInWindow()` values in that same space.
  *
  * There is no endpoint hold. Progress 0 and 1 are rest states only.
  */
@@ -315,13 +317,18 @@ fun PlayerExpandOverlay(
         androidx.compose.ui.unit.DpSize(viewport.width.toDp(), viewport.height.toDp())
     }
 
+    // Pin the popup to the activity window origin (not to the bottom bar it is
+    // composed in), so popup coordinates == activity window coordinates.
     Popup(
-        alignment = Alignment.TopStart,
+        popupPositionProvider = PlayerExpandPopup.positionProvider,
         properties = PopupProperties(
-            focusable = progress > 0f,
+            flags = PlayerExpandPopup.flags(
+                interactive = PlayerExpandPopup.isInteractive(progress)
+            ),
             dismissOnBackPress = false,
             dismissOnClickOutside = false,
-            clippingEnabled = false
+            // A full-window gesture exclusion would block the system back swipe.
+            excludeFromSystemGesture = false
         )
     ) {
         Box(
