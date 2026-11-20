@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.net.URI
 
 /** An installed plugin plus what happened the last time it was loaded. */
 data class PluginEntry(
@@ -107,6 +108,28 @@ class PluginManager(
         val clean = url.trim()
         val code = fetcher.fetch(clean)
         return inspect(code, PluginSourceKind.URL, clean)
+    }
+
+    /** Reads a single script or a MusicFree catalog without fetching any of its entries. */
+    suspend fun readImportFile(source: String, expectJson: Boolean): PluginImport =
+        readImport(source, PluginSourceKind.LOCAL_FILE, null, expectJson)
+
+    suspend fun readImportUrl(url: String): PluginImport {
+        val clean = url.trim()
+        val source = fetcher.fetch(clean)
+        val isJson = URI(clean).path?.endsWith(".json", ignoreCase = true) == true
+        return readImport(source, PluginSourceKind.URL, clean, isJson)
+    }
+
+    private suspend fun readImport(
+        source: String,
+        kind: PluginSourceKind,
+        sourceUrl: String?,
+        expectJson: Boolean
+    ): PluginImport {
+        val catalog = withContext(Dispatchers.Default) { PluginCatalog.readOrNull(source, expectJson) }
+        if (catalog != null) return PluginImport.Catalog(catalog)
+        return PluginImport.Script(inspect(source.removePrefix("\uFEFF"), kind, sourceUrl))
     }
 
     /** Test-loads [code] in a throwaway sandbox and reads its manifest. Nothing is saved. */

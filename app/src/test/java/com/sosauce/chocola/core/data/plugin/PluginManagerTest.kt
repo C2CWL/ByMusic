@@ -38,6 +38,51 @@ class PluginManagerTest {
     )
 
     @Test
+    fun localAndRemoteCatalogsDoNotFetchEntriesOrInstallPlugins() = runBlocking {
+        val m = manager()
+        val catalogUrl = "https://plugins.example.com/catalog?raw=1"
+        val pluginUrl = "https://plugins.example.com/fictional.js"
+        remote = """{"plugins":[{"name":"清单中的名字","url":"$pluginUrl","version":"1.2.0"}]}"""
+        val local = m.readImportFile("\uFEFF$remote", expectJson = true) as PluginImport.Catalog
+        assertEquals(listOf(PluginCatalogEntry(pluginUrl, "清单中的名字", "1.2.0")), local.catalog.entries)
+        assertTrue(fetched.isEmpty())
+
+        assertEquals(local, m.readImportUrl(catalogUrl))
+        assertEquals(listOf(catalogUrl), fetched)
+        assertTrue(m.plugins.value.isEmpty())
+
+        remote = fictionalPlugin
+        val candidate = m.inspectFromUrl(local.catalog.entries.single().url)
+        assertEquals(pluginUrl, candidate.sourceUrl)
+        assertEquals("虚构音源", candidate.manifest.platform)
+        assertTrue(m.plugins.value.isEmpty())
+        m.install(candidate)
+        assertEquals(pluginUrl, m.plugins.value.single().plugin.sourceUrl)
+    }
+
+    @Test
+    fun directScriptsStillLoadFromFilesAndLinks() = runBlocking {
+        val m = manager()
+        val local = m.readImportFile(fictionalPlugin, expectJson = false) as PluginImport.Script
+        assertEquals(PluginSourceKind.LOCAL_FILE, local.candidate.sourceKind)
+        val url = "https://plugins.example.com/fictional.js?raw=1"
+        val linked = m.readImportUrl(url) as PluginImport.Script
+        assertEquals(url, linked.candidate.sourceUrl)
+        assertEquals(local.candidate.sha256, linked.candidate.sha256)
+    }
+
+    @Test
+    fun malformedJsonUrlWithQueryReportsCatalogError() = runBlocking {
+        remote = "{"
+        try {
+            manager().readImportUrl("https://plugins.example.com/list.JSON?raw=1")
+            fail("malformed catalog must not be treated as JavaScript")
+        } catch (e: PluginCatalogException) {
+            assertEquals(PluginCatalogError.INVALID_JSON, e.error)
+        }
+    }
+
+    @Test
     fun installEnableUpdateDeleteFlow() = runBlocking {
         val m = manager()
         val candidate = m.inspect(fictionalPlugin, PluginSourceKind.LOCAL_FILE)

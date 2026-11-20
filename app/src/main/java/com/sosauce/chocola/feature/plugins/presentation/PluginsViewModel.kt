@@ -4,11 +4,16 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.sosauce.chocola.R
 import com.sosauce.chocola.core.data.plugin.PluginCandidate
+import com.sosauce.chocola.core.data.plugin.PluginCatalog
+import com.sosauce.chocola.core.data.plugin.PluginCatalogEntry
+import com.sosauce.chocola.core.data.plugin.PluginCatalogError
+import com.sosauce.chocola.core.data.plugin.PluginCatalogException
 import com.sosauce.chocola.core.data.plugin.PluginEntry
 import com.sosauce.chocola.core.data.plugin.PluginFileReader
+import com.sosauce.chocola.core.data.plugin.PluginImport
 import com.sosauce.chocola.core.data.plugin.PluginManager
-import com.sosauce.chocola.core.data.plugin.PluginSourceKind
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -32,6 +37,7 @@ data class ImportSheetState(
     val isReading: Boolean = false,
     val error: String? = null,
     val candidate: PluginCandidate? = null,
+    val catalog: PluginCatalog? = null,
     val riskAccepted: Boolean = false,
     val isInstalling: Boolean = false,
     /** True when opened from "检查更新" of an installed plugin. */
@@ -77,39 +83,73 @@ class PluginsViewModel(
     fun openImport() = ui.update { it.copy(sheet = ImportSheetState()) }
 
     fun closeSheet() {
+        if (ui.value.sheet?.isInstalling == true) return
         readJob?.cancel()
         ui.update { it.copy(sheet = null) }
     }
 
-    fun selectTab(tab: ImportTab) = updateSheet { it.copy(tab = tab, error = null, candidate = null, riskAccepted = false) }
+    fun selectTab(tab: ImportTab) {
+        val sheet = ui.value.sheet ?: return
+        if (sheet.tab == tab || sheet.isInstalling) return
+        readJob?.cancel()
+        updateSheet {
+            it.copy(tab = tab, isReading = false, error = null, candidate = null, catalog = null, riskAccepted = false)
+        }
+    }
 
     fun setUrl(url: String) = updateSheet { it.copy(url = url, error = null) }
 
     fun setRiskAccepted(accepted: Boolean) = updateSheet { it.copy(riskAccepted = accepted) }
 
     fun readFile(uri: Uri) = read {
-        val code = withContext(Dispatchers.IO) { PluginFileReader.read(application, uri) }
-        manager.inspect(code, PluginSourceKind.LOCAL_FILE)
+        val (source, isJson) = withContext(Dispatchers.IO) {
+            PluginFileReader.read(application, uri) to PluginFileReader.hasJsonExtension(application, uri)
+        }
+        manager.readImportFile(source, isJson)
     }
 
     fun readLink() {
         val url = ui.value.sheet?.url?.trim().orEmpty()
         if (!url.startsWith("https://", ignoreCase = true)) {
-            updateSheet { it.copy(error = "请输入 https:// 开头的插件链接") }
+            updateSheet { it.copy(error = application.getString(R.string.plugins_url_required)) }
             return
         }
-        read { manager.inspectFromUrl(url) }
+        read { manager.readImportUrl(url) }
     }
 
-    private fun read(block: suspend () -> PluginCandidate) {
+    fun readCatalogEntry(entry: PluginCatalogEntry) = read(keepCatalog = true) {
+        PluginImport.Script(manager.inspectFromUrl(entry.url))
+    }
+
+    fun resetImport() = updateSheet { it.copy(catalog = null, error = null) }
+
+    fun backToCatalog() = updateSheet { it.copy(candidate = null, error = null, riskAccepted = false) }
+
+    private fun read(keepCatalog: Boolean = false, block: suspend () -> PluginImport) {
+        val sheet = ui.value.sheet ?: return
+        if (sheet.isInstalling) return
         readJob?.cancel()
-        updateSheet { it.copy(isReading = true, error = null, candidate = null, riskAccepted = false) }
+        updateSheet {
+            it.copy(
+                isReading = true, error = null, candidate = null,
+                catalog = if (keepCatalog) it.catalog else null, riskAccepted = false
+            )
+        }
         readJob = viewModelScope.launch {
             try {
-                val candidate = block()
-                updateSheet { it.copy(isReading = false, candidate = candidate) }
+                when (val imported = block()) {
+                    is PluginImport.Script -> updateSheet { it.copy(isReading = false, candidate = imported.candidate) }
+                    is PluginImport.Catalog -> updateSheet { it.copy(isReading = false, catalog = imported.catalog) }
+                }
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: PluginCatalogException) {
+                val message = when (e.error) {
+                    PluginCatalogError.INVALID_JSON -> R.string.plugins_catalog_invalid_json
+                    PluginCatalogError.MISSING_LIST -> R.string.plugins_catalog_missing_list
+                    PluginCatalogError.NO_VALID_LINKS -> R.string.plugins_catalog_no_links
+                }
+                updateSheet { it.copy(isReading = false, error = application.getString(message)) }
             } catch (e: Exception) {
                 updateSheet { it.copy(isReading = false, error = e.message ?: "读取失败") }
             }
@@ -124,7 +164,11 @@ class PluginsViewModel(
         viewModelScope.launch {
             try {
                 manager.install(candidate)
-                ui.update { it.copy(sheet = null) }
+                if (sheet.catalog == null) {
+                    ui.update { it.copy(sheet = null) }
+                } else {
+                    updateSheet { it.copy(candidate = null, error = null, riskAccepted = false, isInstalling = false) }
+                }
                 eventChannel.send(PluginsEvent.Message("已安装：${candidate.manifest.platform}"))
             } catch (e: CancellationException) {
                 throw e

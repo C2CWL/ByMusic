@@ -2,6 +2,7 @@ package com.sosauce.chocola.core.data.plugin
 
 import android.content.Context
 import android.net.Uri
+import android.provider.OpenableColumns
 import android.util.Log
 import java.io.ByteArrayOutputStream
 
@@ -38,6 +39,16 @@ object PluginLogcat {
 
 /** Reads a plugin file the user picked (SAF). Size-capped, UTF-8, BOM removed. */
 object PluginFileReader {
+    fun hasJsonExtension(context: Context, uri: Uri): Boolean {
+        val displayName = try {
+            context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+                ?.use { if (it.moveToFirst()) it.getString(0) else null }
+        } catch (_: RuntimeException) {
+            null
+        }
+        return (displayName ?: uri.lastPathSegment)?.endsWith(".json", ignoreCase = true) == true
+    }
+
     fun read(context: Context, uri: Uri, maxBytes: Int = PluginLimits().maxSourceBytes): String {
         val input = context.contentResolver.openInputStream(uri)
             ?: throw PluginException(PluginErrorType.LOAD, "打不开这个文件")

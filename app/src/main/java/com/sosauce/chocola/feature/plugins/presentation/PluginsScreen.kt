@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -58,6 +60,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sosauce.chocola.R
 import com.sosauce.chocola.core.data.plugin.PluginCandidate
+import com.sosauce.chocola.core.data.plugin.PluginCatalog
+import com.sosauce.chocola.core.data.plugin.PluginCatalogEntry
 import com.sosauce.chocola.core.data.plugin.PluginEntry
 import com.sosauce.chocola.core.data.plugin.PluginManifest
 import com.sosauce.chocola.core.data.plugin.PluginSourceKind
@@ -355,7 +359,7 @@ private fun ImportSheet(sheet: ImportSheetState, viewModel: PluginsViewModel) {
                 style = MaterialTheme.typography.headlineSmall
             )
 
-            if (!sheet.isUpdate) {
+            if (!sheet.isUpdate && sheet.catalog == null) {
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                     SegmentedButton(
                         selected = sheet.tab == ImportTab.FILE,
@@ -372,7 +376,7 @@ private fun ImportSheet(sheet: ImportSheetState, viewModel: PluginsViewModel) {
                 when (sheet.tab) {
                     ImportTab.FILE -> OutlinedButton(
                         onClick = { picker.launch(arrayOf("*/*")) },
-                        enabled = !sheet.isReading,
+                        enabled = !sheet.isReading && !sheet.isInstalling,
                         modifier = Modifier.fillMaxWidth()
                     ) { Text(stringResource(R.string.plugins_pick_file)) }
 
@@ -383,10 +387,11 @@ private fun ImportSheet(sheet: ImportSheetState, viewModel: PluginsViewModel) {
                             label = { Text(stringResource(R.string.plugins_link_label)) },
                             placeholder = { Text(stringResource(R.string.plugins_link_hint)) },
                             singleLine = true,
+                            enabled = !sheet.isReading && !sheet.isInstalling,
                             modifier = Modifier.weight(1f)
                         )
                         Spacer(Modifier.width(8.dp))
-                        FilledTonalButton(onClick = viewModel::readLink, enabled = !sheet.isReading && sheet.url.isNotBlank()) {
+                        FilledTonalButton(onClick = viewModel::readLink, enabled = !sheet.isReading && !sheet.isInstalling && sheet.url.isNotBlank()) {
                             Text(stringResource(R.string.plugins_read))
                         }
                     }
@@ -402,6 +407,18 @@ private fun ImportSheet(sheet: ImportSheetState, viewModel: PluginsViewModel) {
             }
             sheet.error?.let { Text(it, color = colors.error, style = MaterialTheme.typography.bodyMedium) }
 
+            sheet.catalog?.let { catalog ->
+                TextButton(
+                    onClick = if (sheet.candidate != null) viewModel::backToCatalog else viewModel::resetImport,
+                    enabled = !sheet.isReading && !sheet.isInstalling
+                ) {
+                    Text(stringResource(if (sheet.candidate != null) R.string.plugins_catalog_back else R.string.plugins_catalog_change))
+                }
+                if (sheet.candidate == null) {
+                    CatalogEntries(catalog, !sheet.isReading, viewModel::readCatalogEntry)
+                }
+            }
+
             sheet.candidate?.let { candidate ->
                 Text(stringResource(R.string.plugins_read_info), style = MaterialTheme.typography.labelLarge, color = colors.primary)
                 CandidateInfo(candidate)
@@ -415,18 +432,44 @@ private fun ImportSheet(sheet: ImportSheetState, viewModel: PluginsViewModel) {
                     )
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = sheet.riskAccepted, onCheckedChange = viewModel::setRiskAccepted)
+                    Checkbox(checked = sheet.riskAccepted, onCheckedChange = viewModel::setRiskAccepted, enabled = !sheet.isInstalling)
                     Text(stringResource(R.string.plugins_risk_accept), style = MaterialTheme.typography.bodyMedium)
                 }
             }
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = viewModel::closeSheet) { Text(stringResource(R.string.plugins_cancel)) }
-                Spacer(Modifier.width(8.dp))
-                FilledTonalButton(
-                    onClick = viewModel::install,
-                    enabled = sheet.candidate != null && sheet.riskAccepted && !sheet.isInstalling
-                ) { Text(stringResource(R.string.plugins_install)) }
+                TextButton(onClick = viewModel::closeSheet, enabled = !sheet.isInstalling) {
+                    Text(stringResource(R.string.plugins_cancel))
+                }
+                if (sheet.catalog == null || sheet.candidate != null) {
+                    Spacer(Modifier.width(8.dp))
+                    FilledTonalButton(
+                        onClick = viewModel::install,
+                        enabled = sheet.candidate != null && sheet.riskAccepted && !sheet.isInstalling
+                    ) { Text(stringResource(R.string.plugins_install)) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CatalogEntries(catalog: PluginCatalog, enabled: Boolean, onSelect: (PluginCatalogEntry) -> Unit) {
+    Text(stringResource(R.string.plugins_catalog_title, catalog.entries.size), style = MaterialTheme.typography.titleSmall)
+    if (catalog.skippedCount > 0) {
+        Text(stringResource(R.string.plugins_catalog_skipped, catalog.skippedCount), style = MaterialTheme.typography.bodySmall)
+    }
+    LazyColumn(
+        modifier = Modifier.fillMaxWidth().heightIn(max = 280.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        items(catalog.entries, key = { it.url }) { entry ->
+            OutlinedButton(onClick = { onSelect(entry) }, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.fillMaxWidth()) {
+                    val label = listOfNotNull(entry.name, entry.version).joinToString(" · ")
+                    if (label.isNotEmpty()) Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(entry.url, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
             }
         }
     }
