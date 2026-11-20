@@ -149,6 +149,24 @@ class PluginManagerTest {
     }
 
     @Test
+    fun switchingSourceDropsUserVariables() = runBlocking {
+        val m = manager()
+        m.install(m.inspect(fictionalPlugin, PluginSourceKind.LOCAL_FILE))
+        m.setUserVariables("虚构音源", mapOf("token" to "secret"))
+
+        // Same plugin name, different host: a name is not an identity, so the stored
+        // token must not follow the code to the new origin.
+        val other = m.inspect(
+            PluginTestSupport.fictionalPlugin("2.0.0"),
+            PluginSourceKind.URL,
+            "https://other.example.net/fictional.js"
+        )
+        val installed = m.install(other)
+        assertEquals("2.0.0", installed.manifest.version)
+        assertTrue("换来源后不能继承变量", installed.userVariables.isEmpty())
+    }
+
+    @Test
     fun brokenStoredCodeMarksLoadError() = runBlocking {
         val m = manager()
         m.install(m.inspect(fictionalPlugin, PluginSourceKind.LOCAL_FILE))

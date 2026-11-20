@@ -44,16 +44,29 @@ class ResolvedMediaTest {
     }
 
     @Test
-    fun onlyHttpAndHttpsUrlsAreAllowed() {
+    fun artworkAllowsPublicHttpAndAudioRequiresPublicHttps() {
         assertTrue(OnlineUrlPolicy.isAllowed("https://example.invalid/a.flac?sig=1"))
-        assertTrue(OnlineUrlPolicy.isAllowed("http://example.invalid/a.mp3"))
+        assertTrue(OnlineUrlPolicy.isAllowed("http://example.invalid/a.jpg"))
         assertTrue(OnlineUrlPolicy.isAllowed("HTTPS://EXAMPLE.INVALID/a"))
+        assertTrue(OnlineUrlPolicy.isAllowedMedia("https://example.invalid/a.flac"))
+        assertFalse(OnlineUrlPolicy.isAllowedMedia("http://example.invalid/a.mp3"))
         val rejected = listOf(
-            null, "", "   ", "file:///sdcard/a.mp3", "content://media/external/audio/media/1",
+            null, "", "   ",
+            "https://127.0.0.1/a.mp3",
+            "http://127.0.0.1/a.jpg",
+            "https://localhost/a.mp3",
+            "https://192.168.1.1/a.mp3",
+            "http://192.168.1.1/cover.jpg",
+            "https://10.0.0.2/a.mp3",
+            "https://user:pass@example.invalid/a.mp3",
+            "http://user:pass@example.invalid/a.jpg",
+            "file:///sdcard/a.mp3", "content://media/external/audio/media/1",
             "javascript:alert(1)", "ftp://example.invalid/a.mp3", "https://", "/local/path.mp3",
             "data:audio/mp3;base64,AAAA", "bymusic-online:online%3Ap%3A1", "https://exa mple.invalid/a"
         )
         for (url in rejected) assertFalse(url.toString(), OnlineUrlPolicy.isAllowed(url))
+        assertFalse(OnlineUrlPolicy.isAllowedMedia("https://127.0.0.1/a.mp3"))
+        assertFalse(OnlineUrlPolicy.isAllowedMedia("https://user:pass@example.invalid/a.mp3"))
     }
 
     @Test

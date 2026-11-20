@@ -159,7 +159,7 @@ class PluginOnlineMediaResolver(
             }
             val source = result.getOrThrow() ?: return@tryInOrder null
             if (!OnlineUrlPolicy.isAllowedMedia(source.url) || PluginNetwork.parseUrl(source.url) == null) {
-                val reason = "插件没有提供有效的 HTTPS 音频链接"
+                val reason = "插件没有提供有效的公网 HTTPS 音频链接"
                 lastError = reason
                 throw OnlineResolveException(reason)
             }
