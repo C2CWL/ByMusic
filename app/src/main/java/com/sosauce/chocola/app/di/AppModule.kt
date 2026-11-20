@@ -25,6 +25,7 @@ import com.sosauce.chocola.core.data.plugin.PluginHttpClient
 import com.sosauce.chocola.core.data.plugin.PluginLogcat
 import com.sosauce.chocola.core.data.plugin.PluginManager
 import com.sosauce.chocola.core.data.plugin.PluginMusicService
+import com.sosauce.chocola.core.data.plugin.PluginNetwork
 import com.sosauce.chocola.core.data.plugin.PluginOnlineLyricsProvider
 import com.sosauce.chocola.core.data.plugin.PluginOnlineMediaResolver
 import com.sosauce.chocola.core.data.plugin.PluginStore
@@ -92,12 +93,12 @@ val appModule = module {
 
     // Online playback foundation. Koin singles are created on first use only.
     single {
-        OkHttpClient.Builder()
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .followRedirects(true)
-            .followSslRedirects(false)
-            .build()
+        PluginNetwork.client(
+            OkHttpClient.Builder()
+                .connectTimeout(15, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .build()
+        )
     }
     // MusicFree-format plugins imported by the user. ByMusic ships no plugin and no source;
     // without an imported plugin nothing here makes a network request.

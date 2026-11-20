@@ -2,61 +2,34 @@ package com.sosauce.chocola.core.data.download
 
 import com.sosauce.chocola.core.data.plugin.PluginHttpPolicy
 import com.sosauce.chocola.core.data.plugin.PluginMediaSource
-import com.sosauce.chocola.core.data.plugin.PublicOnlyDns
+import com.sosauce.chocola.core.data.plugin.PluginNetwork
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.Call
 import okhttp3.Callback
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import java.io.File
 import java.io.IOException
 import java.io.OutputStream
-import java.net.Proxy
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 internal class DownloadTransfer(base: OkHttpClient) {
-    private val client = base.newBuilder()
-        .dns(PublicOnlyDns)
-        .proxy(Proxy.NO_PROXY)
-        .followRedirects(false)
-        .followSslRedirects(false)
-        .callTimeout(5, TimeUnit.MINUTES)
-        .build()
+    private val client = base.newBuilder().callTimeout(5, TimeUnit.MINUTES).build()
 
-    /** Each redirect is checked before connecting. Plugin headers stay on their original origin. */
     suspend fun fetch(source: PluginMediaSource, target: File): Boolean {
-        if (source.url.length > MAX_URL_LENGTH) return false
-        val origin = source.url.toHttpUrlOrNull() ?: return false
-        val pluginHeaders = PluginHttpPolicy.sanitizeHeaders(source.headers)
-        var url = origin
-        repeat(MAX_REDIRECTS + 1) {
-            if (!url.isHttps || url.username.isNotEmpty() || url.password.isNotEmpty() ||
-                url.toString().length > MAX_URL_LENGTH || PluginHttpPolicy.isBlockedHostName(url.host)
-            ) return false
-
-            val request = Request.Builder().url(url)
-            if (url.host == origin.host && url.port == origin.port) {
-                request.headers(pluginHeaders)
-                if (pluginHeaders["User-Agent"] == null) {
-                    source.userAgent?.let {
-                        PluginHttpPolicy.sanitizeHeaders(mapOf("User-Agent" to it))["User-Agent"]
-                            ?.let { value -> request.header("User-Agent", value) }
-                    }
-                }
+        val url = PluginNetwork.parseUrl(source.url) ?: return false
+        val headers = PluginHttpPolicy.sanitizeHeaders(source.headers)
+        val request = Request.Builder().url(url).headers(headers)
+        if (headers["User-Agent"] == null) {
+            source.userAgent?.let {
+                PluginHttpPolicy.sanitizeHeaders(mapOf("User-Agent" to it))["User-Agent"]
+                    ?.let { value -> request.header("User-Agent", value) }
             }
-            request.removeHeader("Range")
-            val location = when (val result = transfer(request.build(), target)) {
-                ResponseResult.Complete -> return true
-                ResponseResult.Rejected -> return false
-                is ResponseResult.Redirect -> result.location
-            }
-            url = url.resolve(location) ?: return false
         }
-        return false
+        return transfer(request.removeHeader("Range").build(), target) == ResponseResult.Complete
     }
 
     private suspend fun transfer(request: Request, target: File): ResponseResult =
@@ -84,10 +57,6 @@ internal class DownloadTransfer(base: OkHttpClient) {
         }
 
     private fun read(response: Response, output: OutputStream, canceled: () -> Boolean): ResponseResult {
-        if (response.code in REDIRECT_CODES) {
-            val location = response.header("Location") ?: return ResponseResult.Rejected
-            return ResponseResult.Redirect(location)
-        }
         if (response.code != 200) return ResponseResult.Rejected
         val body = response.body ?: return ResponseResult.Rejected
         val size = body.contentLength()
@@ -113,13 +82,9 @@ internal class DownloadTransfer(base: OkHttpClient) {
     private sealed interface ResponseResult {
         data object Complete : ResponseResult
         data object Rejected : ResponseResult
-        data class Redirect(val location: String) : ResponseResult
     }
 
     private companion object {
         const val MAX_BYTES = 256L * 1024 * 1024
-        const val MAX_URL_LENGTH = 8192
-        const val MAX_REDIRECTS = 5
-        val REDIRECT_CODES = setOf(301, 302, 303, 307, 308)
     }
 }

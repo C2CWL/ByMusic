@@ -123,6 +123,72 @@ class PluginOnlineServicesTest {
     }
 
     @Test
+    fun withoutGetMediaSourceQualityUrlTakesPrecedenceOverItemUrl() = runBlocking {
+        install(
+            """
+            module.exports = {
+              platform: 'quality-direct',
+              search() { return { data: [{ id: 'a', title: 'T', url: 'https://cdn.example.com/a.mp3',
+                  qualities: { high: { url: 'https://cdn.example.com/a.flac' },
+                               low: { url: 'http://cdn.example.com/insecure.mp3' } } }] }; }
+            };
+            """.trimIndent()
+        )
+        service.searchMusic("quality-direct", "q", 1)
+        val id = OnlineMediaId("quality-direct", "a")
+        assertEquals("https://cdn.example.com/a.flac", service.mediaSource(id, "high", 8_000)?.url)
+        assertEquals("https://cdn.example.com/a.mp3", service.mediaSource(id, "low", 8_000)?.url)
+    }
+
+    @Test
+    fun nullOrUndefinedMediaSourceFallsBackToTheRequestedQualityUrl() = runBlocking {
+        install(
+            """
+            module.exports = {
+              platform: 'quality-fallback',
+              search() { return { data: [{ id: 'a', title: 'T', url: 'https://cdn.example.com/generic.mp3',
+                  qualities: { high: { url: 'https://cdn.example.com/a.flac' },
+                               low: { url: 'https://cdn.example.com/a.mp3' } } }] }; },
+              getMediaSource(item, quality) {
+                if (quality === 'super') return { url: 'http://cdn.example.com/a.flac' };
+                if (quality === 'high') return null;
+              }
+            };
+            """.trimIndent()
+        )
+        service.searchMusic("quality-fallback", "q", 1)
+        val id = OnlineMediaId("quality-fallback", "a")
+        // An omitted result falls back to that quality, then to the item's own url.
+        assertEquals("https://cdn.example.com/a.mp3", service.mediaSource(id, "low", 8_000)?.url)
+        assertEquals("https://cdn.example.com/generic.mp3", service.mediaSource(id, "standard", 8_000)?.url)
+        val media = PluginOnlineMediaResolver(service).resolve(ResolveRequest(id, QualityRequest.autoFromTop()))
+        assertEquals("https://cdn.example.com/a.flac", media.url)
+        assertTrue(media.attempts.first().error.orEmpty().contains("HTTPS"))
+    }
+
+    @Test
+    fun stringSourceIsAcceptedButEmbeddedCredentialsAreRejected() = runBlocking {
+        install(
+            """
+            module.exports = {
+              platform: 'auth-source',
+              search() { return { data: [{ id: 'a', title: 'T' }] }; },
+              getMediaSource(item, quality) {
+                return quality === 'super'
+                    ? 'https://user:pass@cdn.example.com/a.mp3?sig=1'
+                    : 'https://cdn.example.com/a.mp3?sig=1';
+              }
+            };
+            """.trimIndent()
+        )
+        service.searchMusic("auth-source", "q", 1)
+        val id = OnlineMediaId("auth-source", "a")
+        val media = PluginOnlineMediaResolver(service).resolve(ResolveRequest(id, QualityRequest.autoFromTop()))
+        assertEquals("https://cdn.example.com/a.mp3?sig=1", media.url)
+        assertTrue(media.attempts.first().error.orEmpty().contains("HTTPS"))
+    }
+
+    @Test
     fun nonHttpUrlsAreRefused() = runBlocking {
         install(
             """

@@ -83,21 +83,21 @@ class PluginMusicService(
     suspend fun mediaSource(id: OnlineMediaId, qualityKey: String, timeoutMillis: Long): PluginMediaSource? {
         val runtime = manager.runtime(id.pluginId)
         val item = itemFor(id, runtime.manifest.platform)
-        if (!runtime.manifest.has("getMediaSource")) {
-            // Protocol: without getMediaSource the item's own `url` is the source.
-            val url = item.string("url") ?: return null
-            return PluginMediaSource(url, emptyMap(), null, null)
-        }
-        val result = runtime.call(
-            "getMediaSource",
-            listOf(item, JsonPrimitive(qualityKey)),
-            timeoutMillis
-        ) as? JsonObject ?: return null
-        val url = result.string("url") ?: return null
-        val headers = (result["headers"] as? JsonObject).orEmpty()
-            .mapNotNull { (k, v) -> (v as? JsonPrimitive)?.contentOrNull?.let { k to it } }
+        val quality = (item["qualities"] as? JsonObject)?.get(qualityKey) as? JsonObject
+        val fallbackUrl = sequenceOf(quality?.string("url"), item.string("url"))
+            .filterNotNull().firstOrNull { OnlineUrlPolicy.isAllowedMedia(it) && PluginNetwork.parseUrl(it) != null }
+        val fallback = fallbackUrl?.let { PluginMediaSource(it, emptyMap(), null, null) }
+        if (!runtime.manifest.has("getMediaSource")) return fallback
+
+        val raw = runtime.call("getMediaSource", listOf(item, JsonPrimitive(qualityKey)), timeoutMillis)
+        val result = raw as? JsonObject
+        val url = ((raw as? JsonPrimitive) ?: (result?.get("url") as? JsonPrimitive))
+            ?.takeIf { it.isString }?.contentOrNull?.takeIf { it.isNotBlank() }
+            ?: return fallback
+        val headers = (result?.get("headers") as? JsonObject).orEmpty()
+            .mapNotNull { (key, value) -> (value as? JsonPrimitive)?.contentOrNull?.let { key to it } }
             .toMap()
-        return PluginMediaSource(url, headers, result.string("userAgent"), result.string("quality"))
+        return PluginMediaSource(url, headers, result?.string("userAgent"), result?.string("quality"))
     }
 
     /** getLyric → rawLrc + translation; without getLyric, the item's own rawLrc. */
@@ -158,9 +158,10 @@ class PluginOnlineMediaResolver(
                 }
             }
             val source = result.getOrThrow() ?: return@tryInOrder null
-            if (!OnlineUrlPolicy.isAllowed(source.url)) {
-                lastError = "插件给的不是 http(s) 链接"
-                throw OnlineResolveException(lastError!!)
+            if (!OnlineUrlPolicy.isAllowedMedia(source.url) || PluginNetwork.parseUrl(source.url) == null) {
+                val reason = "插件没有提供有效的 HTTPS 音频链接"
+                lastError = reason
+                throw OnlineResolveException(reason)
             }
             source
         } ?: throw OnlineResolveException(

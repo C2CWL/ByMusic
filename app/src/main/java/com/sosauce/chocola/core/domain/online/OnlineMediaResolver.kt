@@ -10,7 +10,7 @@ import java.security.MessageDigest
  * comes with the plugin stage. No real music source is wired in here.
  */
 interface OnlineMediaResolver {
-    /** Must return a URL accepted by [OnlineUrlPolicy], or throw. */
+    /** Must return a URL accepted by [OnlineUrlPolicy.isAllowedMedia], or throw. */
     suspend fun resolve(request: ResolveRequest): ResolvedMedia
 }
 
@@ -58,18 +58,25 @@ object UnavailableOnlineMediaResolver : OnlineMediaResolver {
         throw OnlineResolveException("No online plugin is available")
 }
 
-/** Only http(s) URLs with a host may be played; never file://, content://, etc. */
+/** Artwork may use http(s); audio requires a valid HTTPS URL without embedded credentials. */
 object OnlineUrlPolicy {
-    fun isAllowed(url: String?): Boolean {
-        if (url.isNullOrBlank() || url.length > 8192) return false
+    fun isAllowedMedia(url: String): Boolean {
+        if (url != url.trim()) return false
+        val uri = parseWebUrl(url) ?: return false
+        return uri.scheme.equals("https", ignoreCase = true) && uri.userInfo == null
+    }
+
+    fun isAllowed(url: String?): Boolean = parseWebUrl(url) != null
+
+    private fun parseWebUrl(url: String?): URI? {
+        if (url.isNullOrBlank() || url.length > 8192) return null
         val uri = try {
             URI(url.trim())
-        } catch (_: Exception) {
-            return false
+        } catch (_: java.net.URISyntaxException) {
+            return null
         }
-        val scheme = uri.scheme?.lowercase() ?: return false
-        if (scheme != "http" && scheme != "https") return false
-        return !uri.host.isNullOrBlank()
+        val scheme = uri.scheme?.lowercase()
+        return uri.takeIf { (scheme == "http" || scheme == "https") && !it.host.isNullOrBlank() }
     }
 }
 
