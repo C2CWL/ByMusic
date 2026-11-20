@@ -67,7 +67,6 @@ import org.koin.android.ext.koin.androidApplication
 import org.koin.core.module.dsl.singleOf
 import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
-import com.sosauce.chocola.core.data.plugin.PluginNetwork
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 
