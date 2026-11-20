@@ -87,6 +87,19 @@ class PluginRuntimeTest {
     }
 
     @Test
+    fun previewRuntimeCannotReachTheNetwork() {
+        val http = PluginTestSupport.FakeHttp()
+        withPlugin(host = PluginTestSupport.host(http).withNetwork(false)) { rt ->
+            // The call fails, but that is the point: nothing may leave the phone before the
+            // user has seen the risk sheet and accepted the plugin.
+            runCatching {
+                rt.call("search", listOf(JsonPrimitive("周"), JsonPrimitive(1), JsonPrimitive("music")))
+            }
+            assertTrue("预览插件时不能发网络请求", http.requests.isEmpty())
+        }
+    }
+
+    @Test
     fun postSendsJsonBody() = withPlugin { rt ->
         val out = rt.call("post", listOf(PluginTestSupport.obj("""{"a":1}"""))).jsonObject
         assertEquals(200, out["status"]!!.jsonPrimitive.int)

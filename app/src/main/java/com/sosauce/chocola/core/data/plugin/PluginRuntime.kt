@@ -54,11 +54,20 @@ class PluginHost(
     val http: PluginHttpClient,
     val log: (pluginName: String, level: String, text: String) -> Unit = { _, _, _ -> },
     val limits: PluginLimits = PluginLimits(),
-    val appVersion: String = "0.0.0"
+    val appVersion: String = "0.0.0",
+    /**
+     * false while a plugin is only being inspected: its top level still runs (that is how the
+     * manifest is read) but every host request fails instead of reaching the network.
+     */
+    val networkEnabled: Boolean = true
 ) {
     private val cache = ConcurrentHashMap<String, String>()
 
     internal fun library(path: String): String? = cache[path] ?: libraries.read(path)?.also { cache[path] = it }
+
+    /** Same host with plugin network access switched on or off. */
+    fun withNetwork(enabled: Boolean): PluginHost =
+        PluginHost(libraries, http, log, limits, appVersion, enabled)
 }
 
 enum class PluginErrorType { LOAD, METHOD_MISSING, TIMEOUT, SCRIPT, CLOSED }
@@ -257,13 +266,19 @@ class PluginRuntime private constructor(
                 null as String?
             }
             quickJs.asyncFunction("__bm_host_http") { args ->
-                val response = try {
-                    val request = JSON.decodeFromString(PluginHttpRequest.serializer(), args[0].toString())
-                    host.http.execute(request)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    PluginHttpResponse.failure("请求失败：${e.message ?: e::class.java.simpleName}")
+                val response = if (!host.networkEnabled) {
+                    // Inspect only reads the manifest. Nothing the plugin's top level does may
+                    // reach the network before the user has seen and accepted the risk.
+                    PluginHttpResponse.failure("确认插件信息时不会联网", "ERR_BLOCKED")
+                } else {
+                    try {
+                        val request = JSON.decodeFromString(PluginHttpRequest.serializer(), args[0].toString())
+                        host.http.execute(request)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        PluginHttpResponse.failure("请求失败：${e.message ?: e::class.java.simpleName}")
+                    }
                 }
                 JSON.encodeToString(PluginHttpResponse.serializer(), response)
             }

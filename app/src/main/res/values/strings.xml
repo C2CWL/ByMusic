@@ -415,8 +415,8 @@
     <string name="plugins_replace_older">比已安装的 %1$s 旧，安装后会替换成旧版</string>
     <string name="plugins_replace_same">和已安装的版本 %1$s 相同，会覆盖</string>
     <string name="plugins_risk_title">装之前请看清楚</string>
-    <string name="plugins_risk_1">· 插件能访问任意网站，能看到你的搜索词</string>
-    <string name="plugins_risk_2">· 插件在 ByMusic 里执行代码，ByMusic 没法审核它</string>
+    <string name="plugins_risk_1">· 插件只能访问公网 HTTPS 地址，但能看到你搜索的关键词</string>
+    <string name="plugins_risk_2">· 插件代码在 ByMusic 的沙箱里运行，ByMusic 没法审核它</string>
     <string name="plugins_risk_3">· 插件内容和版权责任在插件作者和你，不在 ByMusic</string>
     <string name="plugins_risk_accept">我了解风险，确认这个插件来源可信</string>
     <string name="plugins_install">安装</string>

@@ -76,7 +76,7 @@ object PluginHttpPolicy {
 
     fun isBlockedHostName(host: String): Boolean {
         val h = host.lowercase().trimEnd('.')
-        if (h == "localhost" || h.endsWith(".localhost") || h.endsWith(".local")) return true
+        if (h == "localhost" || h.endsWith(".localhost") || h == "local" || h.endsWith(".local")) return true
         val literal = parseIpLiteral(h) ?: return false
         return isBlockedAddress(literal)
     }
