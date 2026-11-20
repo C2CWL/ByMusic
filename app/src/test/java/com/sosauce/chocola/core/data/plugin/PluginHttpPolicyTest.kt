@@ -16,6 +16,7 @@ class PluginHttpPolicyTest {
     @Test
     fun publicHttpsIsAllowed() {
         assertNull(check("https://api.example.com/search?q=1"))
+        assertNull(check("https://example.org/first.js"))
         assertNull(check("https://93.184.216.34/"))
     }
 
@@ -25,6 +26,7 @@ class PluginHttpPolicyTest {
             "http://localhost/",
             "https://foo.localhost/",
             "https://printer.local/",
+            "https://local/",
             "https://127.0.0.1/",
             "https://10.1.2.3/",
             "https://172.16.0.1/",

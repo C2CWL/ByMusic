@@ -82,8 +82,6 @@ object OnlineUrlPolicy {
     }
 }
 
-}
-
 /**
  * Cache key for the playback cache. It is built from the online id, the served tier and
  * the URL's host+path (not the query, which usually carries an expiring signature).
