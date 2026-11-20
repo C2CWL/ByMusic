@@ -43,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
@@ -62,11 +63,8 @@ import coil3.compose.AsyncImage
 import com.sosauce.chocola.R
 import com.sosauce.chocola.core.designsystem.NowPlayingButton
 import com.sosauce.chocola.core.designsystem.components.ActionButtonsRow
-import com.sosauce.chocola.core.designsystem.components.PlayPauseButton
-import androidx.compose.material3.Text
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
-import androidx.compose.ui.text.style.TextOverflow
 import com.sosauce.chocola.core.designsystem.components.CuteSlider
 import com.sosauce.chocola.core.domain.player.MusicState
 import com.sosauce.chocola.core.domain.player.PlayerActions
@@ -372,11 +370,11 @@ fun PlayerExpandOverlay(
         artworkUri = if (useTurntable) musicState.track.artUri else null
     )
     val turntableShared = remember { TurntableSharedState() }
-    val miniBarTheme = MiniBarTheme(
-        colorScheme = MaterialTheme.colorScheme,
-        typography = MaterialTheme.typography,
-        shapes = MaterialTheme.shapes
-    )
+    val miniBackground = if (libraryStyle) {
+        MaterialTheme.colorScheme.surfaceContainerLow
+    } else {
+        MaterialTheme.colorScheme.surfaceContainer
+    }
 
     val progress = controller.progress
     val showOverlay = progress > 0f ||
@@ -520,7 +518,7 @@ fun PlayerExpandOverlay(
                         miniArt = miniArt!!,
                         fullArt = fullArt!!,
                         viewport = viewport,
-                        miniBarTheme = miniBarTheme,
+                        miniBackground = miniBackground,
                         turntable = turntableShared,
                         onDragDelta = { px ->
                             val travel = PlayerExpandMath.travelPx(viewport.height, miniContainer.height)
@@ -607,6 +605,8 @@ private fun TransitionLayer(
     val coverCorner = PlayerExpandMath.coverCornerRadiusDp(progress, libraryStyle)
     val fullChrome = PlayerExpandMath.fullChromeAlpha(progress)
     val topChrome = PlayerExpandMath.topChromeAlpha(progress)
+    val background = MaterialTheme.colorScheme.background
+    val backgroundAlpha = PlayerExpandMath.transitionBackgroundAlpha(progress)
     val dragState = rememberDraggableState { delta -> onDragDelta(delta) }
 
     Box(Modifier.fillMaxSize()) {
@@ -624,7 +624,7 @@ private fun TransitionLayer(
                     shape = RoundedCornerShape(cornerDp)
                 )
                 .clip(RoundedCornerShape(cornerDp))
-                .background(MaterialTheme.colorScheme.background)
+                .drawBehind { drawRect(background, alpha = backgroundAlpha) }
                 .draggable(
                     state = dragState,
                     orientation = Orientation.Vertical,
@@ -686,20 +686,6 @@ private fun TransitionLayer(
                         modifier = Modifier.fillMaxSize()
                     )
                 }
-            }
-
-            val miniChrome = PlayerExpandMath.miniChromeAlpha(progress)
-            if (miniChrome > 0f) {
-                MiniChromeGhost(
-                    musicState = musicState,
-                    libraryStyle = libraryStyle,
-                    miniContainer = miniContainer,
-                    miniArt = miniArt,
-                    alpha = miniChrome,
-                    origin = container,
-                    onHandlePlayerActions = onHandlePlayerActions,
-                    onNavigate = onNavigate
-                )
             }
         }
     }
@@ -806,74 +792,6 @@ private fun TransitionChrome(
                 onHandlePlayerActions = onHandlePlayerActions,
                 hiddenButtons = hiddenButtons
             )
-        }
-    }
-}
-
-@Composable
-internal fun MiniChromeGhost(
-    musicState: MusicState,
-    libraryStyle: Boolean,
-    miniContainer: Rect,
-    miniArt: Rect,
-    alpha: Float,
-    origin: Rect,
-    onHandlePlayerActions: (PlayerActions) -> Unit,
-    onNavigate: (Screen) -> Unit
-) {
-    val density = LocalDensity.current
-    val left = miniArt.right + with(density) { 12.dp.toPx() }
-    Box(
-        modifier = Modifier
-            .offset {
-                IntOffset(
-                    (miniContainer.left - origin.left).roundToInt(),
-                    (miniContainer.top - origin.top).roundToInt()
-                )
-            }
-            .requiredSize(
-                with(density) { miniContainer.width.coerceAtLeast(1f).toDp() },
-                with(density) { miniContainer.height.coerceAtLeast(1f).toDp() }
-            )
-            .graphicsLayer { this.alpha = alpha },
-        contentAlignment = Alignment.CenterStart
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = with(density) { (left - miniContainer.left).toDp() }, end = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = musicState.track.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                if (libraryStyle) {
-                    Text(
-                        text = musicState.track.artist,
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            PlayPauseButton(
-                isPlaying = musicState.isPlaying,
-                onHandlePlayerActions = onHandlePlayerActions
-            )
-            if (libraryStyle) {
-                IconButton(onClick = { onNavigate(Screen.Queue) }) {
-                    Icon(
-                        painter = painterResource(R.drawable.queue),
-                        contentDescription = stringResource(R.string.queue)
-                    )
-                }
-            }
         }
     }
 }

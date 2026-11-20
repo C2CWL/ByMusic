@@ -10,15 +10,15 @@ import org.junit.Test
 class PlayerExpandMathTest {
 
     @Test
-    fun endpointsKeepMiniAndFullChromeFromOverlapping() {
-        assertEquals(1f, PlayerExpandMath.miniChromeAlpha(0f), 1e-5f)
-        assertEquals(0f, PlayerExpandMath.miniChromeAlpha(1f), 1e-5f)
+    fun transitionBackgroundRevealsTheRealMiniBarBeforeFullChromeFadesIn() {
+        assertEquals(0f, PlayerExpandMath.transitionBackgroundAlpha(0f), 0f)
+        assertEquals(1f, PlayerExpandMath.transitionBackgroundAlpha(1f), 0f)
+        assertEquals(0.5f, PlayerExpandMath.transitionBackgroundAlpha(PlayerExpandMath.FULL_CHROME_FADE_START / 2f), 1e-5f)
+        assertEquals(1f, PlayerExpandMath.transitionBackgroundAlpha(PlayerExpandMath.FULL_CHROME_FADE_START), 0f)
         assertEquals(0f, PlayerExpandMath.fullChromeAlpha(0f), 1e-5f)
         assertEquals(1f, PlayerExpandMath.fullChromeAlpha(1f), 1e-5f)
         assertEquals(0f, PlayerExpandMath.topChromeAlpha(0f), 1e-5f)
         assertEquals(1f, PlayerExpandMath.topChromeAlpha(1f), 1e-5f)
-        // Mini is gone by the time full chrome is in; no late pop-in at 0.45+
-        assertEquals(0f, PlayerExpandMath.miniChromeAlpha(PlayerExpandMath.MINI_CHROME_FADE_END), 1e-4f)
         assertTrue(PlayerExpandMath.fullChromeAlpha(0.5f) in 0.01f..0.99f)
         assertTrue(PlayerExpandMath.fullChromeAlpha(0.5f) > PlayerExpandMath.fullChromeAlpha(0.3f))
     }
@@ -117,6 +117,6 @@ class PlayerExpandMathTest {
 
     @Test
     fun durationIsTheAppSchemeAndHasNoHold() {
-        assertEquals(400, PlayerExpandMath.DURATION_MS)
+        assertEquals(340, PlayerExpandMath.DURATION_MS)
     }
 }

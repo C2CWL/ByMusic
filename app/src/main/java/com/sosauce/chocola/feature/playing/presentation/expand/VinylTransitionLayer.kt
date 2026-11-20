@@ -18,12 +18,9 @@ import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Shapes
-import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,13 +56,6 @@ import com.sosauce.chocola.feature.playing.presentation.components.turntableShee
 import com.sosauce.chocola.feature.playing.presentation.components.turntableVinyl
 import kotlin.math.roundToInt
 
-/** Library-side theme captured outside the turntable colors, for the mini-bar ghost. */
-internal class MiniBarTheme(
-    val colorScheme: ColorScheme,
-    val typography: Typography,
-    val shapes: Shapes
-)
-
 /**
  * Expand transition when the turntable page is on. Must be composed inside the
  * same turntable color theme as the settled page (the overlay does this), so
@@ -83,7 +73,7 @@ internal fun VinylTransitionLayer(
     miniArt: Rect,
     fullArt: Rect,
     viewport: Rect,
-    miniBarTheme: MiniBarTheme,
+    miniBackground: Color,
     turntable: TurntableSharedState,
     onDragDelta: (Float) -> Unit,
     onDragSettled: (Float) -> Unit,
@@ -109,14 +99,13 @@ internal fun VinylTransitionLayer(
     val backdropAlpha = VinylExpandMath.backdropAlpha(progress)
     val fullChrome = PlayerExpandMath.fullChromeAlpha(progress)
     val topChrome = PlayerExpandMath.topChromeAlpha(progress)
-    val miniChrome = PlayerExpandMath.miniChromeAlpha(progress)
+    val backgroundAlpha = PlayerExpandMath.transitionBackgroundAlpha(progress)
     val dragState = rememberDraggableState { delta -> onDragDelta(delta) }
 
     val accent = MaterialTheme.colorScheme.primary
     val surface = MaterialTheme.colorScheme.surface
     val metal = MaterialTheme.colorScheme.secondary
     val backdrop = turntableBackdropBrush()
-    val miniBackground = miniBarTheme.colorScheme.background
     val armDegrees = TurntableMotion.playPauseArmTarget(musicState.isPlaying)
 
     Box(Modifier.fillMaxSize()) {
@@ -136,10 +125,10 @@ internal fun VinylTransitionLayer(
                 .drawBehind {
                     // Mini-bar color first, then the settled page backdrop (opaque
                     // surface + the same gradient) fading over it.
-                    drawRect(miniBackground)
+                    drawRect(miniBackground, alpha = backgroundAlpha)
                     if (backdropAlpha > 0f) {
-                        drawRect(surface, alpha = backdropAlpha)
-                        drawRect(backdrop, alpha = backdropAlpha)
+                        drawRect(surface, alpha = backdropAlpha * backgroundAlpha)
+                        drawRect(backdrop, alpha = backdropAlpha * backgroundAlpha)
                     }
                 }
                 .draggable(
@@ -224,26 +213,6 @@ internal fun VinylTransitionLayer(
                         .placeAt(artBox, container)
                         .graphicsLayer { alpha = armAlpha }
                 ) { drawTurntableArm(armDegrees, surface, metal) }
-            }
-
-            if (miniChrome > 0f) {
-                // The ghost of the mini bar keeps the library colors it fades out from.
-                MaterialTheme(
-                    colorScheme = miniBarTheme.colorScheme,
-                    typography = miniBarTheme.typography,
-                    shapes = miniBarTheme.shapes
-                ) {
-                    MiniChromeGhost(
-                        musicState = musicState,
-                        libraryStyle = libraryStyle,
-                        miniContainer = miniContainer,
-                        miniArt = miniArt,
-                        alpha = miniChrome,
-                        origin = container,
-                        onHandlePlayerActions = onHandlePlayerActions,
-                        onNavigate = onNavigate
-                    )
-                }
             }
         }
     }
