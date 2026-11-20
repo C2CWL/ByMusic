@@ -495,7 +495,11 @@ private fun CandidateInfo(candidate: PluginCandidate) {
         InfoRow(stringResource(R.string.plugins_field_hash), "SHA-256 " + shortHash(candidate.sha256))
         InfoRow(
             stringResource(R.string.plugins_field_methods),
-            manifest.protocolMethods.joinToString("、") { methodLabel(it) }.ifEmpty { "（无）" }
+            buildString {
+                append(manifest.protocolMethods.joinToString("、") { methodLabel(it) }.ifEmpty { "（无）" })
+                append(" · ")
+                append(stringResource(R.string.plugins_methods_unverified))
+            }
         )
         InfoRow(
             stringResource(R.string.plugins_field_compat),

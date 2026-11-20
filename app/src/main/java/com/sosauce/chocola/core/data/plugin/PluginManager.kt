@@ -132,17 +132,15 @@ class PluginManager(
         return PluginImport.Script(inspect(source.removePrefix("\uFEFF"), kind, sourceUrl))
     }
 
-    /** Test-loads [code] in a throwaway sandbox and reads its manifest. Nothing is saved. */
+    /**
+     * Reads [code]'s exported fields without evaluating it. Nothing is saved and no plugin
+     * code runs: the import sheet must not execute anything before the user accepts the risk.
+     * Method / require() lists are inferred from the source text and confirmed on [install].
+     */
     suspend fun inspect(code: String, kind: PluginSourceKind, sourceUrl: String? = null): PluginCandidate {
         ensureLoaded()
         if (code.isBlank()) throw PluginException(PluginErrorType.LOAD, "文件是空的")
-        // The user has not agreed to anything yet, so the plugin's top level runs with no network.
-        val runtime = PluginRuntime.load(code, "plugin.js", host.withNetwork(false))
-        val manifest = try {
-            runtime.manifest
-        } finally {
-            runtime.close()
-        }
+        val manifest = withContext(Dispatchers.Default) { PluginManifestReader.read(code) }
         return PluginCandidate(
             code = code,
             manifest = manifest,
@@ -154,16 +152,34 @@ class PluginManager(
         )
     }
 
-    /** Installs (or replaces) the plugin. Enabled state is kept on replace. */
+    /**
+     * Installs (or replaces) the plugin. Enabled state is kept on replace.
+     * The user has already accepted the risk sheet, so the code is loaded once here (still
+     * without network) to confirm the real manifest before it is written to disk.
+     */
     suspend fun install(candidate: PluginCandidate): InstalledPlugin {
         ensureLoaded()
-        val id = candidate.manifest.platform
+        val verified = withContext(Dispatchers.Default) {
+            val runtime = PluginRuntime.load(candidate.code, "plugin.js", host.withNetwork(false))
+            try {
+                runtime.manifest
+            } finally {
+                runtime.close()
+            }
+        }
+        if (verified.platform != candidate.manifest.platform) {
+            throw PluginException(
+                PluginErrorType.LOAD,
+                "插件名称与预览不一致（预览 ${candidate.manifest.platform}，实际 ${verified.platform}）"
+            )
+        }
+        val id = verified.platform
         val installed = stateLock.withLock {
             val previous = _plugins.value.firstOrNull { it.id == id }?.plugin
             val plugin = InstalledPlugin(
                 id = id,
                 fileName = PluginStore.fileNameFor(id),
-                manifest = candidate.manifest,
+                manifest = verified,
                 sha256 = candidate.sha256,
                 sizeBytes = candidate.sizeBytes,
                 sourceKind = candidate.sourceKind,
@@ -225,7 +241,7 @@ class PluginManager(
      * or null when there is nothing to update. Installing still needs [install].
      *
      * Only the download happens before the user has seen anything: a byte-identical file
-     * never runs, and a different one is inspected with plugin network access switched off.
+     * never runs, and a different one is inspected from source text without evaluating it.
      */
     suspend fun checkUpdate(id: String): PluginCandidate? {
         ensureLoaded()

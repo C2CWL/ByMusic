@@ -408,6 +408,7 @@
     <string name="plugins_field_size">大小</string>
     <string name="plugins_field_hash">校验码</string>
     <string name="plugins_field_methods">声明功能</string>
+    <string name="plugins_methods_unverified">来自源码声明，安装后才会真正验证</string>
     <string name="plugins_field_compat">兼容性</string>
     <string name="plugins_compat_all">这一版全部支持</string>
     <string name="plugins_compat_missing">缺少 %1$s，用到它的功能会失败</string>

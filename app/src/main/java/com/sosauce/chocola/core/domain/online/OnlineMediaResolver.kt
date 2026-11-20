@@ -1,5 +1,6 @@
 package com.sosauce.chocola.core.domain.online
 
+import com.sosauce.chocola.core.data.plugin.PluginNetwork
 import java.net.URI
 import java.security.MessageDigest
 
@@ -58,26 +59,29 @@ object UnavailableOnlineMediaResolver : OnlineMediaResolver {
         throw OnlineResolveException("No online plugin is available")
 }
 
-/** Artwork may use http(s); audio requires a valid HTTPS URL without embedded credentials. */
+/**
+ * Audio must be public HTTPS. Artwork may be public http(s). Neither may embed
+ * credentials, use a private host, or point at the phone itself.
+ */
 object OnlineUrlPolicy {
-    fun isAllowedMedia(url: String): Boolean {
-        if (url != url.trim()) return false
-        val uri = parseWebUrl(url) ?: return false
-        return uri.scheme.equals("https", ignoreCase = true) && uri.userInfo == null
-    }
+    fun isAllowedMedia(url: String): Boolean = PluginNetwork.parseUrl(url) != null
 
-    fun isAllowed(url: String?): Boolean = parseWebUrl(url) != null
-
-    private fun parseWebUrl(url: String?): URI? {
-        if (url.isNullOrBlank() || url.length > 8192) return null
+    /** Public http(s) for artwork. The host is checked with the same gate as plugin HTTP. */
+    fun isAllowed(url: String?): Boolean {
+        if (url == null || url != url.trim() || url.length > 8192) return false
         val uri = try {
-            URI(url.trim())
+            URI(url)
         } catch (_: java.net.URISyntaxException) {
-            return null
+            return false
         }
         val scheme = uri.scheme?.lowercase()
-        return uri.takeIf { (scheme == "http" || scheme == "https") && !it.host.isNullOrBlank() }
+        if (scheme != "http" && scheme != "https") return false
+        if (uri.rawUserInfo != null || uri.host.isNullOrBlank()) return false
+        // Probe only the host, so a private http:// address cannot pass by a scheme swap of the whole URL.
+        return PluginNetwork.parseUrl("https://${uri.host}/") != null
     }
+}
+
 }
 
 /**
