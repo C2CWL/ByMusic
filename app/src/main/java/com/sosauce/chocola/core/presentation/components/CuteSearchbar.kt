@@ -79,7 +79,6 @@ import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -108,8 +107,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.lerp
-import androidx.compose.ui.util.lerp
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import coil3.compose.AsyncImage
 import com.sosauce.chocola.R
@@ -211,7 +208,9 @@ fun SharedTransitionScope.CuteSearchbar(
                 controller.onDragSettled(velocity)
             },
             expandProgress = progress,
-            miniArtAlpha = if (progress > 0f) 0f else 1f,
+            miniArtAlpha = if (progress > 0f && PlayerExpandMath.boundsReady(
+                controller.miniContainer, controller.miniArt, controller.fullArt
+            )) 0f else 1f,
             onMiniCardBoundsChanged = { controller.onMiniContainer(it) },
             onMiniArtBoundsChanged = { controller.onMiniArt(it) },
             sortMenu = sortMenu,
@@ -286,16 +285,6 @@ private fun SharedTransitionScope.CuteSearchbarContent(
             }
         }
     }
-    val progress by remember(expandProgress) {
-        derivedStateOf {
-            expandProgress.coerceIn(0f, 1f)
-        }
-    }
-
-    val searchbarWidth by animateFloatAsState(
-        targetValue = lerp(0.85f, 0.95f, progress),
-        animationSpec = bouncySpec()
-    )
     // force 24.dp when player isn't ready because controls won't be here
     val animatedRadius by animateDpAsState(
         if (isInScreenSelectionMode || !musicState.isPlayerReady) 24.dp else 0.dp
@@ -304,7 +293,8 @@ private fun SharedTransitionScope.CuteSearchbarContent(
 
     Column(
         modifier = modifier
-            .fillMaxWidth(searchbarWidth)
+            // Keep the measured landing bounds fixed while the overlay animates.
+            .fillMaxWidth(0.85f)
             .navigationBarsPadding()
             .imePadding()
             .draggable(

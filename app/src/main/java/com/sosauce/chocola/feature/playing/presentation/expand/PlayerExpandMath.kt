@@ -6,7 +6,7 @@ import androidx.compose.ui.geometry.Rect
  * Pure geometry and state-machine helpers for the mini-player → now-playing
  * expand transition.
  *
- * The 400 ms duration, FastOutSlowIn timing, fade windows and settle
+ * The 340 ms duration, FastOutSlowIn timing, fade windows and settle
  * thresholds are this app's own scheme. They are not claimed to be Salt
  * Player parameters.
  *
@@ -15,9 +15,8 @@ import androidx.compose.ui.geometry.Rect
  */
 object PlayerExpandMath {
 
-    const val DURATION_MS = 400
+    const val DURATION_MS = 340
 
-    const val MINI_CHROME_FADE_END = 0.22f
     const val FULL_CHROME_FADE_START = 0.22f
     const val FULL_CHROME_FADE_END = 0.78f
     const val TOP_CHROME_FADE_START = 0.62f
@@ -51,8 +50,9 @@ object PlayerExpandMath {
         return t * t * (3f - 2f * t)
     }
 
-    fun miniChromeAlpha(progress: Float): Float =
-        1f - smoothstep(0f, MINI_CHROME_FADE_END, progress)
+    /** Reveal the real mini-player before the transition window is removed. */
+    fun transitionBackgroundAlpha(progress: Float): Float =
+        smoothstep(0f, FULL_CHROME_FADE_START, progress)
 
     fun fullChromeAlpha(progress: Float): Float =
         smoothstep(FULL_CHROME_FADE_START, FULL_CHROME_FADE_END, progress)
