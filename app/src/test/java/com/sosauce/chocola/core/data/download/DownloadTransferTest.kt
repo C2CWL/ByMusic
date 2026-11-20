@@ -1,6 +1,7 @@
 package com.sosauce.chocola.core.data.download
 
 import com.sosauce.chocola.core.data.plugin.PluginMediaSource
+import com.sosauce.chocola.core.data.plugin.PluginNetwork
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
@@ -67,7 +68,7 @@ class DownloadTransferTest {
     )
 
     private fun transfer(reply: (Request) -> Response) = DownloadTransfer(
-        OkHttpClient.Builder().addInterceptor { reply(it.request()) }.build()
+        PluginNetwork.client(OkHttpClient.Builder().addInterceptor { reply(it.request()) }.build())
     )
 
     private fun response(request: Request, code: Int, body: String = "", location: String? = null): Response =

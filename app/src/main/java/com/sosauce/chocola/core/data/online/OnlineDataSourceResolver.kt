@@ -61,8 +61,8 @@ class OnlineDataSourceResolver(
         } catch (e: Exception) {
             throw IOException("Online resolve failed: ${e.message}", e)
         }
-        if (!OnlineUrlPolicy.isAllowed(resolved.url)) {
-            throw IOException("Online resolver returned a URL that is not http(s)")
+        if (!OnlineUrlPolicy.isAllowedMedia(resolved.url)) {
+            throw IOException("Online resolver returned an invalid HTTPS audio URL")
         }
         return resolved
     }

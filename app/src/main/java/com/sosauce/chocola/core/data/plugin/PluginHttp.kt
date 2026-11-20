@@ -1,8 +1,6 @@
 package com.sosauce.chocola.core.data.plugin
 
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import okhttp3.Call
 import okhttp3.Callback
@@ -19,7 +17,6 @@ import java.io.InterruptedIOException
 import java.net.Inet4Address
 import java.net.Inet6Address
 import java.net.InetAddress
-import java.net.URI
 import java.net.UnknownHostException
 import java.util.Base64
 import java.util.concurrent.TimeUnit
@@ -74,18 +71,7 @@ object PluginHttpPolicy {
     /** Returns an error message, or null when the request is allowed. */
     fun check(request: PluginHttpRequest): String? {
         if (request.method.uppercase() !in METHODS) return "不支持的请求方法 ${request.method}"
-        if (request.url.length > 8192) return "链接太长"
-        val uri = try {
-            URI(request.url)
-        } catch (_: Exception) {
-            return "链接格式不对"
-        }
-        val scheme = uri.scheme?.lowercase()
-        if (scheme != "http" && scheme != "https") return "插件只能访问 http(s) 链接"
-        val host = uri.host?.trim('[', ']')
-        if (host.isNullOrBlank()) return "链接没有主机名"
-        if (isBlockedHostName(host)) return "插件不能访问本机或局域网地址"
-        return null
+        return if (PluginNetwork.parseUrl(request.url) == null) "只允许访问公网 HTTPS 链接" else null
     }
 
     fun isBlockedHostName(host: String): Boolean {
@@ -104,17 +90,17 @@ object PluginHttpPolicy {
         if (address is Inet4Address) {
             val first = b[0].toInt() and 0xFF
             val second = b[1].toInt() and 0xFF
-            if (first == 0) return true
+            if (first == 0 || first >= 240 || (first == 198 && second in 18..19)) return true
             if (first == 100 && second in 64..127) return true // 100.64.0.0/10
             if (first == 169 && second == 254) return true
         }
         if (address is Inet6Address) {
-            if ((b[0].toInt() and 0xFE) == 0xFC) return true // fc00::/7
-            // IPv4-mapped (::ffff:a.b.c.d)
-            val mapped = (0..9).all { b[it].toInt() == 0 } && b[10] == 0xFF.toByte() && b[11] == 0xFF.toByte()
-            if (mapped) {
-                return isBlockedAddress(InetAddress.getByAddress(b.copyOfRange(12, 16)))
-            }
+            // Only global unicast; exclude transition/special-use ranges that can encode
+            // other addresses or have routing semantics outside the public Internet.
+            val first = b[0].toInt() and 0xFF
+            val second = b[1].toInt() and 0xFF
+            if (first !in 0x20..0x3F) return true
+            if (first == 0x20 && (second == 2 || (second == 1 && b[2].toInt() in 0..1))) return true
         }
         return false
     }
@@ -137,7 +123,8 @@ object PluginHttpPolicy {
                 value.any { it == '\r' || it == '\n' }
             ) continue
             if (name.equals("Host", true) || name.equals("Content-Length", true) ||
-                name.equals("Transfer-Encoding", true) || name.equals("Connection", true)
+                name.equals("Transfer-Encoding", true) || name.equals("Connection", true) ||
+                name.startsWith("Proxy-", true) || name.equals("Upgrade", true)
             ) continue
             try {
                 builder.addUnsafeNonAscii(name, value)
@@ -167,22 +154,11 @@ object PublicOnlyDns : Dns {
     }
 }
 
-/**
- * OkHttp implementation. Uses the app's shared client (system CAs only, no cleartext, see
- * network_security_config.xml) with a DNS filter, no cookie jar and capped bodies.
- */
+/** Plugin axios and source fetches share the public HTTPS transport. */
 class OkHttpPluginHttpClient(base: OkHttpClient) : PluginHttpClient {
-
-    private val following = base.newBuilder()
-        .dns(PublicOnlyDns)
-        .followRedirects(true)
-        .followSslRedirects(true)
+    private val client = base.newBuilder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(PluginHttpPolicy.MAX_TIMEOUT_MS, TimeUnit.MILLISECONDS)
-        .build()
-    private val notFollowing = following.newBuilder()
-        .followRedirects(false)
-        .followSslRedirects(false)
         .build()
 
     override suspend fun execute(request: PluginHttpRequest): PluginHttpResponse {
@@ -209,19 +185,19 @@ class OkHttpPluginHttpClient(base: OkHttpClient) : PluginHttpClient {
         }
         val okRequest = try {
             Request.Builder()
-                .url(request.url)
+                .url(checkNotNull(PluginNetwork.parseUrl(request.url)))
                 .headers(headers)
                 .method(method, requestBody)
+                .tag(PluginRedirects::class.java, PluginRedirects(request.followRedirects))
                 .build()
         } catch (e: IllegalArgumentException) {
             return PluginHttpResponse.failure("请求无效：${e.message}", "ERR_BAD_REQUEST")
         }
 
-        val client = if (request.followRedirects) following else notFollowing
         val call = client.newCall(okRequest)
         call.timeout().timeout(PluginHttpPolicy.timeoutOf(request), TimeUnit.MILLISECONDS)
         return try {
-            call.await().use { response -> withContext(Dispatchers.IO) { read(response, request.binary) } }
+            call.awaitBody(request.binary)
         } catch (e: InterruptedIOException) {
             // SocketTimeoutException and OkHttp's call timeout both land here.
             PluginHttpResponse.failure("请求超时", "ECONNABORTED")
@@ -262,16 +238,19 @@ class OkHttpPluginHttpClient(base: OkHttpClient) : PluginHttpClient {
         )
     }
 
-    private suspend fun Call.await(): Response = suspendCancellableCoroutine { cont ->
-        enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                cont.resumeWithException(e)
-            }
+    private suspend fun Call.awaitBody(binary: Boolean): PluginHttpResponse =
+        suspendCancellableCoroutine { cont ->
+            cont.invokeOnCancellation { cancel() }
+            enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) = cont.resumeWithException(e)
 
-            override fun onResponse(call: Call, response: Response) {
-                if (cont.isActive) cont.resume(response) else response.close()
-            }
-        })
-        cont.invokeOnCancellation { cancel() }
-    }
+                override fun onResponse(call: Call, response: Response) {
+                    try {
+                        cont.resume(response.use { read(it, binary) })
+                    } catch (e: Exception) {
+                        cont.resumeWithException(e)
+                    }
+                }
+            })
+        }
 }
