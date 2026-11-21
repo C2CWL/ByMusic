@@ -49,15 +49,16 @@ internal sealed interface DownloadValidation<out T> {
         val value: T,
         val key: String,
         val measuredQuality: QualityTier,
-        val failures: List<DownloadFailure>
+        val failures: List<DownloadFailure>,
+        val belowRequested: Boolean = false
     ) : DownloadValidation<T> {
-        val downgraded: Boolean get() = failures.isNotEmpty()
+        val downgraded: Boolean get() = belowRequested || failures.isNotEmpty()
     }
 
     data class Rejected(val failures: List<DownloadFailure>) : DownloadValidation<Nothing>
 }
 
-/** One attempt per plugin key. A lower-quality response is discarded before trying the next key. */
+/** One attempt per plugin key. Accept any requested tier represented by that key. */
 internal suspend fun <T> validateDownload(
     request: QualityRequest,
     expectedDurationMs: Long?,
@@ -65,9 +66,8 @@ internal suspend fun <T> validateDownload(
     attempt: suspend (key: String) -> DownloadAttempt<T>
 ): DownloadValidation<T> {
     val failures = mutableListOf<DownloadFailure>()
-    for (tier in request.chain.distinctBy { it.musicFreeKey }) {
+    for ((key, tiers) in request.chain.groupBy { it.musicFreeKey }) {
         currentCoroutineContext().ensureActive()
-        val key = tier.musicFreeKey
         val rejection = when (val result = attempt(key)) {
             is DownloadAttempt.Failed -> result.reason
             is DownloadAttempt.Decoded -> {
@@ -78,9 +78,11 @@ internal suspend fun <T> validateDownload(
                     expectedDurationMs != null && expectedDurationMs > 0 &&
                         abs(duration - expectedDurationMs) > maxOf(3_000L, expectedDurationMs / 50) ->
                         DownloadRejection.DURATION_MISMATCH
-                    measured < tier || (measured == QualityTier.SPATIAL && tier != QualityTier.SPATIAL) ->
+                    tiers.none { measured >= it && (measured != QualityTier.SPATIAL || it == QualityTier.SPATIAL) } ->
                         DownloadRejection.QUALITY_MISMATCH
-                    else -> return DownloadValidation.Accepted(result.value, key, measured, failures.toList())
+                    else -> return DownloadValidation.Accepted(
+                        result.value, key, measured, failures.toList(), measured < request.requested
+                    )
                 }
                 discard(result.value)
                 reason

@@ -85,6 +85,26 @@ class DownloadValidationTest {
     }
 
     @Test
+    fun acceptsLowerMeasuredQualityFromSameKeyWhenDowngradeAllowed() = runBlocking {
+        listOf("standard" to 192, "low" to 96).forEach { (key, kbps) ->
+            val request = QualityRequest.preferred(
+                if (key == "standard") QualityTier.LOSSY_320 else QualityTier.LOSSY_128
+            )
+            val result = validateDownload<String>(
+                request,
+                expectedDurationMs = 180_000,
+                discard = { error("valid audio should be kept") },
+                attempt = {
+                    assertEquals(key, it)
+                    DownloadAttempt.Decoded(audio(kbps, 180_000), "audio")
+                }
+            ) as DownloadValidation.Accepted<String>
+            assertEquals(audio(kbps, 180_000).quality(), result.measuredQuality)
+            assertTrue(result.downgraded)
+        }
+    }
+
+    @Test
     fun rejects192KbpsForStandardWithoutTryingLowerWhenExact() = runBlocking {
         val removed = mutableListOf<String>()
         val result = validateDownload<String>(

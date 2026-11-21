@@ -11,6 +11,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import com.sosauce.chocola.core.data.diagnostics.DiagLogger
 import com.sosauce.chocola.core.domain.online.OnlineMediaId
 import com.sosauce.chocola.core.domain.online.QualityRequest
 import com.sosauce.chocola.core.domain.online.QualityTier
@@ -40,13 +41,21 @@ class OnlineDownloadWorker(
                     KEY_MEASURED_QUALITY to outcome.quality.name,
                     KEY_DOWNGRADED to outcome.downgraded
                 ))
-                is OnlineDownloadResult.Rejected -> Result.failure(problem("no_verified_audio"))
+                is OnlineDownloadResult.Rejected -> {
+                    val failures = outcome.failures.joinToString { "${it.key}:${it.reason}" }
+                    DiagLogger.w(DIAG_TAG, "no_verified_audio attempts=$failures")
+                    Result.failure(problem("no_verified_audio"))
+                }
                 OnlineDownloadResult.UnsupportedAndroid -> Result.failure(problem("unsupported_android"))
-                null -> Result.failure(problem("timed_out"))
+                null -> {
+                    DiagLogger.w(DIAG_TAG, "timed_out")
+                    Result.failure(problem("timed_out"))
+                }
             }
         } catch (e: CancellationException) {
             throw e
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            DiagLogger.w(DIAG_TAG, "download_failed type=${e.javaClass.simpleName}")
             Result.failure(problem("download_failed"))
         }
     }
@@ -63,6 +72,7 @@ class OnlineDownloadWorker(
     }
 
     companion object {
+        private const val DIAG_TAG = "OnlineDownload"
         internal const val TAG = "online-audio-download"
         internal const val KEY_MEDIA_ID = "media_id"
         internal const val KEY_TITLE = "title"
