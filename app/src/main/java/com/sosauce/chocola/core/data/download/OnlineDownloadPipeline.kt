@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import com.sosauce.chocola.core.data.diagnostics.DiagLogger
 import com.sosauce.chocola.core.data.plugin.PluginException
 import com.sosauce.chocola.core.data.plugin.PluginMusicService
 import com.sosauce.chocola.core.domain.online.OnlineMediaId
@@ -47,7 +48,12 @@ internal class OnlineDownloadPipeline(
                 } catch (_: PluginException) {
                     null
                 }
-                if (source == null || !transfer.fetch(source, temporary)) {
+                if (source == null) {
+                    DiagLogger.w(TAG, "tier=$key stage=resolve no_source")
+                    return@validateDownload DownloadAttempt.Failed(DownloadRejection.UNAVAILABLE)
+                }
+                if (!transfer.fetch(source, temporary)) {
+                    DiagLogger.w(TAG, "tier=$key stage=transfer failed")
                     return@validateDownload DownloadAttempt.Failed(DownloadRejection.UNAVAILABLE)
                 }
                 val verified = decodeDownloadAudio(temporary)
@@ -69,6 +75,7 @@ internal class OnlineDownloadPipeline(
     private suspend fun publish(file: File, title: String, container: AudioContainer): Uri {
         val job = currentCoroutineContext()
         job.ensureActive()
+        DiagLogger.i(TAG, "stage=publish")
         val resolver = context.contentResolver
         val collection = MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
         val safeTitle = title.map { if (it.isISOControl() || it == '/' || it == '\\') '_' else it }
@@ -105,6 +112,7 @@ internal class OnlineDownloadPipeline(
     }
 
     private companion object {
+        const val TAG = "OnlineDownload"
         const val SOURCE_TIMEOUT_MS = 8_000L
     }
 }
