@@ -4,36 +4,39 @@ import android.os.Build
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,15 +46,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -69,11 +75,6 @@ import com.sosauce.chocola.feature.recognition.presentation.RecognitionEntrySect
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
-/**
- * 在线音乐. Without an imported plugin it only explains how to import one (mockup 02) and
- * makes no request. With plugins it shows a search box and one chip per imported plugin
- * (platform names come only from the plugins themselves, mockup 01/03).
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OnlineMusicScreen(
@@ -81,6 +82,7 @@ fun OnlineMusicScreen(
     onNavigateBack: () -> Unit,
     onQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
+    onRetry: () -> Unit,
     onSelectPlugin: (String) -> Unit,
     onLoadMore: () -> Unit,
     onPlay: (track: CuteTrack, queue: List<CuteTrack>) -> Unit,
@@ -89,17 +91,30 @@ fun OnlineMusicScreen(
     onStartRecognition: () -> Unit = {},
     onOpenRecognitionHistory: () -> Unit = {}
 ) {
+    val colors = MaterialTheme.colorScheme
+    val focus = LocalFocusManager.current
+    val selected = state.selected
+    val submittedQuery = state.submittedQuery
+    val canSearch = selected != null && state.query.isNotBlank() &&
+        !(state.isLoading && state.query.trim() == submittedQuery)
+    val submit = {
+        if (canSearch) {
+            focus.clearFocus()
+            onSearch()
+        }
+    }
     Scaffold(
+        containerColor = colors.surfaceContainerLow,
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.online_music)) },
+                title = {},
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.surfaceContainerLow),
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(painterResource(R.drawable.back), stringResource(R.string.close))
+                        Icon(painterResource(R.drawable.back), stringResource(R.string.online_back))
                     }
                 },
                 actions = {
-                    // Hidden until an imported plugin declares song recognition.
                     RecognitionEntryButton(recognitionPlugins, onStartRecognition)
                     IconButton(onClick = onManagePlugins) {
                         Icon(painterResource(R.drawable.extension), stringResource(R.string.online_manage_plugins))
@@ -108,170 +123,250 @@ fun OnlineMusicScreen(
             )
         }
     ) { padding ->
-        if (state.plugins.isEmpty()) {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 32.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(painterResource(R.drawable.cloud), null, tint = MaterialTheme.colorScheme.primary)
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.Top
+        ) {
+            item {
                 Text(
-                    text = stringResource(R.string.online_no_plugin_title),
-                    modifier = Modifier.padding(top = 16.dp),
-                    style = MaterialTheme.typography.titleMedium
+                    stringResource(R.string.online_music),
+                    modifier = Modifier.padding(start = 4.dp, bottom = 16.dp).semantics { heading() },
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold
                 )
-                Text(
-                    text = stringResource(R.string.online_no_plugin_body),
-                    modifier = Modifier.padding(top = 8.dp),
-                    textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = stringResource(R.string.plugins_statement),
-                    modifier = Modifier.padding(top = 8.dp),
-                    textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                FilledTonalButton(onClick = onManagePlugins, modifier = Modifier.padding(top = 20.dp)) {
-                    Text(stringResource(R.string.online_go_import))
+            }
+            when {
+                state.isLoadingPlugins -> item { SearchProgress() }
+                selected == null -> item {
+                    OnlineNotice(
+                        title = stringResource(
+                            if (state.hasAnyPlugin) R.string.online_no_search_source else R.string.online_no_plugin_title
+                        ),
+                        body = stringResource(
+                            if (state.hasAnyPlugin) R.string.online_no_search_source_body else R.string.online_setup_body
+                        )
+                    ) {
+                        Button(onClick = onManagePlugins) {
+                            Text(
+                                stringResource(
+                                    if (state.hasAnyPlugin) R.string.online_manage_plugins else R.string.online_go_import
+                                )
+                            )
+                        }
+                    }
                 }
+                else -> {
+                    item {
+                        SearchPanel(
+                            query = state.query,
+                            selected = selected,
+                            plugins = state.plugins,
+                            onQueryChange = onQueryChange,
+                            onSelectPlugin = { id ->
+                                focus.clearFocus()
+                                onSelectPlugin(id)
+                            },
+                            canSearch = canSearch,
+                            onSearch = submit
+                        )
+                    }
+                    if (submittedQuery != null) {
+                        item {
+                            Text(
+                                stringResource(R.string.online_results_for, submittedQuery),
+                                modifier = Modifier.padding(start = 4.dp, top = 16.dp, bottom = 8.dp).semantics { heading() },
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        itemsIndexed(state.results, key = { _, track -> track.mediaId }) { index, track ->
+                            TrackRow(
+                                track = track,
+                                first = index == 0,
+                                last = index == state.results.lastIndex,
+                                onClick = {
+                                    focus.clearFocus()
+                                    onPlay(track, state.results)
+                                }
+                            )
+                        }
+                        when {
+                            state.isLoading -> item { SearchProgress() }
+                            state.error != null -> item {
+                                Box(Modifier.padding(top = if (state.results.isEmpty()) 0.dp else 8.dp)) {
+                                    OnlineNotice(stringResource(R.string.online_search_failed), state.error) {
+                                        FilledTonalButton(onClick = onRetry) {
+                                            Text(stringResource(R.string.online_retry))
+                                        }
+                                    }
+                                }
+                            }
+                            state.results.isEmpty() && state.isEnd -> item {
+                                OnlineNotice(stringResource(R.string.online_no_results), stringResource(R.string.online_no_results_body))
+                            }
+                            !state.isEnd -> item {
+                                FilledTonalButton(onClick = onLoadMore, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                                    Text(stringResource(R.string.online_load_more))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            item {
                 RecognitionEntrySection(
                     plugins = recognitionPlugins,
                     onStart = onStartRecognition,
                     onOpenHistory = onOpenRecognitionHistory,
-                    modifier = Modifier.padding(top = 24.dp)
+                    modifier = Modifier.padding(top = 16.dp)
                 )
             }
-        } else {
-            SearchContent(
-                state = state,
-                modifier = Modifier.fillMaxSize().padding(padding),
-                onQueryChange = onQueryChange,
-                onSearch = onSearch,
-                onSelectPlugin = onSelectPlugin,
-                onLoadMore = onLoadMore,
-                onPlay = onPlay,
-                onManagePlugins = onManagePlugins,
-                recognitionPlugins = recognitionPlugins,
-                onStartRecognition = onStartRecognition,
-                onOpenRecognitionHistory = onOpenRecognitionHistory
-            )
+            item {
+                Text(
+                    stringResource(if (selected == null) R.string.plugins_statement else R.string.online_footer),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 16.dp)
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun SearchContent(
-    state: OnlineSearchUiState,
-    modifier: Modifier,
+private fun SearchPanel(
+    query: String,
+    selected: SearchablePlugin,
+    plugins: List<SearchablePlugin>,
     onQueryChange: (String) -> Unit,
-    onSearch: () -> Unit,
     onSelectPlugin: (String) -> Unit,
-    onLoadMore: () -> Unit,
-    onPlay: (CuteTrack, List<CuteTrack>) -> Unit,
-    onManagePlugins: () -> Unit,
-    recognitionPlugins: List<RecognitionPluginInfo>,
-    onStartRecognition: () -> Unit,
-    onOpenRecognitionHistory: () -> Unit
+    canSearch: Boolean,
+    onSearch: () -> Unit
 ) {
-    val focus = LocalFocusManager.current
-    val selected = state.selected
-    LazyColumn(modifier = modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        item {
-            OutlinedTextField(
-                value = state.query,
+    val colors = MaterialTheme.colorScheme
+    val searchLabel = stringResource(R.string.online_search_placeholder)
+    var expanded by remember { mutableStateOf(false) }
+    Surface(color = colors.surface, shape = RoundedCornerShape(24.dp)) {
+        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            BasicTextField(
+                value = query,
                 onValueChange = onQueryChange,
-                leadingIcon = { Icon(painterResource(R.drawable.search), null) },
-                placeholder = { Text(stringResource(R.string.online_search_hint, selected?.name.orEmpty())) },
                 singleLine = true,
-                shape = RoundedCornerShape(28.dp),
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.onSurface),
+                cursorBrush = SolidColor(colors.primary),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = {
-                    focus.clearFocus()
-                    onSearch()
-                }),
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
-            )
-        }
-        item {
-            Row(
-                modifier = Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                state.plugins.forEach { plugin ->
-                    FilterChip(
-                        selected = plugin.id == selected?.id,
-                        onClick = { onSelectPlugin(plugin.id) },
-                        label = { Text(plugin.name) }
-                    )
+                keyboardActions = KeyboardActions(onSearch = { onSearch() }),
+                modifier = Modifier.fillMaxWidth().semantics {
+                    contentDescription = searchLabel
+                },
+                decorationBox = { inner ->
+                    Row(
+                        Modifier.clip(RoundedCornerShape(16.dp)).background(colors.surfaceContainer).heightIn(min = 52.dp)
+                            .padding(start = 14.dp, end = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(painterResource(R.drawable.search), null, tint = colors.onSurfaceVariant)
+                        Box(Modifier.weight(1f)) {
+                            if (query.isEmpty()) {
+                                Text(
+                                    stringResource(R.string.online_search_placeholder),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = colors.onSurfaceVariant
+                                )
+                            }
+                            inner()
+                        }
+                        if (query.isNotEmpty()) {
+                            IconButton(onClick = { onQueryChange("") }) {
+                                Icon(painterResource(R.drawable.close), stringResource(R.string.online_clear_query))
+                            }
+                        } else {
+                            Spacer(Modifier.width(8.dp))
+                        }
+                    }
                 }
-                AssistChip(onClick = onManagePlugins, label = { Text(stringResource(R.string.online_manage_plugins)) })
-            }
-        }
-        item {
-            RecognitionEntrySection(
-                plugins = recognitionPlugins,
-                onStart = onStartRecognition,
-                onOpenHistory = onOpenRecognitionHistory,
-                modifier = Modifier.padding(horizontal = 16.dp)
             )
-        }
-        state.error?.let { message ->
-            item {
-                Text(
-                    message,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(16.dp)
-                )
-            }
-        }
-        if (state.searched && !state.isLoading && state.error == null && state.results.isEmpty()) {
-            item {
-                Text(
-                    stringResource(R.string.online_no_results),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(16.dp)
-                )
-            }
-        }
-        items(state.results, key = { it.mediaId }) { track ->
-            TrackRow(track = track, onClick = { onPlay(track, state.results) })
-        }
-        item {
-            Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) {
-                when {
-                    state.isLoading -> CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
-                    !state.isEnd && state.results.isNotEmpty() ->
-                        TextButton(onClick = onLoadMore) { Text(stringResource(R.string.online_load_more)) }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(Modifier.weight(1f)) {
+                    if (plugins.size > 1) {
+                        TextButton(onClick = { expanded = true }) {
+                            Text(
+                                stringResource(R.string.online_search_source, selected.name),
+                                modifier = Modifier.weight(1f, fill = false),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Icon(painterResource(R.drawable.arrow_down), null, modifier = Modifier.padding(start = 4.dp).size(16.dp))
+                        }
+                        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                            plugins.forEach { plugin ->
+                                DropdownMenuItem(
+                                    text = { Text(plugin.name) },
+                                    trailingIcon = if (plugin.id == selected.id) {
+                                        { Icon(painterResource(R.drawable.check_circle), null, tint = colors.primary) }
+                                    } else null,
+                                    modifier = Modifier.semantics { this.selected = plugin.id == selected.id },
+                                    onClick = {
+                                        expanded = false
+                                        onSelectPlugin(plugin.id)
+                                    }
+                                )
+                            }
+                        }
+                    } else {
+                        Text(
+                            stringResource(R.string.online_search_source, selected.name),
+                            modifier = Modifier.padding(start = 8.dp),
+                            color = colors.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
+                Button(onClick = onSearch, enabled = canSearch) { Text(stringResource(R.string.online_search)) }
             }
-        }
-        item {
-            Text(
-                stringResource(R.string.online_footer),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 96.dp, top = 4.dp)
-            )
         }
     }
 }
 
 @Composable
-private fun TrackRow(track: CuteTrack, onClick: () -> Unit) {
+private fun OnlineNotice(title: String, body: String, action: @Composable () -> Unit = {}) {
+    Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(24.dp)) {
+        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            action()
+        }
+    }
+}
+
+@Composable
+private fun SearchProgress() {
+    Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+    }
+}
+
+@Composable
+private fun TrackRow(track: CuteTrack, first: Boolean, last: Boolean, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
+    val top = if (first) 20.dp else 0.dp
+    val bottom = if (last) 20.dp else 0.dp
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .clip(RoundedCornerShape(topStart = top, topEnd = top, bottomStart = bottom, bottomEnd = bottom))
+            .background(colors.surface)
+            .padding(end = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(
-            modifier = Modifier.weight(1f).clickable(onClick = onClick),
+            modifier = Modifier
+                .weight(1f)
+                .clickable(onClick = onClick)
+                .padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
@@ -281,6 +376,7 @@ private fun TrackRow(track: CuteTrack, onClick: () -> Unit) {
                     .background(colors.surfaceContainerHigh),
                 contentAlignment = Alignment.Center
             ) {
+                Icon(painterResource(R.drawable.music_note), null, tint = colors.onSurfaceVariant)
                 if (track.artUri != null) {
                     AsyncImage(
                         model = track.artUri,
@@ -288,8 +384,6 @@ private fun TrackRow(track: CuteTrack, onClick: () -> Unit) {
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
                     )
-                } else {
-                    Icon(painterResource(R.drawable.music_note), null, tint = colors.onSurfaceVariant)
                 }
             }
             Spacer(Modifier.width(12.dp))

@@ -152,6 +152,7 @@ fun Nav(
                             onNavigateBack = backStack::navigateBack,
                             onQueryChange = onlineViewModel::setQuery,
                             onSearch = onlineViewModel::search,
+                            onRetry = onlineViewModel::retry,
                             onSelectPlugin = onlineViewModel::select,
                             onLoadMore = onlineViewModel::loadMore,
                             onPlay = { track, queue ->

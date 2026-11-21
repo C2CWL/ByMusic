@@ -20,4 +20,15 @@
     <string name="online_download_saved">已下载到 Music/ByMusic</string>
     <string name="online_download_retry">下载失败，点击重试</string>
     <string name="online_download_enqueue_failed">无法加入下载队列，请重试</string>
+    <string name="online_back">返回</string>
+    <string name="online_setup_body">导入支持音乐搜索的 MusicFree 插件，就可以搜索和播放歌曲。ByMusic 不内置音源。</string>
+    <string name="online_no_search_source">没有可用的搜索音源</string>
+    <string name="online_no_search_source_body">在插件管理里启用或导入支持音乐搜索的插件。仅支持听歌识曲的插件不会出现在音源列表里。</string>
+    <string name="online_search_placeholder">搜索歌曲、歌手或专辑</string>
+    <string name="online_search_source">音源：%1$s</string>
+    <string name="online_clear_query">清空搜索</string>
+    <string name="online_results_for">“%1$s”的搜索结果</string>
+    <string name="online_search_failed">搜索失败</string>
+    <string name="online_retry">重试</string>
+    <string name="online_no_results_body">试试其他关键词，或切换音源。</string>
 </resources>
