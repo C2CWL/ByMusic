@@ -84,6 +84,7 @@ import com.sosauce.chocola.feature.playing.presentation.components.LocalTurntabl
 import com.sosauce.chocola.feature.playing.presentation.components.TurntableColors
 import com.sosauce.chocola.feature.playing.presentation.components.TurntableSharedState
 import com.sosauce.chocola.feature.playing.presentation.components.rememberTurntableThemeState
+import com.sosauce.chocola.feature.playing.presentation.components.turntableBackdrop
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -465,7 +466,7 @@ fun PlayerExpandOverlay(
                         Modifier
                             .fillMaxSize()
                             .background(MaterialTheme.colorScheme.surface)
-                            .background(com.sosauce.chocola.feature.playing.presentation.components.turntableBackdropBrush())
+                            .turntableBackdrop()
                     )
                 }
                 if (settled || controller.pendingMeasure ||
