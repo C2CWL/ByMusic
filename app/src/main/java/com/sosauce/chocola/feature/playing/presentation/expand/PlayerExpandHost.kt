@@ -34,6 +34,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -376,8 +377,12 @@ fun PlayerExpandOverlay(
         MaterialTheme.colorScheme.surfaceContainer
     }
 
-    val progress = controller.progress
-    val showOverlay = progress > 0f ||
+    val readProgress = remember(controller) { { controller.progress } }
+    val movingOrExpanded by remember(controller) { derivedStateOf { controller.progress > 0f } }
+    val interactive by remember(controller) {
+        derivedStateOf { PlayerExpandPopup.isInteractive(controller.progress) }
+    }
+    val showOverlay = movingOrExpanded ||
         controller.pendingMeasure ||
         controller.pendingExpand ||
         controller.phase == Phase.Preparing
@@ -416,7 +421,7 @@ fun PlayerExpandOverlay(
         popupPositionProvider = PlayerExpandPopup.positionProvider,
         properties = PopupProperties(
             flags = PlayerExpandPopup.flags(
-                interactive = PlayerExpandPopup.isInteractive(progress)
+                interactive = interactive
             ),
             dismissOnBackPress = false,
             dismissOnClickOutside = false,
@@ -429,7 +434,12 @@ fun PlayerExpandOverlay(
             Box(
                 modifier = Modifier.requiredSize(viewportDp.width, viewportDp.height)
             ) {
-                val settled = PlayerExpandMath.isSettledExpanded(progress)
+                val settled by remember(controller) {
+                    derivedStateOf { PlayerExpandMath.isSettledExpanded(controller.progress) }
+                }
+                val prepareSettledPage by remember(controller) {
+                    derivedStateOf { VinylExpandMath.shouldPrepareSettledPage(controller.progress) }
+                }
                 val miniContainer = controller.miniContainer
                 val miniArt = controller.miniArt
                 val fullArt = controller.fullArt
@@ -439,7 +449,7 @@ fun PlayerExpandOverlay(
                 // and its slot never moves between transition and settled states.
                 val keepPageReady = style == VinylExpandMath.Style.Vinyl &&
                     canDrawTransition &&
-                    VinylExpandMath.shouldPrepareSettledPage(progress)
+                    prepareSettledPage
                 // Lyrics layer over the settled turntable page (0 = page, 1 = lyrics).
                 val lyricsProgress = if (style == VinylExpandMath.Style.Vinyl && settled) {
                     controller.lyricsProgress
@@ -511,7 +521,7 @@ fun PlayerExpandOverlay(
 
                 if (!settled && canDrawTransition && style == VinylExpandMath.Style.Vinyl) {
                     VinylTransitionLayer(
-                        progress = progress,
+                        progress = readProgress,
                         libraryStyle = libraryStyle,
                         musicState = musicState,
                         miniContainer = miniContainer!!,
@@ -531,7 +541,7 @@ fun PlayerExpandOverlay(
                     )
                 } else if (!settled && canDrawTransition) {
                     TransitionLayer(
-                        progress = progress,
+                        readProgress = readProgress,
                         libraryStyle = libraryStyle,
                         musicState = musicState,
                         miniContainer = miniContainer!!,
@@ -585,7 +595,7 @@ fun PlayerExpandOverlay(
 
 @Composable
 private fun TransitionLayer(
-    progress: Float,
+    readProgress: () -> Float,
     libraryStyle: Boolean,
     musicState: MusicState,
     miniContainer: Rect,
@@ -599,6 +609,7 @@ private fun TransitionLayer(
     onNavigate: (Screen) -> Unit
 ) {
     val density = LocalDensity.current
+    val progress = readProgress()
     val container = PlayerExpandMath.containerRect(progress, miniContainer, viewport)
     val cover = PlayerExpandMath.coverRect(progress, miniArt, fullArt)
     val containerCorner = PlayerExpandMath.containerCornerRadiusDp(progress, libraryStyle)

@@ -79,12 +79,14 @@ import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -157,18 +159,23 @@ fun SharedTransitionScope.CuteSearchbar(
     var showFullPlayerSaved by rememberSaveable { mutableStateOf(false) }
     val controller = rememberPlayerExpandController(initiallyExpanded = showFullPlayerSaved)
     controller.reduceMotion = systemAnimationsDisabled()
-    val progress = controller.progress
+    val expanding by remember(controller) { derivedStateOf { controller.progress > 0f } }
     val windowInfo = LocalWindowInfo.current
 
-    LaunchedEffect(progress) {
-        if (PlayerExpandMath.isSettledCollapsed(progress)) {
-            showFullPlayerSaved = false
-        } else if (PlayerExpandMath.isSettledExpanded(progress)) {
-            showFullPlayerSaved = true
+    LaunchedEffect(controller) {
+        snapshotFlow {
+            val progress = controller.progress
+            when {
+                PlayerExpandMath.isSettledCollapsed(progress) -> false
+                PlayerExpandMath.isSettledExpanded(progress) -> true
+                else -> null
+            }
+        }.collect { settled ->
+            if (settled != null) showFullPlayerSaved = settled
         }
     }
-    LaunchedEffect(progress > 0f) {
-        onFullPlayerChanged(progress > 0f)
+    LaunchedEffect(expanding) {
+        onFullPlayerChanged(expanding)
     }
     LaunchedEffect(musicState.isPlayerReady) {
         if (!musicState.isPlayerReady) {
@@ -184,7 +191,7 @@ fun SharedTransitionScope.CuteSearchbar(
         }
     }
 
-    BackHandler(enabled = progress > 0f) {
+    BackHandler(enabled = expanding) {
         controller.collapse()
     }
 
@@ -192,7 +199,7 @@ fun SharedTransitionScope.CuteSearchbar(
     // so the scaffold bottom bar does not jump and mini bounds stay valid.
     Box(
         modifier = modifier.graphicsLayer {
-            alpha = if (PlayerExpandMath.isSettledExpanded(progress)) 0f else 1f
+            alpha = if (PlayerExpandMath.isSettledExpanded(controller.progress)) 0f else 1f
         }
     ) {
         CuteSearchbarContent(
@@ -207,8 +214,8 @@ fun SharedTransitionScope.CuteSearchbar(
             onInteractiveExpandSettled = { velocity ->
                 controller.onDragSettled(velocity)
             },
-            expandProgress = progress,
-            miniArtAlpha = if (progress > 0f && PlayerExpandMath.boundsReady(
+            isExpanding = { controller.progress > 0f },
+            miniArtAlpha = if (expanding && PlayerExpandMath.boundsReady(
                 controller.miniContainer, controller.miniArt, controller.fullArt
             )) 0f else 1f,
             onMiniCardBoundsChanged = { controller.onMiniContainer(it) },
@@ -241,7 +248,7 @@ private fun SharedTransitionScope.CuteSearchbarContent(
     onOpenFullPlayer: () -> Unit,
     onInteractiveExpandDelta: (Float) -> Unit = {},
     onInteractiveExpandSettled: (Float) -> Unit = {},
-    expandProgress: Float = 0f,
+    isExpanding: () -> Boolean = { false },
     miniArtAlpha: Float = 1f,
     onMiniCardBoundsChanged: (Rect) -> Unit = {},
     onMiniArtBoundsChanged: (Rect) -> Unit = {},
@@ -276,7 +283,7 @@ private fun SharedTransitionScope.CuteSearchbarContent(
 
     val searchbarDragState = rememberDraggableState { dragAmount ->
         // When dragging upward (dragAmount < 0) or already expanding, drive the interactive shared expansion directly
-        if (expandProgress > 0f || (dragAmount < 0f && yTranslationSearchbar.value <= 0f)) {
+        if (isExpanding() || (dragAmount < 0f && yTranslationSearchbar.value <= 0f)) {
             onInteractiveExpandDelta(-dragAmount / screenHeightPx)
         } else {
             scope.launch {
@@ -302,7 +309,7 @@ private fun SharedTransitionScope.CuteSearchbarContent(
                 orientation = Orientation.Vertical,
                 enabled = musicState.isPlayerReady && !isInScreenSelectionMode,
                 onDragStopped = { velocity ->
-                    if (expandProgress > 0f) {
+                    if (isExpanding()) {
                         onInteractiveExpandSettled(velocity)
                     } else {
                         val targetValue = yTranslationSearchbar.value
