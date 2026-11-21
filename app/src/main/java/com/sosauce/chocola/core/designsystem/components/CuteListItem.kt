@@ -35,8 +35,8 @@ fun CuteListItem(
     onLongClick: (() -> Unit)? = null,
     leadingContent: @Composable () -> Unit,
     trailingContent: (@Composable () -> Unit)? = null,
-    verticalPadding: Dp = 15.dp,
-    horizontalPadding: Dp = 0.dp,
+    verticalPadding: Dp = 12.dp,
+    horizontalPadding: Dp = 8.dp,
     content: @Composable ColumnScope.() -> Unit
 ) {
 
@@ -44,7 +44,7 @@ fun CuteListItem(
     val isPressed by interactionSource.collectIsPressedAsState()
 
     val cardScale by animateFloatAsState(
-        targetValue = if (isPressed) 0.95f else 1f,
+        targetValue = if (isPressed) 0.985f else 1f,
         animationSpec = bouncySpec()
     )
 

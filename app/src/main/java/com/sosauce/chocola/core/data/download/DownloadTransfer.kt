@@ -57,10 +57,23 @@ internal class DownloadTransfer(base: OkHttpClient) {
         }
 
     private fun read(response: Response, output: OutputStream, canceled: () -> Boolean): ResponseResult {
-        if (response.code != 200) return ResponseResult.Rejected
+        val rangeSize = when (response.code) {
+            200 -> null
+            206 -> {
+                // Some CDNs return 206 even without Range. Accept only the entire object.
+                val range = FULL_RANGE.matchEntire(response.header("Content-Range").orEmpty())
+                    ?: return ResponseResult.Rejected
+                val total = range.groupValues[2].toLongOrNull() ?: return ResponseResult.Rejected
+                if (total !in 1L..MAX_BYTES || range.groupValues[1].toLongOrNull() != total - 1) {
+                    return ResponseResult.Rejected
+                }
+                total
+            }
+            else -> return ResponseResult.Rejected
+        }
         val body = response.body ?: return ResponseResult.Rejected
         val size = body.contentLength()
-        if (size == 0L || size > MAX_BYTES) return ResponseResult.Rejected
+        if (size == 0L || size > MAX_BYTES || (rangeSize != null && size >= 0 && size != rangeSize)) return ResponseResult.Rejected
         var total = 0L
         val input = body.byteStream()
         val buffer = ByteArray(64 * 1024)
@@ -75,7 +88,7 @@ internal class DownloadTransfer(base: OkHttpClient) {
             if (total > MAX_BYTES) return ResponseResult.Rejected
             output.write(buffer, 0, count)
         }
-        return if (!canceled() && total > 0 && (size < 0 || total == size)) ResponseResult.Complete
+        return if (!canceled() && total > 0 && (size < 0 || total == size) && (rangeSize == null || total == rangeSize)) ResponseResult.Complete
         else ResponseResult.Rejected
     }
 
@@ -85,6 +98,7 @@ internal class DownloadTransfer(base: OkHttpClient) {
     }
 
     private companion object {
+        val FULL_RANGE = Regex("bytes 0-([0-9]+)/([0-9]+)", RegexOption.IGNORE_CASE)
         const val MAX_BYTES = 256L * 1024 * 1024
     }
 }
