@@ -53,6 +53,7 @@ import com.sosauce.chocola.feature.playing.presentation.VinylNowPlayingBody
 import com.sosauce.chocola.feature.playing.presentation.components.TurntableMotion
 import com.sosauce.chocola.feature.playing.presentation.components.TurntableSharedState
 import com.sosauce.chocola.feature.playing.presentation.components.drawTurntableArm
+import com.sosauce.chocola.feature.playing.presentation.components.drawTurntableStars
 import com.sosauce.chocola.feature.playing.presentation.components.turntableBackdropBrush
 import com.sosauce.chocola.feature.playing.presentation.components.turntableHalo
 import com.sosauce.chocola.feature.playing.presentation.components.turntableSheen
@@ -108,6 +109,7 @@ internal fun VinylTransitionLayer(
     val surface = MaterialTheme.colorScheme.surface
     val metal = MaterialTheme.colorScheme.secondary
     val backdrop = turntableBackdropBrush()
+    val starlight = MaterialTheme.colorScheme.onSurface
     val armDegrees = TurntableMotion.playPauseArmTarget(musicState.isPlaying)
 
     Box(Modifier.fillMaxSize(), contentAlignment = AbsoluteAlignment.TopLeft) {
@@ -131,6 +133,7 @@ internal fun VinylTransitionLayer(
                     if (backdropAlpha > 0f) {
                         drawRect(surface, alpha = backdropAlpha * backgroundAlpha)
                         drawRect(backdrop, alpha = backdropAlpha * backgroundAlpha)
+                        drawTurntableStars(starlight, alpha = backdropAlpha * backgroundAlpha)
                     }
                 }
                 .draggable(
