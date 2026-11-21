@@ -19,10 +19,10 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import top.yukonga.miuix.kmp.basic.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -86,8 +86,8 @@ fun RecognitionHistoryScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.recognition_history)) },
+            SmallTopAppBar(
+                title = stringResource(R.string.recognition_history),
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(painterResource(R.drawable.back), stringResource(R.string.recognition_back))

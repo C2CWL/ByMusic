@@ -20,7 +20,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.Scaffold
+import top.yukonga.miuix.kmp.basic.Scaffold
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Text
