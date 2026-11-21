@@ -6,6 +6,7 @@ import android.app.Application
 import android.content.ComponentName
 import android.net.Uri
 import android.os.CountDownTimer
+import android.widget.Toast
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -18,6 +19,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
@@ -28,6 +30,7 @@ import coil3.imageLoader
 import coil3.request.ImageRequest
 import coil3.toBitmap
 import com.google.common.util.concurrent.MoreExecutors
+import com.sosauce.chocola.R
 import com.sosauce.chocola.app.PlaybackService
 import com.sosauce.chocola.core.data.datastore.UserPreferences
 import com.sosauce.chocola.core.data.library.AbstractTracksScanner
@@ -94,6 +97,11 @@ class MusicViewModel(
     private val playerListener =
         @UnstableApi
         object : Player.Listener {
+            override fun onPlayerError(error: PlaybackException) {
+                if (OnlineMediaId.isOnline(mediaController?.currentMediaItem?.mediaId)) {
+                    Toast.makeText(application, R.string.online_play_failed, Toast.LENGTH_SHORT).show()
+                }
+            }
 
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -588,7 +596,13 @@ class MusicViewModel(
             }
 
             is PlayerActions.PlayFromSource -> {
-
+                val controller = mediaController
+                if (controller == null || !controller.isConnected) {
+                    if (OnlineMediaId.isOnline(action.mediaId)) {
+                        Toast.makeText(application, R.string.online_player_not_ready, Toast.LENGTH_SHORT).show()
+                    }
+                    return
+                }
 
                 val currentTracks = tracks.value
                 val random = action.mediaId == null
@@ -603,36 +617,28 @@ class MusicViewModel(
                     is PlaySource.ExplicitTracks -> source.tracks
                 }
 
+                if (targetTracks.isEmpty()) return
                 if (random) {
-                    mediaController!!.setMediaItems(targetTracks.fastMap { it.toMediaItem() })
-                    mediaController!!.playRandom()
+                    controller.setMediaItems(targetTracks.fastMap { it.toMediaItem() })
+                    if (controller.playbackState == Player.STATE_IDLE) controller.prepare()
+                    controller.playRandom()
                     return
                 }
 
-
-                // checks whether the passed queue is the exact same (order sensitive) as the currently loaded one
-                val sameQueue = mediaController!!.mediaItemCount == targetTracks.size &&
-                        targetTracks.indices.all {
-                            mediaController!!.getMediaItemAt(it).mediaId == targetTracks[it].mediaId
-                        }
-
-
-                if (!mediaController!!.shuffleModeEnabled && sameQueue) {
-                    val playerIndex = targetTracks.indexOfFirst { it.mediaId == action.mediaId }
-                    mediaController!!.seekTo(playerIndex, 0)
-                    mediaController!!.play()
+                val startIndex = targetTracks.indexOfFirst { it.mediaId == action.mediaId }
+                if (startIndex < 0) return
+                // Keep the current queue when its order matches the selected source.
+                val sameQueue = controller.mediaItemCount == targetTracks.size &&
+                    targetTracks.indices.all {
+                        controller.getMediaItemAt(it).mediaId == targetTracks[it].mediaId
+                    }
+                if (!controller.shuffleModeEnabled && sameQueue) {
+                    controller.seekTo(startIndex, 0)
                 } else {
-                    val startIndex = targetTracks
-                        .indexOfFirst { it.mediaId == action.mediaId }
-                        .coerceAtLeast(0)
-                    mediaController!!.setMediaItems(
-                        targetTracks.fastMap { it.toMediaItem() },
-                        startIndex,
-                        0
-                    )
-                    mediaController!!.play()
+                    controller.setMediaItems(targetTracks.fastMap { it.toMediaItem() }, startIndex, 0)
                 }
-
+                if (controller.playbackState == Player.STATE_IDLE) controller.prepare()
+                controller.play()
 
             }
 
