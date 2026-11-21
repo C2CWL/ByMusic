@@ -140,7 +140,7 @@ internal fun Modifier.turntableSheen(
     surface: Color,
     accent: Color,
     glint: TurntableGlintClock?,
-    glintAlpha: Float = 1f,
+    glintAlpha: () -> Float = { 1f },
 ): Modifier =
     drawWithCache {
         val radius = size.minDimension / 2f
@@ -168,10 +168,11 @@ internal fun Modifier.turntableSheen(
             drawCircle(narrow, radius * 0.80f, alpha = 0.5f, style = narrowSoft)
             drawCircle(narrow, radius * 0.80f, style = narrowCore)
             drawCircle(rim, radius * 0.99f, style = rimStroke)
-            if (glint != null && glintAlpha > 0f) {
+            val strength = glintAlpha()
+            if (glint != null && strength > 0f) {
                 val phase = glint.phase
                 for (index in 0 until TurntableGlint.COUNT) {
-                    val alpha = TurntableGlint.alpha(index, phase) * glintAlpha * k
+                    val alpha = TurntableGlint.alpha(index, phase) * strength * k
                     if (alpha <= 0.004f) continue
                     val angle = TurntableGlint.angleDegrees(index, phase) * (PI.toFloat() / 180f)
                     val r = radius * TurntableGlint.radiusFraction(index)

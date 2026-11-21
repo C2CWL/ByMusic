@@ -11,10 +11,8 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,13 +20,18 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.GraphicsLayerScope
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
@@ -66,7 +69,7 @@ import kotlin.math.roundToInt
  */
 @Composable
 internal fun VinylTransitionLayer(
-    progress: Float,
+    progress: () -> Float,
     libraryStyle: Boolean,
     musicState: MusicState,
     miniContainer: Rect,
@@ -82,24 +85,23 @@ internal fun VinylTransitionLayer(
     onNavigate: (Screen) -> Unit
 ) {
     val density = LocalDensity.current
-    val container = PlayerExpandMath.containerRect(progress, miniContainer, viewport)
-    val containerCorner = PlayerExpandMath.containerCornerRadiusDp(progress, libraryStyle)
-    val label = VinylExpandMath.labelRect(progress, miniArt, fullArt)
-    val disc = VinylExpandMath.discRect(progress, label)
-    val artBox = VinylExpandMath.artBoxForDisc(disc)
-    val labelCornerPx = VinylExpandMath.labelCornerRadiusPx(
-        progress = progress,
-        startRadiusPx = with(density) { PlayerExpandMath.coverCornerRadiusDp(0f, libraryStyle).dp.toPx() },
-        labelSidePx = label.width
-    )
-    val recordDegrees = VinylExpandMath.recordRotation(progress, turntable.rotation.value)
-    val discAlpha = VinylExpandMath.discAlpha(progress)
-    val armAlpha = VinylExpandMath.armAlpha(progress)
-    val starsAlpha = VinylExpandMath.starsAlpha(progress)
-    val backdropAlpha = VinylExpandMath.backdropAlpha(progress)
-    val fullChrome = PlayerExpandMath.fullChromeAlpha(progress)
-    val topChrome = PlayerExpandMath.topChromeAlpha(progress)
-    val backgroundAlpha = PlayerExpandMath.transitionBackgroundAlpha(progress)
+    val container = remember(progress, miniContainer, viewport) {
+        derivedStateOf { PlayerExpandMath.containerRect(progress(), miniContainer, viewport) }
+    }
+    val frame = remember(progress, miniArt, fullArt) {
+        derivedStateOf {
+            val t = progress()
+            val label = VinylExpandMath.labelRect(t, miniArt, fullArt)
+            val disc = VinylExpandMath.discRect(t, label)
+            VinylArtFrame(label, disc, VinylExpandMath.artBoxForDisc(disc))
+        }
+    }
+    val endLabel = VinylExpandMath.labelRectFor(fullArt)
+    val endDisc = VinylExpandMath.discRectFor(fullArt)
+    val endArtBox = VinylExpandMath.artBoxForDisc(endDisc)
+    val startRadiusPx = with(density) { PlayerExpandMath.coverCornerRadiusDp(0f, libraryStyle).dp.toPx() }
+    val recordDegrees = { VinylExpandMath.recordRotation(progress(), turntable.rotation.value) }
+    val showChrome by remember(progress) { derivedStateOf { PlayerExpandMath.fullChromeAlpha(progress()) > 0f } }
     val dragState = rememberDraggableState { delta -> onDragDelta(delta) }
 
     val accent = MaterialTheme.colorScheme.primary
@@ -108,23 +110,23 @@ internal fun VinylTransitionLayer(
     val backdrop = turntableBackdropBrush()
     val armDegrees = TurntableMotion.playPauseArmTarget(musicState.isPlaying)
 
-    Box(Modifier.fillMaxSize()) {
-        val cornerDp = containerCorner.dp
+    Box(Modifier.fillMaxSize(), contentAlignment = AbsoluteAlignment.TopLeft) {
         Box(
             modifier = Modifier
-                .offset { IntOffset(container.left.roundToInt(), container.top.roundToInt()) }
-                .requiredSize(
-                    with(density) { container.width.coerceAtLeast(1f).toDp() },
-                    with(density) { container.height.coerceAtLeast(1f).toDp() }
-                )
-                .shadow(
-                    elevation = if (progress in 0.02f..0.98f) 8.dp else 0.dp,
-                    shape = RoundedCornerShape(cornerDp)
-                )
-                .clip(RoundedCornerShape(cornerDp))
+                .absoluteOffset {
+                    val rect = container.value
+                    IntOffset(rect.left.roundToInt(), rect.top.roundToInt())
+                }
+                .graphicsLayer {
+                    val t = progress()
+                    shape = RoundedCornerShape(PlayerExpandMath.containerCornerRadiusDp(t, libraryStyle).dp)
+                    shadowElevation = if (t in 0.02f..0.98f) 8.dp.toPx() else 0f
+                    clip = true
+                }
                 .drawBehind {
-                    // Mini-bar color first, then the settled page backdrop (opaque
-                    // surface + the same gradient) fading over it.
+                    val t = progress()
+                    val backgroundAlpha = PlayerExpandMath.transitionBackgroundAlpha(t)
+                    val backdropAlpha = VinylExpandMath.backdropAlpha(t)
                     drawRect(miniBackground, alpha = backgroundAlpha)
                     if (backdropAlpha > 0f) {
                         drawRect(surface, alpha = backdropAlpha * backgroundAlpha)
@@ -136,16 +138,24 @@ internal fun VinylTransitionLayer(
                     orientation = Orientation.Vertical,
                     onDragStopped = { velocity -> onDragSettled(velocity) }
                 )
+                .layout { measurable, _ ->
+                    // Only the outer clip changes size. Measure the content at its final
+                    // viewport size and cancel the clip's movement in window coordinates.
+                    val content = measurable.measure(Constraints.fixed(viewport.width.pixelSize(), viewport.height.pixelSize()))
+                    val rect = container.value
+                    layout(rect.width.pixelSize(), rect.height.pixelSize()) {
+                        content.place(-rect.left.roundToInt(), -rect.top.roundToInt())
+                    }
+                },
+            contentAlignment = AbsoluteAlignment.TopLeft
         ) {
-            if (fullChrome > 0f) {
+            if (showChrome) {
                 VinylTransitionChrome(
                     musicState = musicState,
-                    artBox = artBox,
                     fullArt = fullArt,
-                    container = container,
-                    chromeAlpha = fullChrome,
-                    topChromeAlpha = topChrome,
-                    pointerEnabled = progress > 0.8f,
+                    chromeAlpha = { PlayerExpandMath.fullChromeAlpha(progress()) },
+                    topChromeAlpha = { PlayerExpandMath.topChromeAlpha(progress()) },
+                    pointerEnabled = { progress() > 0.8f },
                     onCollapse = onCollapse,
                     onHandlePlayerActions = onHandlePlayerActions,
                     onNavigate = onNavigate
@@ -153,43 +163,45 @@ internal fun VinylTransitionLayer(
             }
 
             // Glow under the record (artwork-box space).
-            if (discAlpha > 0f) {
-                Box(
-                    Modifier
-                        .placeAt(artBox, container)
-                        .graphicsLayer { alpha = discAlpha }
-                        .turntableHalo(surface, accent)
-                )
+            Box(
+                Modifier
+                    .fixedArtLayer(endArtBox, { frame.value.artBox })
+                    .graphicsLayer { alpha = VinylExpandMath.discAlpha(progress()) }
+                    .turntableHalo(surface, accent)
+            )
 
-                // Record body, grown around the cover.
-                Box(
-                    Modifier
-                        .placeAt(disc, container)
-                        .graphicsLayer {
-                            alpha = discAlpha
-                            rotationZ = recordDegrees
-                        }
-                        .clip(CircleShape)
-                        .turntableVinyl(surface, accent)
-                )
+            // Record body, grown around the cover.
+            Box(
+                Modifier
+                    .fixedArtLayer(endDisc, { frame.value.disc })
+                    .graphicsLayer {
+                        alpha = VinylExpandMath.discAlpha(progress())
+                        rotationZ = recordDegrees()
+                    }
+                    .clip(CircleShape)
+                    .turntableVinyl(surface, accent)
+            )
 
-                // Fixed sheen (does not spin), under the cover so its square
-                // corners mid-transition stay on top. Glints fade in late,
-                // on the same curve the old star points used.
-                Box(
-                    Modifier
-                        .placeAt(disc, container)
-                        .graphicsLayer { alpha = discAlpha }
-                        .turntableSheen(surface, accent, turntable.glint, glintAlpha = starsAlpha)
-                )
-            }
+            // Fixed sheen (does not spin), under the cover so its square
+            // corners mid-transition stay on top. Glints fade in late,
+            // on the same curve the old star points used.
+            Box(
+                Modifier
+                    .fixedArtLayer(endDisc, { frame.value.disc })
+                    .graphicsLayer { alpha = VinylExpandMath.discAlpha(progress()) }
+                    .turntableSheen(surface, accent, turntable.glint) { VinylExpandMath.starsAlpha(progress()) }
+            )
 
             // The one cover: mini art at 0, record label at 1. Corners close into a circle.
             Box(
                 modifier = Modifier
-                    .placeAt(label, container)
-                    .graphicsLayer { rotationZ = recordDegrees }
-                    .clip(RoundedCornerShape(labelCornerPx))
+                    .fixedArtLayer(endLabel, { frame.value.label }) {
+                        rotationZ = recordDegrees()
+                        val label = frame.value.label
+                        val radius = VinylExpandMath.labelCornerRadiusPx(progress(), startRadiusPx, label.width)
+                        shape = RoundedCornerShape(radius / scaleX)
+                        clip = true
+                    }
                     .background(surface),
                 contentAlignment = Alignment.Center
             ) {
@@ -207,13 +219,11 @@ internal fun VinylTransitionLayer(
                 )
             }
 
-            if (armAlpha > 0f) {
-                Canvas(
-                    Modifier
-                        .placeAt(artBox, container)
-                        .graphicsLayer { alpha = armAlpha }
-                ) { drawTurntableArm(armDegrees, surface, metal) }
-            }
+            Canvas(
+                Modifier.fixedArtLayer(endArtBox, { frame.value.artBox }) {
+                    alpha = VinylExpandMath.armAlpha(progress())
+                }
+            ) { drawTurntableArm(armDegrees, surface, metal) }
         }
     }
 }
@@ -228,12 +238,10 @@ internal fun VinylTransitionLayer(
 @Composable
 private fun VinylTransitionChrome(
     musicState: MusicState,
-    artBox: Rect,
     fullArt: Rect,
-    container: Rect,
-    chromeAlpha: Float,
-    topChromeAlpha: Float,
-    pointerEnabled: Boolean,
+    chromeAlpha: () -> Float,
+    topChromeAlpha: () -> Float,
+    pointerEnabled: () -> Boolean,
     onCollapse: () -> Unit,
     onHandlePlayerActions: (PlayerActions) -> Unit,
     onNavigate: (Screen) -> Unit
@@ -241,9 +249,9 @@ private fun VinylTransitionChrome(
     val density = LocalDensity.current
     val hiddenButtons = rememberHiddenNowPlayingButtons()
     val isLandscape = rememberIsLandscape()
-    val guardedCollapse: () -> Unit = { if (pointerEnabled) onCollapse() }
-    val guardedActions: (PlayerActions) -> Unit = { if (pointerEnabled) onHandlePlayerActions(it) }
-    val guardedNavigate: (Screen) -> Unit = { if (pointerEnabled) onNavigate(it) }
+    val guardedCollapse: () -> Unit = { if (pointerEnabled()) onCollapse() }
+    val guardedActions: (PlayerActions) -> Unit = { if (pointerEnabled()) onHandlePlayerActions(it) }
+    val guardedNavigate: (Screen) -> Unit = { if (pointerEnabled()) onNavigate(it) }
     // Holds the artwork's measured place; the record itself is drawn by the layer.
     val artPlaceholder: @Composable (Modifier) -> Unit = { modifier ->
         Box(
@@ -257,7 +265,7 @@ private fun VinylTransitionChrome(
     Scaffold(
         modifier = Modifier
             .fillMaxSize()
-            .graphicsLayer { alpha = chromeAlpha },
+            .graphicsLayer { alpha = chromeAlpha() },
         containerColor = Color.Transparent
     ) { paddingValues ->
         if (isLandscape) {
@@ -290,17 +298,26 @@ private fun VinylTransitionChrome(
     }
 }
 
-/**
- * Places a child at [rect] (window space) relative to [origin] (window space),
- * at exactly the rect's size. Reports no size to the parent, so a child larger
- * than the parent is never re-centered by its constraints.
- */
-private fun Modifier.placeAt(rect: Rect, origin: Rect): Modifier =
-    layout { measurable, constraints ->
-        val width = rect.width.coerceAtLeast(1f).roundToInt()
-        val height = rect.height.coerceAtLeast(1f).roundToInt()
-        val placeable = measurable.measure(Constraints.fixed(width, height))
-        layout(constraints.minWidth, constraints.minHeight) {
-            placeable.place((rect.left - origin.left).roundToInt(), (rect.top - origin.top).roundToInt())
+private data class VinylArtFrame(val label: Rect, val disc: Rect, val artBox: Rect)
+
+private fun Float.pixelSize(): Int = coerceAtLeast(1f).roundToInt()
+
+/** Measures once at the settled size; motion updates only the layer transform. */
+private fun Modifier.fixedArtLayer(
+    settled: Rect,
+    frame: () -> Rect,
+    layer: GraphicsLayerScope.() -> Unit = {}
+): Modifier = layout { measurable, constraints ->
+    val art = measurable.measure(Constraints.fixed(settled.width.pixelSize(), settled.height.pixelSize()))
+    layout(constraints.minWidth, constraints.minHeight) {
+        art.placeWithLayer(0, 0) {
+            val rect = frame()
+            scaleX = rect.width / art.width
+            scaleY = rect.height / art.height
+            translationX = rect.center.x - art.width / 2f
+            translationY = rect.center.y - art.height / 2f
+            transformOrigin = TransformOrigin.Center
+            layer()
         }
     }
+}

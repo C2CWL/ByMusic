@@ -153,7 +153,7 @@ internal fun VinylNowPlayingBody(
     onShrinkToSearchbar: () -> Unit,
     onShowSpeedCard: () -> Unit,
     recordAreaModifier: Modifier = Modifier,
-    handleAlpha: Float = 1f,
+    handleAlpha: () -> Float = { 1f },
     artwork: @Composable (Modifier) -> Unit
 ) {
     val closeLabel = stringResource(R.string.close)
@@ -176,7 +176,7 @@ internal fun VinylNowPlayingBody(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .padding(top = VinylLayout.HANDLE_TOP_DP.dp)
-                    .graphicsLayer { alpha = handleAlpha }
+                    .graphicsLayer { alpha = handleAlpha() }
             )
             Box(
                 modifier = Modifier.align(BiasAlignment(0f, VinylLayout.RECORD_VERTICAL_BIAS))
