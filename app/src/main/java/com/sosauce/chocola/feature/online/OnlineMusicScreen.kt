@@ -1,5 +1,7 @@
 package com.sosauce.chocola.feature.online
 
+import android.os.Build
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -33,23 +35,39 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.work.WorkInfo
+import androidx.work.await
 import coil3.compose.AsyncImage
 import com.sosauce.chocola.R
+import com.sosauce.chocola.core.data.download.OnlineDownloadWorker
 import com.sosauce.chocola.core.domain.model.CuteTrack
+import com.sosauce.chocola.core.domain.online.OnlineMediaId
+import com.sosauce.chocola.core.domain.online.QualityRequest
 import com.sosauce.chocola.feature.recognition.domain.RecognitionPluginInfo
 import com.sosauce.chocola.feature.recognition.presentation.RecognitionEntryButton
 import com.sosauce.chocola.feature.recognition.presentation.RecognitionEntrySection
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
 /**
  * 在线音乐. Without an imported plugin it only explains how to import one (mockup 02) and
@@ -249,43 +267,103 @@ private fun TrackRow(track: CuteTrack, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(colors.surfaceContainerHigh),
-            contentAlignment = Alignment.Center
+        Row(
+            modifier = Modifier.weight(1f).clickable(onClick = onClick),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            if (track.artUri != null) {
-                AsyncImage(
-                    model = track.artUri,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(colors.surfaceContainerHigh),
+                contentAlignment = Alignment.Center
+            ) {
+                if (track.artUri != null) {
+                    AsyncImage(
+                        model = track.artUri,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Icon(painterResource(R.drawable.music_note), null, tint = colors.onSurfaceVariant)
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(track.title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                val sub = listOf(track.artist, track.album).filter { it.isNotBlank() }.joinToString(" · ")
+                if (sub.isNotEmpty()) {
+                    Text(sub, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            if (track.durationMillis > 0) {
+                Spacer(Modifier.width(8.dp))
+                val total = track.durationMillis / 1000
+                Text(
+                    "%d:%02d".format(total / 60, total % 60),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colors.onSurfaceVariant
                 )
-            } else {
-                Icon(painterResource(R.drawable.music_note), null, tint = colors.onSurfaceVariant)
             }
         }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(track.title, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            val sub = listOf(track.artist, track.album).filter { it.isNotBlank() }.joinToString(" · ")
-            if (sub.isNotEmpty()) {
-                Text(sub, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val id = remember(track.mediaId) { OnlineMediaId.parse(track.mediaId) }
+            if (id != null) TrackDownloadButton(track, id)
+        }
+    }
+}
+
+@Composable
+private fun TrackDownloadButton(track: CuteTrack, id: OnlineMediaId) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val workFlow = remember(context, id) { OnlineDownloadWorker.observe(context, id) }
+    val work by workFlow.collectAsStateWithLifecycle(initialValue = emptyList())
+    var enqueuing by remember(id) { mutableStateOf(false) }
+    val active = enqueuing || work.any { !it.state.isFinished }
+    val saved = work.any { it.state == WorkInfo.State.SUCCEEDED }
+    val failed = work.any { it.state == WorkInfo.State.FAILED }
+
+    val label = when {
+        active -> R.string.online_download_active
+        saved -> R.string.online_download_saved
+        failed -> R.string.online_download_retry
+        else -> R.string.online_download_action
+    }
+    IconButton(
+        enabled = !active && !saved,
+        onClick = {
+            enqueuing = true
+            scope.launch {
+                try {
+                    OnlineDownloadWorker.enqueue(
+                        context, id, track.title, track.durationMillis.takeIf { it > 0 },
+                        QualityRequest.autoFromTop()
+                    ).await()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    Toast.makeText(context, R.string.online_download_enqueue_failed, Toast.LENGTH_SHORT).show()
+                } finally {
+                    enqueuing = false
+                }
             }
         }
-        if (track.durationMillis > 0) {
-            Spacer(Modifier.width(8.dp))
-            val total = track.durationMillis / 1000
-            Text(
-                "%d:%02d".format(total / 60, total % 60),
-                style = MaterialTheme.typography.labelMedium,
-                color = colors.onSurfaceVariant
+    ) {
+        if (active) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(18.dp).semantics { contentDescription = context.getString(label) },
+                strokeWidth = 2.dp
+            )
+        } else {
+            Icon(
+                painter = painterResource(if (saved) R.drawable.check_circle else R.drawable.down),
+                contentDescription = stringResource(label),
+                tint = if (failed && !saved) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
