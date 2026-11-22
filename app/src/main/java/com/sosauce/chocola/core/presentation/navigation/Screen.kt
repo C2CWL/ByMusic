@@ -8,6 +8,9 @@ import kotlinx.serialization.Serializable
 @Serializable
 sealed class Screen : NavKey {
     @Serializable
+    data object Favorites : Screen()
+
+    @Serializable
     data object Main : Screen()
 
     @Serializable

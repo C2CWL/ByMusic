@@ -103,6 +103,7 @@ fun LibraryDrawerSheet(
     var sortExpanded by remember { mutableStateOf(false) }
     val library = listOf(
         DrawerDestination(R.string.tracks, R.drawable.music_note, Screen.Main),
+        DrawerDestination(R.string.favorite, R.drawable.favorite, Screen.Favorites),
         DrawerDestination(R.string.albums, R.drawable.album_filled, Screen.Albums),
         DrawerDestination(R.string.artists, R.drawable.artists_filled, Screen.Artists),
         DrawerDestination(R.string.playlists, R.drawable.queue_music_rounded, Screen.Playlists),
