@@ -259,7 +259,7 @@ private fun SharedTransitionScope.CuteSearchbarContent(
 ) {
 
     if (libraryStyle) {
-        LibraryMiniPlayer(
+        MiniPlayerBar(
             musicState = musicState,
             onHandlePlayerActions = onHandlePlayerActions,
             onNavigate = onNavigate,
@@ -1072,95 +1072,4 @@ object CuteSearchbarDefaults {
     }
 
 
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-@Composable
-private fun LibraryMiniPlayer(
-    musicState: MusicState,
-    onHandlePlayerActions: (PlayerActions) -> Unit,
-    onNavigate: (Screen) -> Unit,
-    onOpenFullPlayer: () -> Unit,
-    miniArtAlpha: Float = 1f,
-    onMiniCardBoundsChanged: (Rect) -> Unit = {},
-    onMiniArtBoundsChanged: (Rect) -> Unit = {}
-) {
-    if (!musicState.isPlayerReady) return
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(horizontal = 14.dp, vertical = 8.dp)
-    ) {
-        Surface(
-            color = MaterialTheme.colorScheme.surfaceContainerLow,
-            shape = RoundedCornerShape(28.dp),
-            shadowElevation = 6.dp,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(65.dp)
-                .onGloballyPositioned { coords ->
-                    onMiniCardBoundsChanged(coords.boundsInWindow())
-                }
-        ) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onOpenFullPlayer)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(46.dp)
-                        .onGloballyPositioned { coords ->
-                            onMiniArtBoundsChanged(coords.boundsInWindow())
-                        }
-                        .graphicsLayer { alpha = miniArtAlpha }
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.music_note),
-                        contentDescription = null,
-                        modifier = Modifier.size(22.dp),
-                        tint = contentColorFor(MaterialTheme.colorScheme.surfaceContainerHigh)
-                    )
-                    AsyncImage(
-                        model = musicState.track.artUri,
-                        contentDescription = stringResource(R.string.artwork),
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-                Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                    Text(musicState.track.title, maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Default,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.Normal))
-                    Text(musicState.track.artist, maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Default),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                PlayPauseButton(isPlaying = musicState.isPlaying, onHandlePlayerActions = onHandlePlayerActions)
-                IconButton(onClick = { onNavigate(Screen.Queue) }) {
-                    Icon(painterResource(R.drawable.queue), stringResource(R.string.queue))
-                }
-            }
-        }
-    }
 }
