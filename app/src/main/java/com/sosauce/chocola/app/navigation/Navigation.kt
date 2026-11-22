@@ -183,6 +183,9 @@ fun Nav(
                                     )
                                 )
                             },
+                            musicState = musicState,
+                            onHandlePlayerActions = musicViewModel::handlePlayerActions,
+                            onNavigate = backStack::navigate,
                             recognitionPlugins = recognitionPlugins.map { it.info },
                             onStartRecognition = {
                                 backStack.navigate(Screen.Recognition(autoStart = true))

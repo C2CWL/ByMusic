@@ -25,6 +25,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.material3.ExperimentalMaterial3Api
 import top.yukonga.miuix.kmp.basic.Button
 import androidx.compose.material3.Icon
@@ -68,15 +70,19 @@ import com.sosauce.chocola.core.data.download.OnlineDownloadWorker
 import com.sosauce.chocola.core.domain.model.CuteTrack
 import com.sosauce.chocola.core.domain.online.OnlineMediaId
 import com.sosauce.chocola.core.domain.online.QualityRequest
+import com.sosauce.chocola.core.domain.player.MusicState
+import com.sosauce.chocola.core.domain.player.PlayerActions
+import com.sosauce.chocola.core.presentation.components.MiniPlayerBarHost
+import com.sosauce.chocola.core.presentation.navigation.Screen
 import com.sosauce.chocola.feature.recognition.domain.RecognitionPluginInfo
 import com.sosauce.chocola.feature.recognition.presentation.RecognitionEntryButton
 import com.sosauce.chocola.feature.recognition.presentation.RecognitionEntrySection
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
-fun OnlineMusicScreen(
+fun SharedTransitionScope.OnlineMusicScreen(
     state: OnlineSearchUiState,
     onNavigateBack: () -> Unit,
     onQueryChange: (String) -> Unit,
@@ -85,6 +91,9 @@ fun OnlineMusicScreen(
     onSelectPlugin: (String) -> Unit,
     onLoadMore: () -> Unit,
     onPlay: (track: CuteTrack, queue: List<CuteTrack>) -> Unit,
+    musicState: MusicState,
+    onHandlePlayerActions: (PlayerActions) -> Unit,
+    onNavigate: (Screen) -> Unit,
     onManagePlugins: () -> Unit,
     recognitionPlugins: List<RecognitionPluginInfo> = emptyList(),
     onStartRecognition: () -> Unit = {},
@@ -119,6 +128,13 @@ fun OnlineMusicScreen(
                         Icon(painterResource(R.drawable.extension), stringResource(R.string.online_manage_plugins))
                     }
                 }
+            )
+        },
+        bottomBar = {
+            MiniPlayerBarHost(
+                musicState = musicState,
+                onHandlePlayerActions = onHandlePlayerActions,
+                onNavigate = onNavigate
             )
         }
     ) { padding ->
