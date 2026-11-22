@@ -3,15 +3,18 @@
 package com.sosauce.chocola.core.designsystem.theme
 
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.theme.LocalContentColor as MiuixLocalContentColor
 import top.yukonga.miuix.kmp.theme.lightColorScheme
 import top.yukonga.miuix.kmp.theme.darkColorScheme
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -94,7 +97,16 @@ fun ChocolaTheme(
                     background = material.surfaceContainerLow, onBackground = material.onSurface,
                 )
             }
-            MiuixTheme(colors = colors, content = content)
+            MiuixTheme(colors = colors) {
+                // M3 1.5 and Miuix 0.9.4 no longer provide LocalContentColor in these
+                // theme overloads; without it, Text/Icon default to black on OLED surfaces.
+                CompositionLocalProvider(
+                    LocalContentColor provides colors.onBackground,
+                    MiuixLocalContentColor provides colors.onBackground
+                ) {
+                    content()
+                }
+            }
         }
     }
 }
