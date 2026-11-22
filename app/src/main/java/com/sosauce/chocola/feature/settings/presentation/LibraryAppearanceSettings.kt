@@ -13,8 +13,8 @@ import androidx.core.net.toUri
 import com.sosauce.chocola.R
 import com.sosauce.chocola.core.presentation.preferences.rememberLibraryBackground
 import com.sosauce.chocola.core.presentation.preferences.rememberLightweightGlass
-import com.sosauce.nekobites.components.settings.SettingsClickable
-import com.sosauce.nekobites.components.settings.SettingsSwitch
+import com.sosauce.chocola.feature.settings.presentation.components.SettingsClickable
+import com.sosauce.chocola.feature.settings.presentation.components.SettingsSwitch
 
 @Composable
 fun LibraryAppearanceSettings() {

@@ -33,7 +33,7 @@ import com.sosauce.chocola.R
 import com.sosauce.chocola.core.designsystem.NowPlayingButton
 import com.sosauce.chocola.core.designsystem.theme.ChocolaTheme
 import com.sosauce.chocola.core.presentation.preferences.rememberIsLandscape
-import com.sosauce.nekobites.components.settings.SettingsSwitch
+import com.sosauce.chocola.feature.settings.presentation.components.SettingsSwitch
 import com.sosauce.nekobites.components.settings.settingsItemShape
 import com.sosauce.nekobites.helpers.ObserveAsEvents
 import com.sosauce.chocola.feature.playing.presentation.VinylLayout

@@ -8,9 +8,9 @@ import androidx.compose.ui.res.stringResource
 import com.sosauce.chocola.R
 import com.sosauce.chocola.core.presentation.preferences.rememberAodEnableGestures
 import com.sosauce.chocola.core.presentation.preferences.rememberAodShowControls
-import com.sosauce.nekobites.components.settings.SettingsClickable
+import com.sosauce.chocola.feature.settings.presentation.components.SettingsClickable
 import com.sosauce.nekobites.components.settings.SettingsGroup
-import com.sosauce.nekobites.components.settings.SettingsSwitch
+import com.sosauce.chocola.feature.settings.presentation.components.SettingsSwitch
 
 @Composable
 fun ColumnScope.AodSettings(
