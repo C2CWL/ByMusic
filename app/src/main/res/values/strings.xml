@@ -446,4 +446,5 @@
     <string name="online_load_more">加载更多</string>
     <string name="online_no_results">没有搜到结果</string>
     <string name="online_footer">内容全部来自你导入的插件</string>
+    <string name="no_fav_tracks">暂无收藏曲目</string>
 </resources>

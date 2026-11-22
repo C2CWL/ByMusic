@@ -56,7 +56,7 @@ class MainViewModel(
             favoriteTracks = favoriteTracks,
             nonFavoriteTracks = nonFavoriteTracks,
             categories = if (groupByFolders) {
-                nonFavoriteTracks
+                filteredTracks
                     .groupBy { it.folder }
                     .toSortedMap()
                     .map { (folder, folderTracks) ->

@@ -41,6 +41,7 @@ import com.sosauce.chocola.core.domain.player.PlaySource
 import com.sosauce.chocola.core.presentation.player.MusicViewModel
 import com.sosauce.chocola.core.presentation.preferences.rememberInitialScreenBlocking
 import com.sosauce.chocola.feature.bakery.presentation.story.BakeryStoryRoot
+import com.sosauce.chocola.feature.library.presentation.favorites.FavoritesScreen
 import com.sosauce.chocola.feature.library.presentation.album.AlbumDetailsScreen
 import com.sosauce.chocola.feature.library.presentation.album.AlbumDetailsViewModel
 import com.sosauce.chocola.feature.library.presentation.album.AlbumsScreen
@@ -135,6 +136,18 @@ fun Nav(
                             onNavigate = backStack::navigate,
                             onHandlePlayerAction = musicViewModel::handlePlayerActions,
                             onFolderToggle = viewModel::toggleHiddenFolder
+                        )
+                    }
+
+                    entry<Screen.Favorites> {
+                        val viewModel = koinViewModel<MainViewModel>()
+                        val state by viewModel.state.collectAsStateWithLifecycle()
+
+                        FavoritesScreen(
+                            state = state,
+                            onNavigate = backStack::navigate,
+                            onNavigateBack = { backStack.navigateBack() },
+                            onHandlePlayerAction = musicViewModel::handlePlayerActions
                         )
                     }
 

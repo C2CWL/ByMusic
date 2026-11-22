@@ -28,7 +28,8 @@ fun LazyListScope.trackItems(
     onHandlePlayerAction: (PlayerActions) -> Unit,
     groupContainTracks: Boolean = false,
     extraOptions: @Composable (CuteTrack) -> List<MoreOptions> = { emptyList() },
-    extraSelectActions: @Composable (CuteTrack) -> List<SelectOverlayAction> = { emptyList() }
+    extraSelectActions: @Composable (CuteTrack) -> List<SelectOverlayAction> = { emptyList() },
+    showAddToQueueButton: Boolean = false,
 ) {
     itemsIndexed(
         items = tracks,
@@ -90,7 +91,8 @@ fun LazyListScope.trackItems(
                         track = track,
                         onNavigate = onNavigate,
                         onHandlePlayerActions = onHandlePlayerAction,
-                        extraOptions = extraOptions(track)
+                        extraOptions = extraOptions(track),
+                        showAddToQueueButton = showAddToQueueButton,
                     )
                 }
             )

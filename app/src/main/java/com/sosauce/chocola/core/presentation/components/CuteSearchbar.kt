@@ -1097,29 +1097,38 @@ private fun LibraryMiniPlayer(
     onMiniArtBoundsChanged: (Rect) -> Unit = {}
 ) {
     if (!musicState.isPlayerReady) return
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        modifier = Modifier.onGloballyPositioned { coords ->
-            onMiniCardBoundsChanged(coords.boundsInWindow())
-        }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(horizontal = 14.dp, vertical = 8.dp)
     ) {
-        Column(Modifier.navigationBarsPadding()) {
-            androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            shape = RoundedCornerShape(28.dp),
+            shadowElevation = 6.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(65.dp)
+                .onGloballyPositioned { coords ->
+                    onMiniCardBoundsChanged(coords.boundsInWindow())
+                }
+        ) {
             Row(
                 Modifier
                     .fillMaxWidth()
                     .clickable(onClick = onOpenFullPlayer)
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(46.dp)
                         .onGloballyPositioned { coords ->
                             onMiniArtBoundsChanged(coords.boundsInWindow())
                         }
                         .graphicsLayer { alpha = miniArtAlpha }
-                        .clip(RoundedCornerShape(5.dp))
+                        .clip(RoundedCornerShape(12.dp))
                         .background(MaterialTheme.colorScheme.surfaceContainerHigh),
                     contentAlignment = Alignment.Center
                 ) {

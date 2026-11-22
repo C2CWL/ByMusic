@@ -7,14 +7,12 @@ import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.input.TextFieldState
@@ -38,6 +36,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Icon
+import com.sosauce.chocola.feature.library.presentation.main.components.LibraryListToolbar
 import com.sosauce.chocola.feature.library.presentation.main.components.LibraryDrawerSheet
 import com.sosauce.chocola.feature.library.presentation.main.components.LibraryTopBar
 import androidx.compose.ui.text.style.TextAlign
@@ -58,7 +57,6 @@ import com.sosauce.chocola.core.presentation.components.trackSelectActions
 import com.sosauce.chocola.core.presentation.navigation.Screen
 import com.sosauce.chocola.core.presentation.util.barsContentTransform
 import com.sosauce.chocola.core.presentation.util.selfAlignHorizontally
-import com.sosauce.chocola.feature.library.presentation.main.components.FavoriteTrackItem
 import com.sosauce.chocola.feature.library.presentation.main.components.FolderHeader
 import com.sosauce.nekobites.components.LoadingBox
 import com.sosauce.nekobites.components.NoXFound
@@ -83,7 +81,6 @@ fun SharedTransitionScope.MainScreen(
     var fullPlayerVisible by remember { mutableStateOf(false) }
     val groupByFolders = state.groupByFolders
     val background by com.sosauce.chocola.core.presentation.preferences.rememberLibraryBackground()
-    val favoriteListState = rememberLazyListState()
     var locateTrackId by remember { mutableStateOf<String?>(null) }
 
     // Wait for search clearing and folder expansion to reach the displayed state.
@@ -92,13 +89,12 @@ fun SharedTransitionScope.MainScreen(
         if (state.isLoading || textFieldState.text.isNotEmpty() || state.searchQuery.isNotEmpty()) {
             return@LaunchedEffect
         }
-        val favoriteIndex = state.favoriteTracks.indexOfFirst { it.mediaId == id }
+        val favoriteIndex = state.tracks.indexOfFirst { it.mediaId == id }
         if (favoriteIndex >= 0) {
-            lazyState.animateScrollToItem(0)
-            favoriteListState.animateScrollToItem(favoriteIndex)
+            lazyState.animateScrollToItem(favoriteIndex)
             locateTrackId = null
         } else {
-            var index = if (state.favoriteTracks.isEmpty()) 0 else 1
+            var index = 1
             var targetIndex = -1
             if (groupByFolders) {
                 for (category in state.categories) {
@@ -114,7 +110,7 @@ fun SharedTransitionScope.MainScreen(
                     }
                 }
             } else {
-                val trackIndex = state.nonFavoriteTracks.indexOfFirst { it.mediaId == id }
+                val trackIndex = state.tracks.indexOfFirst { it.mediaId == id }
                 if (trackIndex >= 0) targetIndex = index + trackIndex
             }
             if (targetIndex >= 0) {
@@ -205,67 +201,12 @@ fun SharedTransitionScope.MainScreen(
                         bottom = paddingValues.calculateBottomPadding() + 72.dp
                     )
                 ) {
-                    if (state.favoriteTracks.isNotEmpty()) {
-                        item(key = "favorites") {
-                            LazyRow(
-                                state = favoriteListState,
-                                modifier = Modifier
-                                    .animateItem()
-                                    .fillMaxWidth(),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                items(
-                                    items = state.favoriteTracks,
-                                    key = { it.mediaId }
-                                ) { track ->
-                                    val isSelected by multiSelectState.isSelectedAsState(track)
-
-                                    SelectOverlayItem(
-                                        modifier = Modifier.animateItem(),
-                                        enabled = !multiSelectState.isInSelectionMode,
-                                        actions = trackSelectActions(
-                                            track = track,
-                                            onNavigate = onNavigate,
-                                            onHandlePlayerAction = onHandlePlayerAction
-                                        ),
-                                        onSelect = { multiSelectState.addAll(listOf(track)) }
-                                    ) { showOverlay ->
-                                        FavoriteTrackItem(
-                                            track = track,
-                                            isSelected = isSelected,
-                                            isInSelectionMode = multiSelectState.isInSelectionMode,
-                                            onClick = {
-                                                if (multiSelectState.isInSelectionMode) {
-                                                    multiSelectState.toggle(track)
-                                                } else {
-                                                    onHandlePlayerAction(
-                                                        PlayerActions.PlayFromSource(
-                                                            mediaId = track.mediaId,
-                                                            source = PlaySource.ExplicitTracks(state.favoriteTracks)
-                                                        )
-                                                    )
-                                                }
-                                            },
-                                            onLongClick = {
-                                                if (multiSelectState.isInSelectionMode) {
-                                                    multiSelectState.toggle(track)
-                                                } else {
-                                                    showOverlay()
-                                                }
-                                            },
-                                            onUnfavorite = {
-                                                track.mediaId.toLongOrNull()?.let {
-                                                    onHandlePlayerAction(
-                                                        PlayerActions.ToggleFavorite(it)
-                                                    )
-                                                }
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        }
+                    item(key = "toolbar") {
+                        LibraryListToolbar(
+                            trackCount = state.tracks.size,
+                            onShuffle = { onHandlePlayerAction(PlayerActions.PlayFromSource(null, PlaySource.All)) },
+                            onQueue = { onNavigate(Screen.Queue) }
+                        )
                     }
                     if (state.tracks.isEmpty()) {
                         item(
@@ -324,7 +265,7 @@ fun SharedTransitionScope.MainScreen(
                         }
                     } else {
                         trackItems(
-                            tracks = state.nonFavoriteTracks,
+                            tracks = state.tracks,
                             multiSelectState = multiSelectState,
                             activeTrackId = activeTrackId,
                             source = PlaySource.All,
