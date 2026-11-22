@@ -68,6 +68,7 @@ import coil3.compose.AsyncImage
 import com.sosauce.chocola.R
 import com.sosauce.chocola.core.data.download.OnlineDownloadWorker
 import com.sosauce.chocola.core.domain.model.CuteTrack
+import com.sosauce.chocola.core.domain.online.OnlineLyricsProvider
 import com.sosauce.chocola.core.domain.online.OnlineMediaId
 import com.sosauce.chocola.core.domain.online.QualityRequest
 import com.sosauce.chocola.core.domain.player.MusicState
@@ -84,6 +85,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun SharedTransitionScope.OnlineMusicScreen(
     state: OnlineSearchUiState,
+    onlineLyrics: OnlineLyricsProvider,
     onNavigateBack: () -> Unit,
     onQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
@@ -198,6 +200,7 @@ fun SharedTransitionScope.OnlineMusicScreen(
                         itemsIndexed(state.results, key = { _, track -> track.mediaId }) { index, track ->
                             TrackRow(
                                 track = track,
+                                onlineLyrics = onlineLyrics,
                                 first = index == 0,
                                 last = index == state.results.lastIndex,
                                 onClick = {
@@ -365,7 +368,7 @@ private fun SearchProgress() {
 }
 
 @Composable
-private fun TrackRow(track: CuteTrack, first: Boolean, last: Boolean, onClick: () -> Unit) {
+private fun TrackRow(track: CuteTrack, onlineLyrics: OnlineLyricsProvider, first: Boolean, last: Boolean, onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     val top = if (first) 20.dp else 0.dp
     val bottom = if (last) 20.dp else 0.dp
@@ -421,13 +424,13 @@ private fun TrackRow(track: CuteTrack, first: Boolean, last: Boolean, onClick: (
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val id = remember(track.mediaId) { OnlineMediaId.parse(track.mediaId) }
-            if (id != null) TrackDownloadButton(track, id)
+            if (id != null) TrackDownloadButton(track, id, onlineLyrics)
         }
     }
 }
 
 @Composable
-private fun TrackDownloadButton(track: CuteTrack, id: OnlineMediaId) {
+private fun TrackDownloadButton(track: CuteTrack, id: OnlineMediaId, onlineLyrics: OnlineLyricsProvider) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val workFlow = remember(context, id) { OnlineDownloadWorker.observe(context, id) }
@@ -462,9 +465,14 @@ private fun TrackDownloadButton(track: CuteTrack, id: OnlineMediaId) {
             enqueuing = true
             scope.launch {
                 try {
+                    val lyrics = runCatching { onlineLyrics.lyrics(id)?.raw }.getOrNull()
                     OnlineDownloadWorker.enqueue(
                         context, id, track.title, track.durationMillis.takeIf { it > 0 },
-                        QualityRequest.autoFromTop()
+                        QualityRequest.autoFromTop(),
+                        artist = track.artist,
+                        album = track.album,
+                        artUri = track.artUri,
+                        lyrics = lyrics
                     ).await()
                 } catch (e: CancellationException) {
                     throw e
