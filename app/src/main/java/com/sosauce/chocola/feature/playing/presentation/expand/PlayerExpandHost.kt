@@ -5,6 +5,7 @@ package com.sosauce.chocola.feature.playing.presentation.expand
 import android.provider.Settings
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
+import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -169,7 +170,7 @@ class PlayerExpandController internal constructor(
 
     private val settleSpec = tween<Float>(
         durationMillis = PlayerExpandMath.DURATION_MS,
-        easing = FastOutSlowInEasing
+        easing = Easing { PlayerExpandMath.motionProgress(it) }
     )
     private var settleJob: Job? = null
 
@@ -543,6 +544,7 @@ fun PlayerExpandOverlay(
                 } else if (!settled && canDrawTransition) {
                     TransitionLayer(
                         readProgress = readProgress,
+                        controllerPhase = controller.phase,
                         libraryStyle = libraryStyle,
                         musicState = musicState,
                         miniContainer = miniContainer!!,
@@ -597,6 +599,7 @@ fun PlayerExpandOverlay(
 @Composable
 private fun TransitionLayer(
     readProgress: () -> Float,
+    controllerPhase: Phase,
     libraryStyle: Boolean,
     musicState: MusicState,
     miniContainer: Rect,
@@ -611,12 +614,18 @@ private fun TransitionLayer(
 ) {
     val density = LocalDensity.current
     val progress = readProgress()
-    val container = PlayerExpandMath.containerRect(progress, miniContainer, viewport)
-    val cover = PlayerExpandMath.coverRect(progress, miniArt, fullArt)
-    val containerCorner = PlayerExpandMath.containerCornerRadiusDp(progress, libraryStyle)
-    val coverCorner = PlayerExpandMath.coverCornerRadiusDp(progress, libraryStyle)
-    val fullChrome = PlayerExpandMath.fullChromeAlpha(progress)
-    val topChrome = PlayerExpandMath.topChromeAlpha(progress)
+    // Container rides the settle curve; the cover uses a delayed curve on the
+    // same clock. While dragging, both stay on the finger.
+    val dragging = progress > 0f && progress < 1f &&
+        (controllerPhase == Phase.Dragging || controllerPhase == Phase.Preparing)
+    val containerProgress = if (dragging) progress else PlayerExpandMath.motionProgress(progress)
+    val coverProgress = if (dragging) progress else PlayerExpandMath.coverMotionProgress(progress)
+    val container = PlayerExpandMath.containerRect(containerProgress, miniContainer, viewport)
+    val cover = PlayerExpandMath.coverRect(coverProgress, miniArt, fullArt)
+    val containerCorner = PlayerExpandMath.containerCornerRadiusDp(containerProgress, libraryStyle)
+    val coverCorner = PlayerExpandMath.coverCornerRadiusDp(coverProgress, libraryStyle)
+    val fullChrome = PlayerExpandMath.fullChromeAlpha(containerProgress)
+    val topChrome = PlayerExpandMath.topChromeAlpha(containerProgress)
     val background = MaterialTheme.colorScheme.background
     val backgroundAlpha = PlayerExpandMath.transitionBackgroundAlpha(progress)
     val dragState = rememberDraggableState { delta -> onDragDelta(delta) }

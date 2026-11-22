@@ -10,6 +10,18 @@ import org.junit.Test
 class PlayerExpandMathTest {
 
     @Test
+    fun settleMotionLeadsAndTheCoverFollows() {
+        val container = PlayerExpandMath.motionProgress(0.5f)
+        val cover = PlayerExpandMath.coverMotionProgress(0.5f)
+        assertTrue(container > 0.75f)
+        assertTrue(cover in 0.3f..0.5f)
+        assertTrue(container - cover > 0.25f)
+        assertEquals(0f, PlayerExpandMath.coverMotionProgress(0f))
+        assertEquals(1f, PlayerExpandMath.motionProgress(1f))
+        assertEquals(1f, PlayerExpandMath.coverMotionProgress(1f))
+    }
+
+    @Test
     fun transitionBackgroundRevealsTheRealMiniBarBeforeFullChromeFadesIn() {
         assertEquals(0f, PlayerExpandMath.transitionBackgroundAlpha(0f), 0f)
         assertEquals(1f, PlayerExpandMath.transitionBackgroundAlpha(1f), 0f)
@@ -117,6 +129,6 @@ class PlayerExpandMathTest {
 
     @Test
     fun durationIsTheAppSchemeAndHasNoHold() {
-        assertEquals(340, PlayerExpandMath.DURATION_MS)
+        assertEquals(420, PlayerExpandMath.DURATION_MS)
     }
 }
