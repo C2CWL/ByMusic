@@ -44,10 +44,9 @@ class MainViewModel(
         userPreferences.getGroupByFolders,
         favoritesDao.observeTrackIds()
     ) { tracks: List<CuteTrack>, searchSettings: SearchSettings, query: CharSequence, hiddenFolders: Set<String>, groupByFolders: Boolean, favoriteIds: List<Long> ->
-        val prioritizedTracks =
+        val tracksWithFavoriteState =
             tracks.map { it.copy(isFavorite = it.mediaId.toLongOrNull() in favoriteIds) }
-                .sortedByDescending { it.isFavorite }
-        val filteredTracks = prioritizedTracks.search(query.toString(), searchSettings)
+        val filteredTracks = tracksWithFavoriteState.search(query.toString(), searchSettings)
         val (favoriteTracks, nonFavoriteTracks) = filteredTracks.partition { it.isFavorite }
         MainState(
             isLoading = false,
