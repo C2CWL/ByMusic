@@ -32,10 +32,17 @@ class OnlineDownloadWorker(
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return Result.failure(problem("unsupported_android"))
         val id = OnlineMediaId.parse(inputData.getString(KEY_MEDIA_ID)) ?: return Result.failure()
         val title = inputData.getString(KEY_TITLE).orEmpty()
+        val metadata = OnlineDownloadMetadata(
+            title = title,
+            artist = inputData.getString(KEY_ARTIST),
+            album = inputData.getString(KEY_ALBUM),
+            artUri = inputData.getString(KEY_ART_URI),
+            lyrics = inputData.getString(KEY_LYRICS)
+        )
         val duration = inputData.getLong(KEY_DURATION, 0L).takeIf { it > 0 }
         val quality = decodeQuality(inputData) ?: return Result.failure()
         return try {
-            when (val outcome = withTimeoutOrNull(TIMEOUT_MILLIS) { pipeline.download(id, title, duration, quality) }) {
+            when (val outcome = withTimeoutOrNull(TIMEOUT_MILLIS) { pipeline.download(id, metadata, duration, quality) }) {
                 is OnlineDownloadResult.Saved -> Result.success(workDataOf(
                     KEY_SAVED_URI to outcome.uri.toString(),
                     KEY_MEASURED_QUALITY to outcome.quality.name,
@@ -76,6 +83,10 @@ class OnlineDownloadWorker(
         internal const val TAG = "online-audio-download"
         internal const val KEY_MEDIA_ID = "media_id"
         internal const val KEY_TITLE = "title"
+        private const val KEY_ARTIST = "artist"
+        private const val KEY_ALBUM = "album"
+        private const val KEY_ART_URI = "art_uri"
+        private const val KEY_LYRICS = "lyrics"
         internal const val KEY_SAVED_URI = "saved_uri"
         internal const val KEY_MEASURED_QUALITY = "measured_quality"
         internal const val KEY_DOWNGRADED = "downgraded"
@@ -91,19 +102,30 @@ class OnlineDownloadWorker(
             id: OnlineMediaId,
             title: String,
             durationMs: Long?,
-            quality: QualityRequest
+            quality: QualityRequest,
+            artist: String? = null,
+            album: String? = null,
+            artUri: String? = null,
+            lyrics: String? = null
         ): androidx.work.Operation {
             require(Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
             val encodedId = id.encode()
             require(encodedId.length <= 1024)
+            val inputData = Data.Builder()
+                .putString(KEY_MEDIA_ID, encodedId)
+                .putString(KEY_TITLE, title.take(80))
+                .putLong(KEY_DURATION, durationMs ?: 0L)
+                .putStringArray(KEY_QUALITY, quality.chain.map { it.name }.toTypedArray())
+                .putString(KEY_MODE, quality.mode.name)
+                .apply {
+                    artist?.take(200)?.let { putString(KEY_ARTIST, it) }
+                    album?.take(200)?.let { putString(KEY_ALBUM, it) }
+                    artUri?.take(1024)?.let { putString(KEY_ART_URI, it) }
+                    lyrics?.take(8_000)?.let { putString(KEY_LYRICS, it) }
+                }
+                .build()
             val request = OneTimeWorkRequestBuilder<OnlineDownloadWorker>()
-                .setInputData(workDataOf(
-                    KEY_MEDIA_ID to encodedId,
-                    KEY_TITLE to title.take(80),
-                    KEY_DURATION to (durationMs ?: 0L),
-                    KEY_QUALITY to quality.chain.map { it.name }.toTypedArray(),
-                    KEY_MODE to quality.mode.name
-                ))
+                .setInputData(inputData)
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
                 .addTag(TAG)
                 .build()

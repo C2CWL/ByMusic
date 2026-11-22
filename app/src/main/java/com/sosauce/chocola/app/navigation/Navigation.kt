@@ -73,6 +73,7 @@ import com.sosauce.chocola.feature.playlists.presentation.PlaylistDetailsViewMod
 import com.sosauce.chocola.feature.playlists.presentation.PlaylistViewModel
 import com.sosauce.chocola.feature.playlists.presentation.PlaylistsScreen
 import com.sosauce.chocola.feature.settings.presentation.SettingsScreen
+import com.sosauce.chocola.core.domain.online.OnlineLyricsProvider
 import com.sosauce.nekobites.helpers.ObserveAsEvents
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
@@ -160,8 +161,10 @@ fun Nav(
                         val recognitionPlugins by recognitionRegistry.plugins.collectAsStateWithLifecycle()
                         val onlineViewModel = koinViewModel<OnlineSearchViewModel>()
                         val onlineState by onlineViewModel.state.collectAsStateWithLifecycle()
+                        val onlineLyrics = koinInject<OnlineLyricsProvider>()
                         OnlineMusicScreen(
                             state = onlineState,
+                            onlineLyrics = onlineLyrics,
                             onNavigateBack = backStack::navigateBack,
                             onQueryChange = onlineViewModel::setQuery,
                             onSearch = onlineViewModel::search,
