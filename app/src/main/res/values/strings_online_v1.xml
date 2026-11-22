@@ -31,4 +31,7 @@
     <string name="online_search_failed">搜索失败</string>
     <string name="online_retry">重试</string>
     <string name="online_no_results_body">试试其他关键词，或切换音源。</string>
+    <string name="online_download_no_audio">无可用音频</string>
+    <string name="online_download_timeout">下载超时</string>
+    <string name="online_download_failed">下载失败</string>
 </resources>

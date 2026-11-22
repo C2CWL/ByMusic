@@ -15,6 +15,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontVariation
 import com.materialkolor.DynamicMaterialExpressiveTheme
 import com.materialkolor.dynamiccolor.ColorSpec
@@ -86,14 +87,17 @@ fun ChocolaTheme(
 }
 
 val googleSansFlexFontFamily = FontFamily(
-    Font(
-        resId = R.font.google_sans_flex,
-        variationSettings = FontVariation.Settings(
-            FontVariation.Setting("ROND", 100f),
-            FontVariation.weight(750),
-            FontVariation.width(110f)
+    listOf(FontWeight.Normal, FontWeight.Medium, FontWeight.SemiBold, FontWeight.Bold).map { weight ->
+        Font(
+            resId = R.font.google_sans_flex,
+            weight = weight,
+            variationSettings = FontVariation.Settings(
+                FontVariation.Setting("ROND", 35f),
+                FontVariation.weight(weight.weight),
+                FontVariation.width(100f)
+            )
         )
-    )
+    }
 )
 
 fun sansFlexCustomWidth(width: Float): FontFamily {

@@ -428,6 +428,19 @@ private fun TrackDownloadButton(track: CuteTrack, id: OnlineMediaId) {
         failed -> R.string.online_download_retry
         else -> R.string.online_download_action
     }
+    if (failed && !active && !saved) {
+        val error = work.firstOrNull { it.state == WorkInfo.State.FAILED }
+            ?.outputData?.getString(OnlineDownloadWorker.KEY_ERROR)
+        Text(
+            text = stringResource(when (error) {
+                "no_verified_audio" -> R.string.online_download_no_audio
+                "timed_out" -> R.string.online_download_timeout
+                else -> R.string.online_download_failed
+            }),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.error
+        )
+    }
     IconButton(
         enabled = !active && !saved,
         onClick = {
