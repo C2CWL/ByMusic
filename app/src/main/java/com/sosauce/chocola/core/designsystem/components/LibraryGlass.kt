@@ -19,9 +19,9 @@ fun Modifier.libraryGlass(shape: Shape): Modifier {
     val colors = MaterialTheme.colorScheme
     return if (enabled) {
         clip(shape).background(Brush.verticalGradient(listOf(
-            colors.surfaceContainerHigh,
-            colors.surfaceContainerLow
-        ))).border(1.dp, colors.outlineVariant.copy(alpha = 0.32f), shape)
+            colors.surfaceContainerHigh.copy(alpha = 0.94f),
+            colors.surface.copy(alpha = 0.88f)
+        ))).border(1.dp, colors.outlineVariant.copy(alpha = 0.45f), shape)
     } else {
         clip(shape).background(colors.surface)
     }
