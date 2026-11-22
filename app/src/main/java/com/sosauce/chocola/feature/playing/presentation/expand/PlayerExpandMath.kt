@@ -15,23 +15,15 @@ import androidx.compose.ui.geometry.Rect
  */
 object PlayerExpandMath {
 
-    const val DURATION_MS = 420
+    const val DURATION_MS = 300
 
     /**
-     * Settle motion, fitted to a reference open of about 530 ms.
-     * The container leads; the cover waits, then catches up.
-     * Dragging stays linear — these curves drive the tween only.
+     * Applied once by the tween; shared by container and cover so the
+     * artwork never separates from its card. Fast out, soft landing.
      */
-    fun motionProgress(linear: Float): Float {
-        val t = linear.coerceIn(0f, 1f)
-        val shaped = 1f - (1f - t) * (1f - t) * (1f - t)
-        return (0.18f + 0.82f * shaped).coerceAtMost(1f)
-    }
-
-    fun coverMotionProgress(linear: Float): Float {
-        val t = linear.coerceIn(0f, 1f)
-        val delayed = ((t - 0.16f) / 0.84f).coerceIn(0f, 1f)
-        return delayed * delayed * (3f - 2f * delayed)
+    fun settleEasing(fraction: Float): Float {
+        val t = fraction.coerceIn(0f, 1f)
+        return 1f - (1f - t) * (1f - t) * (1f - t)
     }
 
     const val FULL_CHROME_FADE_START = 0.22f

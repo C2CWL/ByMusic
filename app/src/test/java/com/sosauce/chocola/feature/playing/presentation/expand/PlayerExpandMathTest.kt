@@ -10,15 +10,17 @@ import org.junit.Test
 class PlayerExpandMathTest {
 
     @Test
-    fun settleMotionLeadsAndTheCoverFollows() {
-        val container = PlayerExpandMath.motionProgress(0.5f)
-        val cover = PlayerExpandMath.coverMotionProgress(0.5f)
-        assertTrue(container > 0.75f)
-        assertTrue(cover in 0.3f..0.5f)
-        assertTrue(container - cover > 0.25f)
-        assertEquals(0f, PlayerExpandMath.coverMotionProgress(0f))
-        assertEquals(1f, PlayerExpandMath.motionProgress(1f))
-        assertEquals(1f, PlayerExpandMath.coverMotionProgress(1f))
+    fun settleEasingLeadsEarlyAndNeverDoubleApplies() {
+        assertEquals(0f, PlayerExpandMath.settleEasing(0f))
+        assertEquals(1f, PlayerExpandMath.settleEasing(1f))
+        assertTrue(PlayerExpandMath.settleEasing(0.25f) > 0.55f)
+        assertTrue(PlayerExpandMath.settleEasing(0.5f) > 0.85f)
+        var previous = -1f
+        for (i in 0..100) {
+            val value = PlayerExpandMath.settleEasing(i / 100f)
+            assertTrue(value + 0.00001f >= previous)
+            previous = value
+        }
     }
 
     @Test
@@ -129,6 +131,6 @@ class PlayerExpandMathTest {
 
     @Test
     fun durationIsTheAppSchemeAndHasNoHold() {
-        assertEquals(420, PlayerExpandMath.DURATION_MS)
+        assertEquals(300, PlayerExpandMath.DURATION_MS)
     }
 }
