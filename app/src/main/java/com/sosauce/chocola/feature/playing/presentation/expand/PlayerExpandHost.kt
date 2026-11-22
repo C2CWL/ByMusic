@@ -170,7 +170,7 @@ class PlayerExpandController internal constructor(
 
     private val settleSpec = tween<Float>(
         durationMillis = PlayerExpandMath.DURATION_MS,
-        easing = Easing { PlayerExpandMath.motionProgress(it) }
+        easing = Easing { PlayerExpandMath.settleEasing(it) }
     )
     private var settleJob: Job? = null
 
@@ -544,7 +544,6 @@ fun PlayerExpandOverlay(
                 } else if (!settled && canDrawTransition) {
                     TransitionLayer(
                         readProgress = readProgress,
-                        controllerPhase = controller.phase,
                         libraryStyle = libraryStyle,
                         musicState = musicState,
                         miniContainer = miniContainer!!,
@@ -599,7 +598,6 @@ fun PlayerExpandOverlay(
 @Composable
 private fun TransitionLayer(
     readProgress: () -> Float,
-    controllerPhase: Phase,
     libraryStyle: Boolean,
     musicState: MusicState,
     miniContainer: Rect,
@@ -614,18 +612,14 @@ private fun TransitionLayer(
 ) {
     val density = LocalDensity.current
     val progress = readProgress()
-    // Container rides the settle curve; the cover uses a delayed curve on the
-    // same clock. While dragging, both stay on the finger.
-    val dragging = progress > 0f && progress < 1f &&
-        (controllerPhase == Phase.Dragging || controllerPhase == Phase.Preparing)
-    val containerProgress = if (dragging) progress else PlayerExpandMath.motionProgress(progress)
-    val coverProgress = if (dragging) progress else PlayerExpandMath.coverMotionProgress(progress)
-    val container = PlayerExpandMath.containerRect(containerProgress, miniContainer, viewport)
-    val cover = PlayerExpandMath.coverRect(coverProgress, miniArt, fullArt)
-    val containerCorner = PlayerExpandMath.containerCornerRadiusDp(containerProgress, libraryStyle)
-    val coverCorner = PlayerExpandMath.coverCornerRadiusDp(coverProgress, libraryStyle)
-    val fullChrome = PlayerExpandMath.fullChromeAlpha(containerProgress)
-    val topChrome = PlayerExpandMath.topChromeAlpha(containerProgress)
+    // The tween already applies the settle easing; while dragging, progress
+    // is set directly and stays 1:1 with the finger. No second transform here.
+    val container = PlayerExpandMath.containerRect(progress, miniContainer, viewport)
+    val cover = PlayerExpandMath.coverRect(progress, miniArt, fullArt)
+    val containerCorner = PlayerExpandMath.containerCornerRadiusDp(progress, libraryStyle)
+    val coverCorner = PlayerExpandMath.coverCornerRadiusDp(progress, libraryStyle)
+    val fullChrome = PlayerExpandMath.fullChromeAlpha(progress)
+    val topChrome = PlayerExpandMath.topChromeAlpha(progress)
     val background = MaterialTheme.colorScheme.background
     val backgroundAlpha = PlayerExpandMath.transitionBackgroundAlpha(progress)
     val dragState = rememberDraggableState { delta -> onDragDelta(delta) }
@@ -636,15 +630,16 @@ private fun TransitionLayer(
         val widthPx = container.width.coerceAtLeast(1f)
         val heightPx = container.height.coerceAtLeast(1f)
         val cornerDp = containerCorner.dp
+        val containerShape = remember(cornerDp) { RoundedCornerShape(cornerDp) }
         Box(
             modifier = Modifier
                 .offset { IntOffset(left.roundToInt(), top.roundToInt()) }
                 .requiredSize(with(density) { widthPx.toDp() }, with(density) { heightPx.toDp() })
                 .shadow(
                     elevation = if (progress in 0.02f..0.98f) 8.dp else 0.dp,
-                    shape = RoundedCornerShape(cornerDp)
+                    shape = containerShape
                 )
-                .clip(RoundedCornerShape(cornerDp))
+                .clip(containerShape)
                 .drawBehind { drawRect(background, alpha = backgroundAlpha) }
                 .draggable(
                     state = dragState,
@@ -670,7 +665,7 @@ private fun TransitionLayer(
             }
 
             // Single cover, positioned in container space so the rising clip applies.
-            val coverShape = RoundedCornerShape(coverCorner.dp)
+            val coverShape = remember(coverCorner) { RoundedCornerShape(coverCorner.dp) }
             Box(
                 modifier = Modifier
                     .offset {
