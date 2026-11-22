@@ -2,6 +2,9 @@
 
 package com.sosauce.chocola.core.designsystem.theme
 
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.theme.lightColorScheme
+import top.yukonga.miuix.kmp.theme.darkColorScheme
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -82,7 +85,17 @@ fun ChocolaTheme(
         motionScheme = MotionScheme.expressive(),
         typography = if (useSystemFont) MaterialTheme.typography else GoogleSansFlexTypography
     ) {
-        OledPageBackgroundTheme(enabled = applyOled, content = content)
+        OledPageBackgroundTheme(enabled = applyOled) {
+            val material = MaterialTheme.colorScheme
+            val colors = androidx.compose.runtime.remember(isDark, material) {
+                (if (isDark) darkColorScheme() else lightColorScheme()).copy(
+                    primary = material.primary, onPrimary = material.onPrimary,
+                    surface = material.background, onSurface = material.onBackground,
+                    background = material.surfaceContainerLow, onBackground = material.onSurface,
+                )
+            }
+            MiuixTheme(colors = colors, content = content)
+        }
     }
 }
 

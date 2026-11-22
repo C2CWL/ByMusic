@@ -16,7 +16,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.sosauce.chocola.R
-import com.sosauce.nekobites.components.settings.SettingsClickable
+import com.sosauce.chocola.feature.settings.presentation.components.SettingsClickable
 
 private data class LauncherIcon(val alias: String, val label: String, val image: Int)
 private val launcherIcons = listOf(

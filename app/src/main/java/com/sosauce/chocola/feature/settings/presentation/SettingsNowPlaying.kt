@@ -34,7 +34,7 @@ import com.sosauce.chocola.core.presentation.preferences.rememberUseTurntable
 import com.sosauce.nekobites.components.settings.SelectableTile
 import com.sosauce.nekobites.components.settings.SettingsGroup
 import com.sosauce.nekobites.components.settings.SettingsPicker
-import com.sosauce.nekobites.components.settings.SettingsSwitch
+import com.sosauce.chocola.feature.settings.presentation.components.SettingsSwitch
 
 /** Now playing settings, as two groups (style pickers + behaviour switches). */
 @Composable

@@ -29,9 +29,9 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
+import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
+import top.yukonga.miuix.kmp.basic.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -40,7 +40,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Switch
+import top.yukonga.miuix.kmp.basic.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -111,7 +111,7 @@ private fun PluginsScreen(
                 style = MaterialTheme.typography.headlineMedium,
                 modifier = Modifier.weight(1f)
             )
-            FilledTonalButton(onClick = viewModel::openImport) {
+            Button(onClick = viewModel::openImport) {
                 Icon(painterResource(R.drawable.add), null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
                 Text(stringResource(R.string.plugins_import))
@@ -391,7 +391,7 @@ private fun ImportSheet(sheet: ImportSheetState, viewModel: PluginsViewModel) {
                             modifier = Modifier.weight(1f)
                         )
                         Spacer(Modifier.width(8.dp))
-                        FilledTonalButton(onClick = viewModel::readLink, enabled = !sheet.isReading && !sheet.isInstalling && sheet.url.isNotBlank()) {
+                        Button(onClick = viewModel::readLink, enabled = !sheet.isReading && !sheet.isInstalling && sheet.url.isNotBlank()) {
                             Text(stringResource(R.string.plugins_read))
                         }
                     }
@@ -443,7 +443,7 @@ private fun ImportSheet(sheet: ImportSheetState, viewModel: PluginsViewModel) {
                 }
                 if (sheet.catalog == null || sheet.candidate != null) {
                     Spacer(Modifier.width(8.dp))
-                    FilledTonalButton(
+                    Button(
                         onClick = viewModel::install,
                         enabled = sheet.candidate != null && sheet.riskAccepted && !sheet.isInstalling
                     ) { Text(stringResource(R.string.plugins_install)) }

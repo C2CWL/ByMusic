@@ -46,7 +46,7 @@ import com.sosauce.nekobites.components.settings.SettingsGroup
 import com.sosauce.nekobites.components.settings.SettingsItem
 import com.sosauce.nekobites.components.settings.SettingsPicker
 import com.sosauce.nekobites.components.settings.SettingsSlider
-import com.sosauce.nekobites.components.settings.SettingsSwitch
+import com.sosauce.chocola.feature.settings.presentation.components.SettingsSwitch
 
 @Composable
 fun ColumnScope.SettingsPlayback(

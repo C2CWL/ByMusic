@@ -22,20 +22,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
+import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
+import top.yukonga.miuix.kmp.basic.Button
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import top.yukonga.miuix.kmp.basic.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import top.yukonga.miuix.kmp.basic.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -106,9 +105,9 @@ fun OnlineMusicScreen(
     Scaffold(
         containerColor = colors.surfaceContainerLow,
         topBar = {
-            TopAppBar(
-                title = {},
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = colors.surfaceContainerLow),
+            SmallTopAppBar(
+                title = stringResource(R.string.online_music),
+                color = colors.surfaceContainerLow,
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(painterResource(R.drawable.back), stringResource(R.string.online_back))
@@ -196,7 +195,7 @@ fun OnlineMusicScreen(
                             state.error != null -> item {
                                 Box(Modifier.padding(top = if (state.results.isEmpty()) 0.dp else 8.dp)) {
                                     OnlineNotice(stringResource(R.string.online_search_failed), state.error) {
-                                        FilledTonalButton(onClick = onRetry) {
+                                        Button(onClick = onRetry) {
                                             Text(stringResource(R.string.online_retry))
                                         }
                                     }
@@ -206,7 +205,7 @@ fun OnlineMusicScreen(
                                 OnlineNotice(stringResource(R.string.online_no_results), stringResource(R.string.online_no_results_body))
                             }
                             !state.isEnd -> item {
-                                FilledTonalButton(onClick = onLoadMore, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                                Button(onClick = onLoadMore, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
                                     Text(stringResource(R.string.online_load_more))
                                 }
                             }
