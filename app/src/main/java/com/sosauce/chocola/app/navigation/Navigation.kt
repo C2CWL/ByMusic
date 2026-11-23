@@ -15,6 +15,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -34,12 +36,14 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.sosauce.chocola.R
+import com.sosauce.chocola.core.designsystem.components.LocalMiniPlayerSky
 import com.sosauce.chocola.core.presentation.navigation.LocalScreen
 import com.sosauce.chocola.core.presentation.navigation.Screen
 import com.sosauce.chocola.core.domain.player.PlayerActions
 import com.sosauce.chocola.core.domain.player.PlaySource
 import com.sosauce.chocola.core.presentation.player.MusicViewModel
 import com.sosauce.chocola.core.presentation.preferences.rememberInitialScreenBlocking
+import com.sosauce.chocola.core.presentation.preferences.rememberLightweightGlass
 import com.sosauce.chocola.feature.bakery.presentation.story.BakeryStoryRoot
 import com.sosauce.chocola.feature.library.presentation.favorites.FavoritesScreen
 import com.sosauce.chocola.feature.library.presentation.album.AlbumDetailsScreen
@@ -74,6 +78,8 @@ import com.sosauce.chocola.feature.playlists.presentation.PlaylistViewModel
 import com.sosauce.chocola.feature.playlists.presentation.PlaylistsScreen
 import com.sosauce.chocola.feature.settings.presentation.SettingsScreen
 import com.sosauce.chocola.core.domain.online.OnlineLyricsProvider
+import com.skydoves.cloudy.rememberSky
+import com.skydoves.cloudy.sky
 import com.sosauce.nekobites.helpers.ObserveAsEvents
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
@@ -92,12 +98,22 @@ fun Nav(
         derivedStateOf { backStack.lastOrNull() ?: Screen.Main }
     }
     val musicState by musicViewModel.musicState.collectAsStateWithLifecycle()
+    val lightweightGlass by rememberLightweightGlass()
+    val sky = rememberSky()
+    val miniPlayerSky = if (lightweightGlass) sky else null
+    val skyModifier = if (lightweightGlass) Modifier.sky(sky) else Modifier
 
     SharedTransitionLayout {
         CompositionLocalProvider(
-            LocalScreen provides currentScreen
+            LocalScreen provides currentScreen,
+            LocalMiniPlayerSky provides miniPlayerSky
         ) {
-            NavDisplay(
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(skyModifier)
+            ) {
+                NavDisplay(
                 backStack = backStack,
                 onBack = { backStack.navigateBack() },
                 modifier = Modifier.background(MaterialTheme.colorScheme.background),
@@ -417,6 +433,7 @@ fun Nav(
 //                    }
                 }
             )
+            }
         }
     }
 }
