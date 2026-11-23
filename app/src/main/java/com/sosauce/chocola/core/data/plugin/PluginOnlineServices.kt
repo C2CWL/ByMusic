@@ -161,12 +161,16 @@ class PluginOnlineMediaResolver(
                 }
             }
             val source = result.getOrThrow() ?: return@tryInOrder null
-            if (!OnlineUrlPolicy.isAllowedMedia(source.url) || PluginNetwork.parseUrl(source.url) == null) {
+            val normalized = normalizedSource(source.url, source.headers, source.userAgent, source.quality)
+            if (normalized == null ||
+                !OnlineUrlPolicy.isAllowedMedia(normalized.url) ||
+                PluginNetwork.parseUrl(normalized.url) == null
+            ) {
                 val reason = "插件没有提供有效的 HTTPS 音频链接"
                 lastError = reason
                 throw OnlineResolveException(reason)
             }
-            source
+            normalized
         } ?: throw OnlineResolveException(
             "插件没有给出可播放的地址" + (lastError?.let { "（$it）" } ?: "")
         )
