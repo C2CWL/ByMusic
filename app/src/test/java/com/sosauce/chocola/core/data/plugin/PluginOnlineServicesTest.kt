@@ -190,7 +190,8 @@ class PluginOnlineServicesTest {
             "Basic " + java.util.Base64.getEncoder().encodeToString("user:pass".toByteArray()),
             media.headers["Authorization"]
         )
-        assertTrue("attempts=${media.attempts}", media.attempts.isEmpty())
+        assertEquals(QualityTier.HIRES, media.attempts.single().tier)
+        assertNull(media.attempts.single().error)
     }
 
     @Test

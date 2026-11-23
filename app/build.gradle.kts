@@ -181,12 +181,3 @@ configurations.matching { it.name.endsWith("UnitTestRuntimeClasspath") }.configu
             .using(module("io.github.dokar3:quickjs-kt-jvm:${libs.versions.quickjsKt.get()}"))
     }
 }
-
-// Temporary verbose test logging for plugin-auth debugging.
-tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
-    testLogging {
-        events("failed")
-        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
-        showStandardStreams = true
-    }
-}
