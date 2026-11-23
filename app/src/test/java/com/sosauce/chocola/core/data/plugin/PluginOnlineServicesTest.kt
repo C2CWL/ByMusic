@@ -184,9 +184,13 @@ class PluginOnlineServicesTest {
         service.searchMusic("auth-source", "q", 1)
         val id = OnlineMediaId("auth-source", "a")
         val media = PluginOnlineMediaResolver(service).resolve(ResolveRequest(id, QualityRequest.autoFromTop()))
-        assertEquals("https://cdn.example.com/a.mp3?sig=1", media.url)
-        assertEquals("Basic " + java.util.Base64.getEncoder().encodeToString("user:pass".toByteArray()), media.headers["Authorization"])
-        assertTrue(media.attempts.isEmpty())
+        assertEquals("url", "https://cdn.example.com/a.mp3?sig=1", media.url)
+        assertEquals(
+            "auth",
+            "Basic " + java.util.Base64.getEncoder().encodeToString("user:pass".toByteArray()),
+            media.headers["Authorization"]
+        )
+        assertTrue("attempts=${media.attempts}", media.attempts.isEmpty())
     }
 
     @Test
