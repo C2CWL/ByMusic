@@ -91,7 +91,7 @@ fun SharedTransitionScope.MainScreen(
         }
         val favoriteIndex = state.tracks.indexOfFirst { it.mediaId == id }
         if (favoriteIndex >= 0) {
-            lazyState.animateScrollToItem(favoriteIndex)
+            lazyState.scrollToItem(favoriteIndex)
             locateTrackId = null
         } else {
             var index = 1
@@ -114,7 +114,7 @@ fun SharedTransitionScope.MainScreen(
                 if (trackIndex >= 0) targetIndex = index + trackIndex
             }
             if (targetIndex >= 0) {
-                lazyState.animateScrollToItem(targetIndex)
+                lazyState.scrollToItem(targetIndex)
             }
             locateTrackId = null
         }
