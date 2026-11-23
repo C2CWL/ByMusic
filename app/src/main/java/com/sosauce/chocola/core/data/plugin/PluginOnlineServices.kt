@@ -87,10 +87,9 @@ class PluginMusicService(
         val runtime = manager.runtime(id.pluginId)
         val item = itemFor(id, runtime.manifest.platform)
         val quality = (item["qualities"] as? JsonObject)?.get(qualityKey) as? JsonObject
-        val fallback = acceptedSource(
-            sequenceOf(quality?.string("url"), item.string("url")).firstOrNull { !it.isNullOrBlank() },
-            emptyMap(), null, null
-        )
+        val fallback = listOfNotNull(quality?.string("url"), item.string("url"))
+            .mapNotNull { acceptedSource(it, emptyMap(), null, null) }
+            .firstOrNull()
         if (!runtime.manifest.has("getMediaSource")) return fallback
 
         val raw = runtime.call("getMediaSource", listOf(item, JsonPrimitive(qualityKey)), timeoutMillis)
@@ -101,7 +100,7 @@ class PluginMusicService(
         val headers = (result?.get("headers") as? JsonObject).orEmpty()
             .mapNotNull { (key, value) -> (value as? JsonPrimitive)?.contentOrNull?.let { key to it } }
             .toMap()
-        return acceptedSource(url, headers, result?.string("userAgent"), result?.string("quality")) ?: fallback
+        return normalizedSource(url, headers, result?.string("userAgent"), result?.string("quality")) ?: fallback
     }
 
     /** getLyric → rawLrc + translation; without getLyric, the item's own rawLrc. */
@@ -212,9 +211,20 @@ private fun acceptedSource(
     userAgent: String?,
     quality: String?
 ): PluginMediaSource? {
+    val source = normalizedSource(rawUrl, headers, userAgent, quality) ?: return null
+    if (!OnlineUrlPolicy.isAllowedMedia(source.url) || PluginNetwork.parseUrl(source.url) == null) return null
+    return source
+}
+
+/** Converts MusicFree-style userinfo URLs without applying the final URL policy. */
+private fun normalizedSource(
+    rawUrl: String?,
+    headers: Map<String, String>,
+    userAgent: String?,
+    quality: String?
+): PluginMediaSource? {
     if (rawUrl.isNullOrBlank()) return null
     val normalized = normalizeMusicFreeSourceUrl(rawUrl) ?: return null
-    if (!OnlineUrlPolicy.isAllowedMedia(normalized.url) || PluginNetwork.parseUrl(normalized.url) == null) return null
     val merged = buildMap {
         putAll(headers)
         val auth = normalized.authorization
