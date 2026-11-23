@@ -109,6 +109,8 @@ class MusicViewModel(
 
                 if (mediaItem == null) return
 
+                _musicState.update { it.copy(isPlayerReady = true) }
+
                 // Local library first (unchanged); online ids fall back to the item's own metadata.
                 PlayableTrackLookup.find(
                     mediaId = mediaItem.mediaId,
@@ -137,6 +139,9 @@ class MusicViewModel(
             override fun onTimelineChanged(timeline: Timeline, reason: Int) {
                 super.onTimelineChanged(timeline, reason)
                 updateLoadedMedias(timeline)
+                if (timeline.windowCount > 0) {
+                    _musicState.update { it.copy(isPlayerReady = true) }
+                }
             }
 
             override fun onDeviceVolumeChanged(volume: Int, muted: Boolean) {
@@ -211,31 +216,10 @@ class MusicViewModel(
 
             override fun onPlaybackStateChanged(playbackState: Int) {
                 super.onPlaybackStateChanged(playbackState)
-                when (playbackState) {
-                    Player.STATE_IDLE -> {
-                        _musicState.update {
-                            it.copy(
-                                isPlayerReady = false
-                            )
-                        }
-                    }
-
-                    Player.STATE_READY -> {
-                        _musicState.update {
-                            it.copy(
-                                isPlayerReady = true
-                            )
-                        }
-                    }
-
-                    else -> {
-                        _musicState.update {
-                            it.copy(
-                                isPlayerReady = true
-                            )
-                        }
-                    }
-                }
+                // Intentionally does not touch isPlayerReady: STATE_IDLE is also
+                // reported when the session disconnects in the background while the
+                // queue is intact. Readiness is driven by media/timeline arrival
+                // and StopPlayback, so the mini player never vanishes on resume.
             }
 
             override fun onPositionDiscontinuity(
@@ -510,7 +494,9 @@ class MusicViewModel(
                 repeatMode = controller.repeatMode,
                 speed = controller.playbackParameters.speed,
                 pitch = controller.playbackParameters.pitch,
-                isPlayerReady = controller.playbackState != Player.STATE_IDLE
+                isPlayerReady = it.isPlayerReady ||
+                    controller.mediaItemCount > 0 ||
+                    controller.currentMediaItem != null
             )
         }
 
@@ -570,7 +556,8 @@ class MusicViewModel(
 
                 _musicState.update {
                     it.copy(
-                        loadedMedias = emptyList()
+                        loadedMedias = emptyList(),
+                        isPlayerReady = false
                     )
                 }
             }

@@ -12,16 +12,16 @@ import androidx.compose.ui.unit.dp
 import com.sosauce.chocola.core.presentation.preferences.rememberLightweightGlass
 import androidx.compose.runtime.getValue
 
-/** Static tonal glass: no backdrop capture, offscreen layer, blur or animation. */
+/** Static translucent glass: no backdrop capture, offscreen layer or per-frame blur. */
 @Composable
 fun Modifier.libraryGlass(shape: Shape): Modifier {
     val enabled by rememberLightweightGlass()
     val colors = MaterialTheme.colorScheme
     return if (enabled) {
         clip(shape).background(Brush.verticalGradient(listOf(
-            colors.surfaceContainerHigh.copy(alpha = 0.94f),
-            colors.surface.copy(alpha = 0.88f)
-        ))).border(1.dp, colors.outlineVariant.copy(alpha = 0.45f), shape)
+            colors.surfaceContainerHigh.copy(alpha = 0.72f),
+            colors.surface.copy(alpha = 0.60f)
+        ))).border(1.dp, colors.outlineVariant.copy(alpha = 0.55f), shape)
     } else {
         clip(shape).background(colors.surface)
     }
