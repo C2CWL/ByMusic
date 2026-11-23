@@ -20,6 +20,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import java.net.URI
+import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import java.util.Base64
 
@@ -201,7 +202,9 @@ internal data class NormalizedSourceUrl(val url: String, val authorization: Stri
 private fun normalizeMusicFreeSourceUrl(raw: String): NormalizedSourceUrl? {
     val uri = runCatching { URI(raw.trim()) }.getOrNull() ?: return null
     val userInfo = uri.rawUserInfo?.takeIf { it.isNotEmpty() } ?: return NormalizedSourceUrl(uri.toString(), null)
-    val decoded = runCatching { URI(null, userInfo, null).path }.getOrNull() ?: return null
+    val decoded = runCatching {
+        URLDecoder.decode(userInfo.replace("+", "%2B"), StandardCharsets.UTF_8)
+    }.getOrNull() ?: return null
     val separator = decoded.indexOf(':')
     if (separator <= 0 || separator == decoded.lastIndex) return null
     val token = Base64.getEncoder().encodeToString(decoded.toByteArray(StandardCharsets.UTF_8))
