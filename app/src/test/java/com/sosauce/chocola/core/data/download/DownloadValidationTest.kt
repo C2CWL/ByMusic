@@ -10,29 +10,22 @@ import org.junit.Test
 
 class DownloadValidationTest {
     @Test
-    fun acceptsOnlyTierActuallyDeliveredAndStepsDown() = runBlocking {
+    fun keepsDecodableAudioEvenWhenBitrateIsBelowRequestedTier() = runBlocking {
         val calls = mutableListOf<String>()
         val removed = mutableListOf<String>()
-        val request = QualityRequest.autoFromTop()
         val outcome = validateDownload<String>(
-            request,
+            QualityRequest.autoFromTop(),
             expectedDurationMs = 180_000,
             discard = { removed += it },
             attempt = { key ->
                 calls += key
-                when (key) {
-                    "super" -> DownloadAttempt.Decoded(audio(192, 180_000), "bad-super")
-                    "high" -> DownloadAttempt.Decoded(audio(160, 180_000), "bad-high")
-                    "standard" -> DownloadAttempt.Decoded(audio(320, 180_000), "standard")
-                    else -> error("unexpected duplicate or lower-tier retry: $key")
-                }
+                DownloadAttempt.Decoded(audio(192, 180_000), "playable")
             }
         )
-        assertEquals(listOf("super", "high", "standard"), calls)
-        assertEquals(listOf("bad-super", "bad-high"), removed)
-        assertEquals("standard", (outcome as DownloadValidation.Accepted<String>).value)
-        assertEquals(QualityTier.LOSSY_320, outcome.measuredQuality)
-        assertTrue(outcome.downgraded)
+        assertEquals(listOf("super"), calls)
+        assertTrue(removed.isEmpty())
+        assertEquals("playable", (outcome as DownloadValidation.Accepted<String>).value)
+        assertEquals(QualityTier.LOSSY_192, outcome.measuredQuality)
     }
 
     @Test
@@ -52,24 +45,19 @@ class DownloadValidationTest {
     }
 
     @Test
-    fun rejectsBadDurationAndDeletesCandidateBeforeTryingLowerKey() = runBlocking {
+    fun keepsDecodableAudioWhenPluginDurationDoesNotMatch() = runBlocking {
         val removed = mutableListOf<String>()
-        val request = QualityRequest.preferred(QualityTier.LOSSLESS)
         val outcome = validateDownload<String>(
-            request,
+            QualityRequest.preferred(QualityTier.LOSSLESS),
             expectedDurationMs = 180_000,
             discard = { removed += it },
             attempt = { key ->
-                when (key) {
-                    "high" -> DownloadAttempt.Decoded(audio(900, 120_000), "preview")
-                    else -> DownloadAttempt.Failed(DownloadRejection.UNAVAILABLE)
-                }
+                assertEquals("high", key)
+                DownloadAttempt.Decoded(audio(900, 120_000), "full-track")
             }
         )
-        assertEquals(listOf("preview"), removed)
-        assertTrue(outcome is DownloadValidation.Rejected)
-        assertEquals(listOf("high", "standard", "low"), (outcome as DownloadValidation.Rejected).failures.map { it.key })
-        assertEquals(DownloadRejection.DURATION_MISMATCH, outcome.failures.first().reason)
+        assertTrue(removed.isEmpty())
+        assertEquals("full-track", (outcome as DownloadValidation.Accepted<String>).value)
     }
 
     @Test
@@ -105,22 +93,20 @@ class DownloadValidationTest {
     }
 
     @Test
-    fun rejects192KbpsForStandardWithoutTryingLowerWhenExact() = runBlocking {
-        val removed = mutableListOf<String>()
+    fun keepsLowerBitrateWhenExactQualityWasRequested() = runBlocking {
         val result = validateDownload<String>(
             QualityRequest.preferred(QualityTier.LOSSY_320, allowDowngrade = false),
             expectedDurationMs = 180_000,
-            discard = { removed += it },
-            attempt = { key ->
-                assertEquals("standard", key)
+            discard = { error("valid audio should be kept") },
+            attempt = {
+                assertEquals("standard", it)
                 DownloadAttempt.Decoded(audio(192, 180_000), "low-bitrate")
             }
-        )
-        assertEquals(listOf("low-bitrate"), removed)
-        assertEquals(
-            DownloadValidation.Rejected(listOf(DownloadFailure("standard", DownloadRejection.QUALITY_MISMATCH))),
-            result
-        )
+        ) as DownloadValidation.Accepted<String>
+        assertEquals("low-bitrate", result.value)
+        assertEquals(QualityTier.LOSSY_192, result.measuredQuality)
+        assertTrue(result.belowRequested)
+        assertTrue(result.downgraded)
     }
 
     @Test

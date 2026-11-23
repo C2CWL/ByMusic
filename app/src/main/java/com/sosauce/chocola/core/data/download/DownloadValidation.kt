@@ -4,7 +4,6 @@ import com.sosauce.chocola.core.domain.online.QualityRequest
 import com.sosauce.chocola.core.domain.online.QualityTier
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import kotlin.math.abs
 
 /** Facts from a file that has already passed the decoder check. */
 internal data class DecodedDownload(
@@ -66,7 +65,7 @@ internal suspend fun <T> validateDownload(
     attempt: suspend (key: String) -> DownloadAttempt<T>
 ): DownloadValidation<T> {
     val failures = mutableListOf<DownloadFailure>()
-    for ((key, tiers) in request.chain.groupBy { it.musicFreeKey }) {
+    for ((key, _) in request.chain.groupBy { it.musicFreeKey }) {
         currentCoroutineContext().ensureActive()
         val rejection = when (val result = attempt(key)) {
             is DownloadAttempt.Failed -> result.reason
@@ -75,11 +74,6 @@ internal suspend fun <T> validateDownload(
                 val duration = result.audio.durationMs
                 val reason = when {
                     measured == null || duration <= 0 -> DownloadRejection.INVALID_AUDIO
-                    expectedDurationMs != null && expectedDurationMs > 0 &&
-                        abs(duration - expectedDurationMs) > maxOf(3_000L, expectedDurationMs / 50) ->
-                        DownloadRejection.DURATION_MISMATCH
-                    tiers.none { measured >= it && (measured != QualityTier.SPATIAL || it == QualityTier.SPATIAL) } ->
-                        DownloadRejection.QUALITY_MISMATCH
                     else -> return DownloadValidation.Accepted(
                         result.value, key, measured, failures.toList(), measured < request.requested
                     )

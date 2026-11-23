@@ -1,5 +1,7 @@
 package com.sosauce.chocola.feature.online
 
+import android.content.Context
+import android.net.Uri
 import android.os.Build
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -437,7 +439,11 @@ private fun TrackDownloadButton(track: CuteTrack, id: OnlineMediaId, onlineLyric
     val work by workFlow.collectAsStateWithLifecycle(initialValue = emptyList())
     var enqueuing by remember(id) { mutableStateOf(false) }
     val active = enqueuing || work.any { !it.state.isFinished }
-    val saved = work.any { it.state == WorkInfo.State.SUCCEEDED }
+    // WorkManager keeps SUCCEEDED after the file is deleted. Only treat it as saved
+    // when the URI written by the worker can still be opened.
+    val saved = work.any { info ->
+        info.state == WorkInfo.State.SUCCEEDED && savedUriStillExists(context, info)
+    }
     val failed = work.any { it.state == WorkInfo.State.FAILED }
 
     val label = when {
@@ -497,4 +503,12 @@ private fun TrackDownloadButton(track: CuteTrack, id: OnlineMediaId, onlineLyric
             )
         }
     }
+}
+
+private fun savedUriStillExists(context: Context, info: WorkInfo): Boolean {
+    val raw = info.outputData.getString(OnlineDownloadWorker.KEY_SAVED_URI) ?: return false
+    val uri = runCatching { Uri.parse(raw) }.getOrNull()?.takeUnless { it == Uri.EMPTY } ?: return false
+    return runCatching {
+        context.contentResolver.openFileDescriptor(uri, "r")?.use { true } == true
+    }.getOrDefault(false)
 }
