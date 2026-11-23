@@ -129,7 +129,11 @@ class OnlineDownloadWorker(
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
                 .addTag(TAG)
                 .build()
-            return WorkManager.getInstance(context).enqueueUniqueWork(workName(id), ExistingWorkPolicy.KEEP, request)
+            // A SUCCEEDED work info is not proof that the file still exists: the user can
+            // delete it from the library. KEEP would leave that terminal record forever
+            // and make the next tap a no-op, so every explicit retry must replace it.
+            return WorkManager.getInstance(context)
+                .enqueueUniqueWork(workName(id), ExistingWorkPolicy.REPLACE, request)
         }
 
         internal fun cancel(context: Context, id: OnlineMediaId) =
