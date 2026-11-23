@@ -185,60 +185,54 @@ class PluginOnlineMediaResolver(
 
     companion object {
         const val PER_TIER_TIMEOUT_MS = 8_000L
-
-        /**
-         * MusicFree strips `user:password@` from a plugin URL and sends it as
-         * `Authorization: Basic`. ByMusic otherwise rejects any URL with userinfo,
-         * so the same source plays in MusicFree and fails here.
-         */
-        internal fun normalizeMusicFreeSourceUrl(raw: String): NormalizedSourceUrl? {
-            val uri = runCatching { URI(raw.trim()) }.getOrNull() ?: return null
-            val userInfo = uri.rawUserInfo?.takeIf { it.isNotEmpty() } ?: return NormalizedSourceUrl(uri.toString(), null)
-            val decoded = runCatching { URI(null, userInfo, null).path }.getOrNull() ?: return null
-            val separator = decoded.indexOf(':')
-            if (separator <= 0 || separator == decoded.lastIndex) return null
-            val token = Base64.getEncoder().encodeToString(
-                decoded.toByteArray(StandardCharsets.UTF_8)
-            )
-            val stripped = stripUserInfo(raw.trim()) ?: return null
-            return NormalizedSourceUrl(stripped, "Basic $token")
-        }
-
-        private fun acceptedSource(
-            rawUrl: String?,
-            headers: Map<String, String>,
-            userAgent: String?,
-            quality: String?
-        ): PluginMediaSource? {
-            if (rawUrl.isNullOrBlank()) return null
-            val normalized = normalizeMusicFreeSourceUrl(rawUrl) ?: return null
-            if (!OnlineUrlPolicy.isAllowedMedia(normalized.url) || PluginNetwork.parseUrl(normalized.url) == null) {
-                return null
-            }
-            val merged = buildMap {
-                putAll(headers)
-                val auth = normalized.authorization
-                if (auth != null && keys.none { it.equals("Authorization", ignoreCase = true) }) {
-                    put("Authorization", auth)
-                }
-            }
-            return PluginMediaSource(normalized.url, merged, userAgent, quality)
-        }
-
-        /** Removes `user:password@` without re-encoding the path or query. */
-        private fun stripUserInfo(raw: String): String? {
-            val scheme = raw.indexOf("://")
-            if (scheme < 0) return null
-            val authority = scheme + 3
-            val at = raw.indexOf('@', authority)
-            val end = raw.indexOfAny(charArrayOf('/', '?', '#'), authority).let { if (it < 0) raw.length else it }
-            if (at < 0 || at > end) return null
-            return raw.removeRange(authority, at + 1)
-        }
     }
 }
 
 internal data class NormalizedSourceUrl(val url: String, val authorization: String?)
+
+/**
+ * MusicFree strips `user:password@` from a plugin URL and sends it as
+ * `Authorization: Basic`. ByMusic otherwise rejects any URL with userinfo,
+ * so the same source plays in MusicFree and fails here.
+ */
+private fun normalizeMusicFreeSourceUrl(raw: String): NormalizedSourceUrl? {
+    val uri = runCatching { URI(raw.trim()) }.getOrNull() ?: return null
+    val userInfo = uri.rawUserInfo?.takeIf { it.isNotEmpty() } ?: return NormalizedSourceUrl(uri.toString(), null)
+    val decoded = runCatching { URI(null, userInfo, null).path }.getOrNull() ?: return null
+    val separator = decoded.indexOf(':')
+    if (separator <= 0 || separator == decoded.lastIndex) return null
+    val token = Base64.getEncoder().encodeToString(decoded.toByteArray(StandardCharsets.UTF_8))
+    val stripped = stripUserInfo(raw.trim()) ?: return null
+    return NormalizedSourceUrl(stripped, "Basic $token")
+}
+
+private fun acceptedSource(
+    rawUrl: String?,
+    headers: Map<String, String>,
+    userAgent: String?,
+    quality: String?
+): PluginMediaSource? {
+    if (rawUrl.isNullOrBlank()) return null
+    val normalized = normalizeMusicFreeSourceUrl(rawUrl) ?: return null
+    if (!OnlineUrlPolicy.isAllowedMedia(normalized.url) || PluginNetwork.parseUrl(normalized.url) == null) return null
+    val merged = buildMap {
+        putAll(headers)
+        val auth = normalized.authorization
+        if (auth != null && keys.none { it.equals("Authorization", ignoreCase = true) }) put("Authorization", auth)
+    }
+    return PluginMediaSource(normalized.url, merged, userAgent, quality)
+}
+
+/** Removes `user:password@` without re-encoding the path or query. */
+private fun stripUserInfo(raw: String): String? {
+    val scheme = raw.indexOf("://")
+    if (scheme < 0) return null
+    val authority = scheme + 3
+    val at = raw.indexOf('@', authority)
+    val end = raw.indexOfAny(charArrayOf('/', '?', '#'), authority).let { if (it < 0) raw.length else it }
+    if (at < 0 || at > end) return null
+    return raw.removeRange(authority, at + 1)
+}
 
 class PluginOnlineLyricsProvider(private val service: PluginMusicService) : OnlineLyricsProvider {
     override suspend fun lyrics(id: OnlineMediaId): OnlineLyricsText? = try {
