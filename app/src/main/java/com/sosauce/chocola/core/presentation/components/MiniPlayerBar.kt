@@ -6,7 +6,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,7 +39,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -52,22 +50,20 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.sosauce.chocola.R
-import com.sosauce.chocola.core.designsystem.components.LocalMiniPlayerSky
 import com.sosauce.chocola.core.designsystem.components.PlayPauseButton
 import com.sosauce.chocola.core.designsystem.components.libraryGlass
 import com.sosauce.chocola.core.domain.player.MusicState
 import com.sosauce.chocola.core.domain.player.PlayerActions
 import com.sosauce.chocola.core.presentation.navigation.Screen
-import com.sosauce.chocola.core.presentation.preferences.rememberLightweightGlass
-import com.skydoves.cloudy.cloudy
 import com.sosauce.chocola.feature.playing.presentation.expand.PlayerExpandMath
 import com.sosauce.chocola.feature.playing.presentation.expand.PlayerExpandOverlay
 import com.sosauce.chocola.feature.playing.presentation.expand.rememberPlayerExpandController
 import com.sosauce.chocola.feature.playing.presentation.expand.systemAnimationsDisabled
 
 /**
- * Compact player bar with a frosted backdrop sampled from the root navigation content.
- * Falls back to the static tonal glass when backdrop glass is disabled.
+ * Compact player bar with a static translucent glass surface.
+ * Deliberately independent of the navigation root: no full-screen bitmap capture
+ * during the expand animation and no backdrop state to lose on lifecycle changes.
  */
 @Composable
 fun SharedTransitionScope.MiniPlayerBar(
@@ -86,29 +82,6 @@ fun SharedTransitionScope.MiniPlayerBar(
     val shape = RoundedCornerShape(28.dp)
     val highlight = colors.onSurface.copy(alpha = 0.08f)
     val highlightStroke = with(LocalDensity.current) { 1.dp.toPx() }
-    val sky = LocalMiniPlayerSky.current
-    val lightweightGlass by rememberLightweightGlass()
-    val glassModifier = if (lightweightGlass && sky != null) {
-        Modifier
-            .cloudy(
-                sky = sky,
-                radius = 18,
-                tint = colors.surface.copy(alpha = 0.12f),
-                shape = shape
-            )
-            .clip(shape)
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        colors.surfaceContainerHigh.copy(alpha = 0.32f),
-                        colors.surface.copy(alpha = 0.24f)
-                    )
-                )
-            )
-            .border(1.dp, colors.outlineVariant.copy(alpha = 0.48f), shape)
-    } else {
-        Modifier.libraryGlass(shape)
-    }
 
     Box(
         modifier = modifier
@@ -122,7 +95,7 @@ fun SharedTransitionScope.MiniPlayerBar(
                 ambientColor = colors.scrim.copy(alpha = 0.12f),
                 spotColor = colors.scrim.copy(alpha = 0.20f)
             )
-            .then(glassModifier)
+            .libraryGlass(shape)
             .drawWithCache {
                 val stroke = highlightStroke
                 onDrawWithContent {
