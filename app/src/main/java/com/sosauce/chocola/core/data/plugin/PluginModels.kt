@@ -54,7 +54,7 @@ object MusicFreeProtocol {
     const val RESERVED_RECOGNITION_METHOD = "recognizeSong"
 }
 
-/** What a plugin declares about itself, read by running it once in the sandbox. */
+/** What a plugin declares about itself. Preview reads this from source text; install confirms it in the sandbox. */
 @Serializable
 data class PluginManifest(
     val platform: String,

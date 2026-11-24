@@ -132,16 +132,15 @@ class PluginManager(
         return PluginImport.Script(inspect(source.removePrefix("\uFEFF"), kind, sourceUrl))
     }
 
-    /** Test-loads [code] in a throwaway sandbox and reads its manifest. Nothing is saved. */
+    /**
+     * Reads [code]'s exported fields without evaluating it. Nothing is saved and no plugin
+     * code runs: the import sheet must not execute anything before the user accepts the risk.
+     * Method / require() lists are inferred from the source text and confirmed on [install].
+     */
     suspend fun inspect(code: String, kind: PluginSourceKind, sourceUrl: String? = null): PluginCandidate {
         ensureLoaded()
         if (code.isBlank()) throw PluginException(PluginErrorType.LOAD, "文件是空的")
-        val runtime = PluginRuntime.load(code, "plugin.js", host)
-        val manifest = try {
-            runtime.manifest
-        } finally {
-            runtime.close()
-        }
+        val manifest = withContext(Dispatchers.Default) { PluginManifestReader.read(code) }
         return PluginCandidate(
             code = code,
             manifest = manifest,
@@ -153,23 +152,45 @@ class PluginManager(
         )
     }
 
-    /** Installs (or replaces) the plugin. Enabled state and user variables are kept on replace. */
+    /**
+     * Installs (or replaces) the plugin. Enabled state is kept on replace.
+     * The user has already accepted the risk sheet, so the code is loaded once here (still
+     * without network) to confirm the real manifest before it is written to disk.
+     */
     suspend fun install(candidate: PluginCandidate): InstalledPlugin {
         ensureLoaded()
-        val id = candidate.manifest.platform
+        val verified = withContext(Dispatchers.Default) {
+            val runtime = PluginRuntime.load(candidate.code, "plugin.js", host.withNetwork(false))
+            try {
+                runtime.manifest
+            } finally {
+                runtime.close()
+            }
+        }
+        if (verified.platform != candidate.manifest.platform) {
+            throw PluginException(
+                PluginErrorType.LOAD,
+                "插件名称与预览不一致（预览 ${candidate.manifest.platform}，实际 ${verified.platform}）"
+            )
+        }
+        val id = verified.platform
         val installed = stateLock.withLock {
             val previous = _plugins.value.firstOrNull { it.id == id }?.plugin
             val plugin = InstalledPlugin(
                 id = id,
                 fileName = PluginStore.fileNameFor(id),
-                manifest = candidate.manifest,
+                manifest = verified,
                 sha256 = candidate.sha256,
                 sizeBytes = candidate.sizeBytes,
                 sourceKind = candidate.sourceKind,
                 sourceUrl = candidate.sourceUrl ?: previous?.sourceUrl,
                 enabled = previous?.enabled ?: true,
                 installedAtMs = clock(),
-                userVariables = previous?.userVariables.orEmpty()
+                userVariables = if (previous != null && sameSource(previous, candidate.sourceUrl)) {
+                    previous.userVariables
+                } else {
+                    emptyMap()
+                }
             )
             val next = _plugins.value.filterNot { it.id == id } + PluginEntry(plugin)
             withContext(Dispatchers.IO) {
@@ -218,6 +239,9 @@ class PluginManager(
      * Downloads the plugin's update address and test-loads it. Returns the candidate when
      * it is newer than (or the same version but different code from) the installed one,
      * or null when there is nothing to update. Installing still needs [install].
+     *
+     * Only the download happens before the user has seen anything: a byte-identical file
+     * never runs, and a different one is inspected from source text without evaluating it.
      */
     suspend fun checkUpdate(id: String): PluginCandidate? {
         ensureLoaded()
@@ -225,12 +249,15 @@ class PluginManager(
             ?: throw PluginException(PluginErrorType.LOAD, "插件不存在")
         val url = updateUrlOf(plugin)
             ?: throw PluginException(PluginErrorType.LOAD, "这个插件没有提供更新地址")
-        val candidate = inspectFromUrl(url)
+        val clean = url.trim()
+        val code = fetcher.fetch(clean)
+        if (PluginStore.sha256(code) == plugin.sha256) return null
+        val candidate = inspect(code, PluginSourceKind.URL, clean)
         if (candidate.manifest.platform != plugin.id) {
             throw PluginException(PluginErrorType.LOAD, "更新地址里是另一个插件（${candidate.manifest.platform}）")
         }
         val cmp = PluginVersion.compare(candidate.manifest.version, plugin.manifest.version)
-        return if (cmp > 0 || (cmp == 0 && candidate.sha256 != plugin.sha256)) candidate else null
+        return if (cmp >= 0) candidate else null
     }
 
     /** Plugin source as installed, for "查看代码". */
@@ -238,6 +265,30 @@ class PluginManager(
         ensureLoaded()
         val plugin = _plugins.value.firstOrNull { it.id == id }?.plugin ?: return null
         return withContext(Dispatchers.IO) { store.readCode(plugin) }
+    }
+
+    /**
+     * Whether [candidateUrl] is served by an origin this installation already trusts: the
+     * address it was imported from or the one it updates itself from. A plugin name is not
+     * an identity, so code that arrives from somewhere else must not inherit tokens or
+     * cookies the user typed into the previous plugin with the same name.
+     */
+    private fun sameSource(previous: InstalledPlugin, candidateUrl: String?): Boolean {
+        val target = originOf(candidateUrl)
+            ?: return previous.sourceUrl.isNullOrBlank() && previous.manifest.srcUrl.isNullOrBlank()
+        return originOf(previous.sourceUrl) == target || originOf(previous.manifest.srcUrl) == target
+    }
+
+    /** scheme://host[:port], lowercased; null when [url] is blank or cannot be parsed. */
+    private fun originOf(url: String?): String? {
+        val raw = url?.trim().orEmpty()
+        if (raw.isEmpty()) return null
+        return runCatching {
+            val uri = URI(raw)
+            val host = uri.host ?: return@runCatching raw
+            val port = if (uri.port == -1) "" else ":${uri.port}"
+            "${uri.scheme?.lowercase().orEmpty()}://${host.lowercase()}$port"
+        }.getOrElse { raw }
     }
 
     // --------------------------------------------------------------- running
