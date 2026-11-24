@@ -47,6 +47,7 @@ foundation = "1.12.1"
 
 
 [libraries]
+miuix-ui = { module = "top.yukonga.miuix.kmp:miuix-ui-android", version = "0.9.4" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
 androidx-compose-animation = { group = "androidx.compose.animation", name = "animation", version.ref = "composeAnimation" }
 androidx-compose-animation-graphics-android = { module = "androidx.compose.animation:animation-graphics-android", version.ref = "composeAnimation" }

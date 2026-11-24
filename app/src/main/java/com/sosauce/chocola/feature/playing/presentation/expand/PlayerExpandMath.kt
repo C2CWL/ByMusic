@@ -15,7 +15,16 @@ import androidx.compose.ui.geometry.Rect
  */
 object PlayerExpandMath {
 
-    const val DURATION_MS = 340
+    const val DURATION_MS = 300
+
+    /**
+     * Applied once by the tween; shared by container and cover so the
+     * artwork never separates from its card. Fast out, soft landing.
+     */
+    fun settleEasing(fraction: Float): Float {
+        val t = fraction.coerceIn(0f, 1f)
+        return 1f - (1f - t) * (1f - t) * (1f - t)
+    }
 
     const val FULL_CHROME_FADE_START = 0.22f
     const val FULL_CHROME_FADE_END = 0.78f

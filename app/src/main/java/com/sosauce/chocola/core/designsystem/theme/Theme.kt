@@ -2,19 +2,26 @@
 
 package com.sosauce.chocola.core.designsystem.theme
 
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.theme.LocalContentColor as MiuixLocalContentColor
+import top.yukonga.miuix.kmp.theme.lightColorScheme
+import top.yukonga.miuix.kmp.theme.darkColorScheme
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontVariation
 import com.materialkolor.DynamicMaterialExpressiveTheme
 import com.materialkolor.dynamiccolor.ColorSpec
@@ -81,19 +88,41 @@ fun ChocolaTheme(
         motionScheme = MotionScheme.expressive(),
         typography = if (useSystemFont) MaterialTheme.typography else GoogleSansFlexTypography
     ) {
-        OledPageBackgroundTheme(enabled = applyOled, content = content)
+        OledPageBackgroundTheme(enabled = applyOled) {
+            val material = MaterialTheme.colorScheme
+            val colors = androidx.compose.runtime.remember(isDark, material) {
+                (if (isDark) darkColorScheme() else lightColorScheme()).copy(
+                    primary = material.primary, onPrimary = material.onPrimary,
+                    surface = material.background, onSurface = material.onBackground,
+                    background = material.surfaceContainerLow, onBackground = material.onSurface,
+                )
+            }
+            MiuixTheme(colors = colors) {
+                // M3 1.5 and Miuix 0.9.4 no longer provide LocalContentColor in these
+                // theme overloads; without it, Text/Icon default to black on OLED surfaces.
+                CompositionLocalProvider(
+                    LocalContentColor provides colors.onBackground,
+                    MiuixLocalContentColor provides colors.onBackground
+                ) {
+                    content()
+                }
+            }
+        }
     }
 }
 
 val googleSansFlexFontFamily = FontFamily(
-    Font(
-        resId = R.font.google_sans_flex,
-        variationSettings = FontVariation.Settings(
-            FontVariation.Setting("ROND", 100f),
-            FontVariation.weight(750),
-            FontVariation.width(110f)
+    listOf(FontWeight.Normal, FontWeight.Medium, FontWeight.SemiBold, FontWeight.Bold).map { weight ->
+        Font(
+            resId = R.font.google_sans_flex,
+            weight = weight,
+            variationSettings = FontVariation.Settings(
+                FontVariation.Setting("ROND", 35f),
+                FontVariation.weight(weight.weight),
+                FontVariation.width(100f)
+            )
         )
-    )
+    }
 )
 
 fun sansFlexCustomWidth(width: Float): FontFamily {

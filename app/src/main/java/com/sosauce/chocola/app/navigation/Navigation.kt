@@ -15,6 +15,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -41,6 +43,7 @@ import com.sosauce.chocola.core.domain.player.PlaySource
 import com.sosauce.chocola.core.presentation.player.MusicViewModel
 import com.sosauce.chocola.core.presentation.preferences.rememberInitialScreenBlocking
 import com.sosauce.chocola.feature.bakery.presentation.story.BakeryStoryRoot
+import com.sosauce.chocola.feature.library.presentation.favorites.FavoritesScreen
 import com.sosauce.chocola.feature.library.presentation.album.AlbumDetailsScreen
 import com.sosauce.chocola.feature.library.presentation.album.AlbumDetailsViewModel
 import com.sosauce.chocola.feature.library.presentation.album.AlbumsScreen
@@ -72,6 +75,7 @@ import com.sosauce.chocola.feature.playlists.presentation.PlaylistDetailsViewMod
 import com.sosauce.chocola.feature.playlists.presentation.PlaylistViewModel
 import com.sosauce.chocola.feature.playlists.presentation.PlaylistsScreen
 import com.sosauce.chocola.feature.settings.presentation.SettingsScreen
+import com.sosauce.chocola.core.domain.online.OnlineLyricsProvider
 import com.sosauce.nekobites.helpers.ObserveAsEvents
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
@@ -95,7 +99,10 @@ fun Nav(
         CompositionLocalProvider(
             LocalScreen provides currentScreen
         ) {
-            NavDisplay(
+            Box(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                NavDisplay(
                 backStack = backStack,
                 onBack = { backStack.navigateBack() },
                 modifier = Modifier.background(MaterialTheme.colorScheme.background),
@@ -138,6 +145,18 @@ fun Nav(
                         )
                     }
 
+                    entry<Screen.Favorites> {
+                        val viewModel = koinViewModel<MainViewModel>()
+                        val state by viewModel.state.collectAsStateWithLifecycle()
+
+                        FavoritesScreen(
+                            state = state,
+                            onNavigate = backStack::navigate,
+                            onNavigateBack = { backStack.navigateBack() },
+                            onHandlePlayerAction = musicViewModel::handlePlayerActions
+                        )
+                    }
+
                     entry<Screen.Online> {
                         // Mockup 06: shown once, before anything online can happen.
                         val disclaimerAccepted = rememberOnlineDisclaimerAccepted()
@@ -147,11 +166,14 @@ fun Nav(
                         val recognitionPlugins by recognitionRegistry.plugins.collectAsStateWithLifecycle()
                         val onlineViewModel = koinViewModel<OnlineSearchViewModel>()
                         val onlineState by onlineViewModel.state.collectAsStateWithLifecycle()
+                        val onlineLyrics = koinInject<OnlineLyricsProvider>()
                         OnlineMusicScreen(
                             state = onlineState,
+                            onlineLyrics = onlineLyrics,
                             onNavigateBack = backStack::navigateBack,
                             onQueryChange = onlineViewModel::setQuery,
                             onSearch = onlineViewModel::search,
+                            onRetry = onlineViewModel::retry,
                             onSelectPlugin = onlineViewModel::select,
                             onLoadMore = onlineViewModel::loadMore,
                             onPlay = { track, queue ->
@@ -169,6 +191,9 @@ fun Nav(
                                     )
                                 )
                             },
+                            musicState = musicState,
+                            onHandlePlayerActions = musicViewModel::handlePlayerActions,
+                            onNavigate = backStack::navigate,
                             recognitionPlugins = recognitionPlugins.map { it.info },
                             onStartRecognition = {
                                 backStack.navigate(Screen.Recognition(autoStart = true))
@@ -397,6 +422,7 @@ fun Nav(
 //                    }
                 }
             )
+            }
         }
     }
 }

@@ -43,12 +43,12 @@ import com.sosauce.chocola.core.presentation.preferences.rememberNewFolderPolicy
 import com.sosauce.chocola.feature.settings.presentation.components.foldersView
 import com.sosauce.nekobites.components.settings.SettingOption
 import com.sosauce.nekobites.components.settings.SettingsChoice
-import com.sosauce.nekobites.components.settings.SettingsClickable
+import com.sosauce.chocola.feature.settings.presentation.components.SettingsClickable
 import com.sosauce.nekobites.components.settings.SettingsEmptyState
 import com.sosauce.nekobites.components.settings.SettingsGroup
 import com.sosauce.nekobites.components.settings.SettingsGroupLabel
 import com.sosauce.nekobites.components.settings.SettingsSlider
-import com.sosauce.nekobites.components.settings.SettingsSwitch
+import com.sosauce.chocola.feature.settings.presentation.components.SettingsSwitch
 import com.sosauce.nekobites.components.settings.settingsItemShape
 
 private val LazyItemModifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 2.dp)

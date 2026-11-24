@@ -152,7 +152,8 @@ fun DefaultMusicListItemTrailingContent(
     track: CuteTrack,
     onNavigate: (Screen) -> Unit,
     onHandlePlayerActions: (PlayerActions) -> Unit,
-    extraOptions: List<MoreOptions> = emptyList()
+    extraOptions: List<MoreOptions> = emptyList(),
+    showAddToQueueButton: Boolean = false,
 ) {
 
     val currentScreen = LocalScreen.current
@@ -172,6 +173,14 @@ fun DefaultMusicListItemTrailingContent(
     }
 
 
+    if (showAddToQueueButton) {
+        IconButton(onClick = { onHandlePlayerActions(PlayerActions.AddToQueue(listOf(track))) }) {
+            Icon(
+                painter = painterResource(R.drawable.add_to_queue),
+                contentDescription = stringResource(R.string.add_queue),
+            )
+        }
+    }
     IconButton(
         onClick = { isDropDownExpanded = true },
         shapes = IconButtonDefaults.shapes()

@@ -1,27 +1,18 @@
 package com.sosauce.chocola.core.designsystem.components
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.sosauce.nekobites.animations.bouncySpec
-import com.sosauce.nekobites.helpers.rememberInteractionSource
 
 /**
  * A surface for how all list items should look like
@@ -35,49 +26,22 @@ fun CuteListItem(
     onLongClick: (() -> Unit)? = null,
     leadingContent: @Composable () -> Unit,
     trailingContent: (@Composable () -> Unit)? = null,
-    verticalPadding: Dp = 15.dp,
-    horizontalPadding: Dp = 0.dp,
+    verticalPadding: Dp = 12.dp,
+    horizontalPadding: Dp = 8.dp,
     content: @Composable ColumnScope.() -> Unit
 ) {
 
-    val interactionSource = rememberInteractionSource()
-    val isPressed by interactionSource.collectIsPressedAsState()
-
-    val cardScale by animateFloatAsState(
-        targetValue = if (isPressed) 0.95f else 1f,
-        animationSpec = bouncySpec()
-    )
-
-    Box(
-        modifier = modifier
-            .graphicsLayer {
-                scaleX = cardScale
-                scaleY = cardScale
-            }
-            .padding(horizontal = 5.dp, vertical = 1.dp)
-            .clip(shape)
-            .background(backgroundColor)
-            .combinedClickable(
-                enabled = onClick != null || onLongClick != null,
-                onClick = { onClick?.invoke() },
-                onLongClick = onLongClick,
-                interactionSource = interactionSource
-            )
-    ) {
-        Row(
-            modifier = Modifier
-                .padding(horizontal = horizontalPadding, vertical = verticalPadding),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            leadingContent()
-            Column(
-                modifier = Modifier
-                    .padding(horizontal = 12.dp)
-                    .weight(1f)
-            ) { content() }
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) { trailingContent?.invoke() }
-        }
-    }
+    val container = modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+        .clip(shape)
+        .background(backgroundColor)
+    // BasicComponent handles taps; a combined gesture owns both actions for selectable rows.
+    top.yukonga.miuix.kmp.basic.BasicComponent(
+        modifier = if (onLongClick == null) container else container.combinedClickable(
+            onClick = { onClick?.invoke() }, onLongClick = onLongClick
+        ),
+        onClick = if (onLongClick == null) onClick else null,
+        insideMargin = androidx.compose.foundation.layout.PaddingValues(horizontal = horizontalPadding, vertical = verticalPadding),
+        startAction = leadingContent,
+        endActions = trailingContent?.let { trailing -> { trailing() } },
+    ) { Column(Modifier.padding(horizontal = 12.dp), content = content) }
 }

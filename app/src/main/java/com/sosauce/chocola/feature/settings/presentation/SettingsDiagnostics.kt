@@ -21,9 +21,9 @@ import com.sosauce.chocola.core.data.diagnostics.DiagBootstrap
 import com.sosauce.chocola.core.data.diagnostics.DiagLogger
 import com.sosauce.chocola.core.data.diagnostics.DiagShare
 import com.sosauce.chocola.core.presentation.preferences.rememberDiagLoggingEnabled
-import com.sosauce.nekobites.components.settings.SettingsClickable
+import com.sosauce.chocola.feature.settings.presentation.components.SettingsClickable
 import com.sosauce.nekobites.components.settings.SettingsGroup
-import com.sosauce.nekobites.components.settings.SettingsSwitch
+import com.sosauce.chocola.feature.settings.presentation.components.SettingsSwitch
 
 @Composable
 fun ColumnScope.SettingsDiagnostics() {

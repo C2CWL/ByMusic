@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.sosauce.chocola.R
-import com.sosauce.nekobites.components.settings.SettingsClickable
+import com.sosauce.chocola.feature.settings.presentation.components.SettingsClickable
 import com.sosauce.nekobites.components.settings.SettingsGroup
 
 @Composable

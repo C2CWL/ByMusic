@@ -39,7 +39,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import top.yukonga.miuix.kmp.basic.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.contentColorFor
@@ -330,11 +330,6 @@ private fun SettingsHome(
     modifier: Modifier = Modifier
 ) {
     val colors = MaterialTheme.colorScheme
-    val palettes = listOf(
-        colors.primary,
-        colors.secondary,
-        colors.tertiary
-    )
     var showOnlineDisclaimer by rememberSaveable { mutableStateOf(false) }
     val screens = listOf(
         SettingsEntry(
@@ -423,13 +418,13 @@ private fun SettingsHome(
                 .border(1.dp, colors.outlineVariant, RoundedCornerShape(24.dp))
                 .clip(RoundedCornerShape(24.dp))
         ) {
-            screens.fastForEachIndexed { index, screen ->
-                val containerColor = palettes[index % 3]
-                SettingsCard(
-                    entry = screen,
-                    isFirst = index == 0,
-                    isLast = index == screens.lastIndex,
-                    badgeContainer = containerColor
+            screens.forEach { screen ->
+                top.yukonga.miuix.kmp.basic.BasicComponent(
+                    modifier = Modifier.background(colors.surfaceContainerLow),
+                    title = screen.name,
+                    summary = screen.description,
+                    startAction = { Icon(painterResource(screen.icon), null, Modifier.padding(end = 16.dp)) },
+                    onClick = { screen.onClick() },
                 )
             }
         }

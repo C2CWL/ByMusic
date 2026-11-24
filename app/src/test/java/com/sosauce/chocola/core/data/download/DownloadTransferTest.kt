@@ -58,6 +58,17 @@ class DownloadTransferTest {
         assertNull(requests.single().header("Range"))
     }
 
+    @Test fun acceptsOnlyCompleteRangeWithMatchingBody() = runBlocking {
+        for ((range, accepted) in listOf("bytes 0-4/5" to true, "bytes 1-5/6" to false,
+            "bytes 0-4/10" to false, "bytes 0-7/8" to false, "bytes 0-4/*" to false)) {
+            val transfer = transfer { request -> response(request, 206, body = "audio")
+                .newBuilder().header("Content-Range", range).build() }
+            val file = files.newFile()
+            assertEquals(range, accepted, transfer.fetch(source(), file))
+            if (accepted) assertEquals("audio", file.readText())
+        }
+    }
+
     @Test fun rejectsFailedConnectionSoTheNextQualityCanBeTried() = runBlocking {
         val transfer = transfer { throw IOException("connection unavailable") }
         assertFalse(transfer.fetch(source(), files.newFile()))

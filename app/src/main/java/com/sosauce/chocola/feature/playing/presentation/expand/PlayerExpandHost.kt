@@ -5,6 +5,7 @@ package com.sosauce.chocola.feature.playing.presentation.expand
 import android.provider.Settings
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
+import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -34,6 +35,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -83,6 +85,7 @@ import com.sosauce.chocola.feature.playing.presentation.components.LocalTurntabl
 import com.sosauce.chocola.feature.playing.presentation.components.TurntableColors
 import com.sosauce.chocola.feature.playing.presentation.components.TurntableSharedState
 import com.sosauce.chocola.feature.playing.presentation.components.rememberTurntableThemeState
+import com.sosauce.chocola.feature.playing.presentation.components.turntableBackdrop
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -167,7 +170,7 @@ class PlayerExpandController internal constructor(
 
     private val settleSpec = tween<Float>(
         durationMillis = PlayerExpandMath.DURATION_MS,
-        easing = FastOutSlowInEasing
+        easing = Easing { PlayerExpandMath.settleEasing(it) }
     )
     private var settleJob: Job? = null
 
@@ -376,8 +379,12 @@ fun PlayerExpandOverlay(
         MaterialTheme.colorScheme.surfaceContainer
     }
 
-    val progress = controller.progress
-    val showOverlay = progress > 0f ||
+    val readProgress = remember(controller) { { controller.progress } }
+    val movingOrExpanded by remember(controller) { derivedStateOf { controller.progress > 0f } }
+    val interactive by remember(controller) {
+        derivedStateOf { PlayerExpandPopup.isInteractive(controller.progress) }
+    }
+    val showOverlay = movingOrExpanded ||
         controller.pendingMeasure ||
         controller.pendingExpand ||
         controller.phase == Phase.Preparing
@@ -416,7 +423,7 @@ fun PlayerExpandOverlay(
         popupPositionProvider = PlayerExpandPopup.positionProvider,
         properties = PopupProperties(
             flags = PlayerExpandPopup.flags(
-                interactive = PlayerExpandPopup.isInteractive(progress)
+                interactive = interactive
             ),
             dismissOnBackPress = false,
             dismissOnClickOutside = false,
@@ -429,7 +436,12 @@ fun PlayerExpandOverlay(
             Box(
                 modifier = Modifier.requiredSize(viewportDp.width, viewportDp.height)
             ) {
-                val settled = PlayerExpandMath.isSettledExpanded(progress)
+                val settled by remember(controller) {
+                    derivedStateOf { PlayerExpandMath.isSettledExpanded(controller.progress) }
+                }
+                val prepareSettledPage by remember(controller) {
+                    derivedStateOf { VinylExpandMath.shouldPrepareSettledPage(controller.progress) }
+                }
                 val miniContainer = controller.miniContainer
                 val miniArt = controller.miniArt
                 val fullArt = controller.fullArt
@@ -439,7 +451,7 @@ fun PlayerExpandOverlay(
                 // and its slot never moves between transition and settled states.
                 val keepPageReady = style == VinylExpandMath.Style.Vinyl &&
                     canDrawTransition &&
-                    VinylExpandMath.shouldPrepareSettledPage(progress)
+                    prepareSettledPage
                 // Lyrics layer over the settled turntable page (0 = page, 1 = lyrics).
                 val lyricsProgress = if (style == VinylExpandMath.Style.Vinyl && settled) {
                     controller.lyricsProgress
@@ -455,7 +467,7 @@ fun PlayerExpandOverlay(
                         Modifier
                             .fillMaxSize()
                             .background(MaterialTheme.colorScheme.surface)
-                            .background(com.sosauce.chocola.feature.playing.presentation.components.turntableBackdropBrush())
+                            .turntableBackdrop()
                     )
                 }
                 if (settled || controller.pendingMeasure ||
@@ -511,7 +523,7 @@ fun PlayerExpandOverlay(
 
                 if (!settled && canDrawTransition && style == VinylExpandMath.Style.Vinyl) {
                     VinylTransitionLayer(
-                        progress = progress,
+                        progress = readProgress,
                         libraryStyle = libraryStyle,
                         musicState = musicState,
                         miniContainer = miniContainer!!,
@@ -531,7 +543,7 @@ fun PlayerExpandOverlay(
                     )
                 } else if (!settled && canDrawTransition) {
                     TransitionLayer(
-                        progress = progress,
+                        readProgress = readProgress,
                         libraryStyle = libraryStyle,
                         musicState = musicState,
                         miniContainer = miniContainer!!,
@@ -585,7 +597,7 @@ fun PlayerExpandOverlay(
 
 @Composable
 private fun TransitionLayer(
-    progress: Float,
+    readProgress: () -> Float,
     libraryStyle: Boolean,
     musicState: MusicState,
     miniContainer: Rect,
@@ -599,6 +611,9 @@ private fun TransitionLayer(
     onNavigate: (Screen) -> Unit
 ) {
     val density = LocalDensity.current
+    val progress = readProgress()
+    // The tween already applies the settle easing; while dragging, progress
+    // is set directly and stays 1:1 with the finger. No second transform here.
     val container = PlayerExpandMath.containerRect(progress, miniContainer, viewport)
     val cover = PlayerExpandMath.coverRect(progress, miniArt, fullArt)
     val containerCorner = PlayerExpandMath.containerCornerRadiusDp(progress, libraryStyle)
@@ -615,15 +630,16 @@ private fun TransitionLayer(
         val widthPx = container.width.coerceAtLeast(1f)
         val heightPx = container.height.coerceAtLeast(1f)
         val cornerDp = containerCorner.dp
+        val containerShape = remember(cornerDp) { RoundedCornerShape(cornerDp) }
         Box(
             modifier = Modifier
                 .offset { IntOffset(left.roundToInt(), top.roundToInt()) }
                 .requiredSize(with(density) { widthPx.toDp() }, with(density) { heightPx.toDp() })
                 .shadow(
                     elevation = if (progress in 0.02f..0.98f) 8.dp else 0.dp,
-                    shape = RoundedCornerShape(cornerDp)
+                    shape = containerShape
                 )
-                .clip(RoundedCornerShape(cornerDp))
+                .clip(containerShape)
                 .drawBehind { drawRect(background, alpha = backgroundAlpha) }
                 .draggable(
                     state = dragState,
@@ -649,7 +665,7 @@ private fun TransitionLayer(
             }
 
             // Single cover, positioned in container space so the rising clip applies.
-            val coverShape = RoundedCornerShape(coverCorner.dp)
+            val coverShape = remember(coverCorner) { RoundedCornerShape(coverCorner.dp) }
             Box(
                 modifier = Modifier
                     .offset {

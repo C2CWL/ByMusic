@@ -17,14 +17,13 @@ import androidx.compose.material3.DropdownMenuPopup
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import top.yukonga.miuix.kmp.basic.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.TopAppBar
+import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -35,7 +34,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
@@ -66,28 +64,22 @@ fun LibraryTopBar(
     }
     BackHandler(enabled = handleBack && (searching || textFieldState.text.isNotEmpty())) { closeSearch() }
     LaunchedEffect(searching) { if (searching) focusRequester.requestFocus() }
-    TopAppBar(
+    SmallTopAppBar(
+        title = stringResource(R.string.tracks),
         navigationIcon = {
             IconButton(onClick = onOpenDrawer) {
                 Icon(painterResource(R.drawable.menu), stringResource(R.string.navigation))
             }
         },
-        title = {
+        bottomContent = {
             if (searching) {
                 TextField(
                     state = textFieldState,
                     modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
-                    placeholder = { Text(stringResource(R.string.search_here)) },
+                    label = stringResource(R.string.search_here),
+                    useLabelAsPlaceholder = true,
                     lineLimits = TextFieldLineLimits.SingleLine,
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedContainerColor = Color.Transparent,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                    ),
                 )
-            } else {
-                Text(stringResource(R.string.tracks))
             }
         },
         actions = {
@@ -111,6 +103,7 @@ fun LibraryDrawerSheet(
     var sortExpanded by remember { mutableStateOf(false) }
     val library = listOf(
         DrawerDestination(R.string.tracks, R.drawable.music_note, Screen.Main),
+        DrawerDestination(R.string.favorite, R.drawable.favorite, Screen.Favorites),
         DrawerDestination(R.string.albums, R.drawable.album_filled, Screen.Albums),
         DrawerDestination(R.string.artists, R.drawable.artists_filled, Screen.Artists),
         DrawerDestination(R.string.playlists, R.drawable.queue_music_rounded, Screen.Playlists),

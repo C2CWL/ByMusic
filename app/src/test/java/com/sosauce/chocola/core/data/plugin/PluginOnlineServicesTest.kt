@@ -167,7 +167,7 @@ class PluginOnlineServicesTest {
     }
 
     @Test
-    fun stringSourceIsAcceptedButEmbeddedCredentialsAreRejected() = runBlocking {
+    fun stringSourceKeepsEmbeddedCredentialsAsBasicAuthorization() = runBlocking {
         install(
             """
             module.exports = {
@@ -184,8 +184,14 @@ class PluginOnlineServicesTest {
         service.searchMusic("auth-source", "q", 1)
         val id = OnlineMediaId("auth-source", "a")
         val media = PluginOnlineMediaResolver(service).resolve(ResolveRequest(id, QualityRequest.autoFromTop()))
-        assertEquals("https://cdn.example.com/a.mp3?sig=1", media.url)
-        assertTrue(media.attempts.first().error.orEmpty().contains("HTTPS"))
+        assertEquals("url", "https://cdn.example.com/a.mp3?sig=1", media.url)
+        assertEquals(
+            "auth",
+            "Basic " + java.util.Base64.getEncoder().encodeToString("user:pass".toByteArray()),
+            media.headers["Authorization"]
+        )
+        assertEquals(QualityTier.HIRES, media.attempts.single().tier)
+        assertNull(media.attempts.single().error)
     }
 
     @Test

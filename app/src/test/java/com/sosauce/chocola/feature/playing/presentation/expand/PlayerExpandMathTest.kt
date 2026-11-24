@@ -10,6 +10,20 @@ import org.junit.Test
 class PlayerExpandMathTest {
 
     @Test
+    fun settleEasingLeadsEarlyAndNeverDoubleApplies() {
+        assertEquals(0f, PlayerExpandMath.settleEasing(0f))
+        assertEquals(1f, PlayerExpandMath.settleEasing(1f))
+        assertTrue(PlayerExpandMath.settleEasing(0.25f) > 0.55f)
+        assertTrue(PlayerExpandMath.settleEasing(0.5f) > 0.85f)
+        var previous = -1f
+        for (i in 0..100) {
+            val value = PlayerExpandMath.settleEasing(i / 100f)
+            assertTrue(value + 0.00001f >= previous)
+            previous = value
+        }
+    }
+
+    @Test
     fun transitionBackgroundRevealsTheRealMiniBarBeforeFullChromeFadesIn() {
         assertEquals(0f, PlayerExpandMath.transitionBackgroundAlpha(0f), 0f)
         assertEquals(1f, PlayerExpandMath.transitionBackgroundAlpha(1f), 0f)
@@ -117,6 +131,6 @@ class PlayerExpandMathTest {
 
     @Test
     fun durationIsTheAppSchemeAndHasNoHold() {
-        assertEquals(340, PlayerExpandMath.DURATION_MS)
+        assertEquals(300, PlayerExpandMath.DURATION_MS)
     }
 }
