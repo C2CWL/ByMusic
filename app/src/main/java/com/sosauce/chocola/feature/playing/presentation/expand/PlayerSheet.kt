@@ -58,7 +58,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
@@ -374,7 +373,11 @@ internal fun PlayerSheet(
                                 VinylLyricsMath.pageAlpha(state.lyricsProgress)
                         }
                         // Draw-only translation keeps slot coordinates in the untransformed viewport.
-                        .drawWithContent { translate(top = PlayerExpandMath.settleOffsetDp(state.progress).dp.toPx()) { drawContent() } }
+                        .drawWithContent {
+                            translate(top = PlayerExpandMath.settleOffsetDp(state.progress).dp.toPx()) {
+                                this@drawWithContent.drawContent()
+                            }
+                        }
                         .sheetSemantics(fullInteractive)
                         .then(if (fullInteractive) Modifier.focusRequester(fullFocus).focusable() else Modifier)
                 ) {
