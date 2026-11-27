@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -41,6 +43,11 @@ import androidx.compose.material3.TextButton
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalLayoutDirection
+import com.sosauce.chocola.core.designsystem.components.LocalGlassBackdrop
+import com.sosauce.chocola.core.designsystem.components.glassBackdropSource
+import com.sosauce.chocola.core.designsystem.components.rememberGlassBackdrop
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -115,6 +122,10 @@ fun SharedTransitionScope.OnlineMusicScreen(
             onSearch()
         }
     }
+    // Liquid-glass mini player samples the result list scrolling under it.
+    val glassBackdrop = rememberGlassBackdrop()
+    val layoutDirection = LocalLayoutDirection.current
+    CompositionLocalProvider(LocalGlassBackdrop provides glassBackdrop) {
     Scaffold(
         containerColor = colors.surfaceContainerLow,
         topBar = {
@@ -142,9 +153,21 @@ fun SharedTransitionScope.OnlineMusicScreen(
             )
         }
     ) { padding ->
+        // Bottom inset goes into contentPadding so results scroll under the glass bar.
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .glassBackdropSource(glassBackdrop, baseColor = colors.surfaceContainerLow)
+                .padding(
+                    top = padding.calculateTopPadding(),
+                    start = padding.calculateStartPadding(layoutDirection),
+                    end = padding.calculateEndPadding(layoutDirection)
+                ),
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                end = 16.dp,
+                bottom = padding.calculateBottomPadding() + 24.dp
+            ),
             verticalArrangement = Arrangement.Top
         ) {
             item {
@@ -251,6 +274,7 @@ fun SharedTransitionScope.OnlineMusicScreen(
                 )
             }
         }
+    }
     }
 }
 

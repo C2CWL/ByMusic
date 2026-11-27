@@ -23,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -34,15 +35,12 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -51,7 +49,8 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.sosauce.chocola.R
 import com.sosauce.chocola.core.designsystem.components.PlayPauseButton
-import com.sosauce.chocola.core.designsystem.components.libraryGlass
+import com.sosauce.chocola.core.designsystem.components.LocalGlassBackdrop
+import com.sosauce.chocola.core.designsystem.components.liquidGlass
 import com.sosauce.chocola.core.domain.player.MusicState
 import com.sosauce.chocola.core.domain.player.PlayerActions
 import com.sosauce.chocola.core.presentation.navigation.Screen
@@ -61,9 +60,10 @@ import com.sosauce.chocola.feature.playing.presentation.expand.rememberPlayerExp
 import com.sosauce.chocola.feature.playing.presentation.expand.systemAnimationsDisabled
 
 /**
- * Compact player bar with a static translucent glass surface.
- * Deliberately independent of the navigation root: no full-screen bitmap capture
- * during the expand animation and no backdrop state to lose on lifecycle changes.
+ * Compact player bar with a liquid-glass surface ([liquidGlass]).
+ * Only the bar's own area is blurred, from the screen's [LocalGlassBackdrop]
+ * (API 31+); there is no full-screen bitmap capture (see #83/#85). Without a
+ * backdrop or below API 31 it falls back to the static library glass.
  */
 @Composable
 fun SharedTransitionScope.MiniPlayerBar(
@@ -80,8 +80,6 @@ fun SharedTransitionScope.MiniPlayerBar(
 
     val colors = MaterialTheme.colorScheme
     val shape = RoundedCornerShape(28.dp)
-    val highlight = colors.onSurface.copy(alpha = 0.08f)
-    val highlightStroke = with(LocalDensity.current) { 1.dp.toPx() }
 
     Box(
         modifier = modifier
@@ -95,19 +93,7 @@ fun SharedTransitionScope.MiniPlayerBar(
                 ambientColor = colors.scrim.copy(alpha = 0.12f),
                 spotColor = colors.scrim.copy(alpha = 0.20f)
             )
-            .libraryGlass(shape)
-            .drawWithCache {
-                val stroke = highlightStroke
-                onDrawWithContent {
-                    drawContent()
-                    drawLine(
-                        color = highlight,
-                        start = Offset(0f, stroke),
-                        end = Offset(size.width, stroke),
-                        strokeWidth = stroke
-                    )
-                }
-            }
+            .liquidGlass(shape)
             .clickable { onOpenFullPlayer() }
             .onGloballyPositioned { onMiniCardBoundsChanged(it.boundsInWindow()) },
         contentAlignment = Alignment.Center
@@ -216,6 +202,8 @@ fun SharedTransitionScope.MiniPlayerBarHost(
         }
     }
 
+    FreezeGlassWhileExpanding(expanding)
+
     BackHandler(enabled = expanding) {
         controller.collapse()
     }
@@ -245,4 +233,14 @@ fun SharedTransitionScope.MiniPlayerBarHost(
         onHandlePlayerActions = onHandlePlayerActions,
         onNavigate = onNavigate
     )
+}
+
+/** Stops the glass backdrop from re-recording while the expand transition is visible. */
+@Composable
+internal fun FreezeGlassWhileExpanding(expanding: Boolean) {
+    val backdrop = LocalGlassBackdrop.current ?: return
+    DisposableEffect(backdrop, expanding) {
+        backdrop.frozen = expanding
+        onDispose { backdrop.frozen = false }
+    }
 }

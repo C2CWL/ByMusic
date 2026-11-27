@@ -45,7 +45,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
@@ -622,6 +623,8 @@ private fun TransitionLayer(
     val topChrome = PlayerExpandMath.topChromeAlpha(progress)
     val background = MaterialTheme.colorScheme.background
     val backgroundAlpha = PlayerExpandMath.transitionBackgroundAlpha(progress)
+    val glassRimAlpha = PlayerExpandMath.glassRimAlpha(progress)
+    val darkSurface = MaterialTheme.colorScheme.surface.luminance() < 0.5f
     val dragState = rememberDraggableState { delta -> onDragDelta(delta) }
 
     Box(Modifier.fillMaxSize()) {
@@ -636,11 +639,17 @@ private fun TransitionLayer(
                 .offset { IntOffset(left.roundToInt(), top.roundToInt()) }
                 .requiredSize(with(density) { widthPx.toDp() }, with(density) { heightPx.toDp() })
                 .shadow(
-                    elevation = if (progress in 0.02f..0.98f) 8.dp else 0.dp,
+                    // Scaled with the card's opacity: a full shadow under a still
+                    // see-through card would show as a grey smear inside it.
+                    elevation = if (progress in 0.02f..0.98f) (8f * backgroundAlpha).dp else 0.dp,
                     shape = containerShape
                 )
                 .clip(containerShape)
-                .drawBehind { drawRect(background, alpha = backgroundAlpha) }
+                .drawWithContent {
+                    drawRect(background, alpha = backgroundAlpha)
+                    drawContent()
+                    drawTransitionGlassRim(glassRimAlpha, cornerDp.toPx(), darkSurface)
+                }
                 .draggable(
                     state = dragState,
                     orientation = Orientation.Vertical,
