@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -53,6 +54,8 @@ internal fun VinylLyricsLayer(
     progress: Float,
     musicState: MusicState,
     fullArt: Rect,
+    windowOrigin: Offset,
+    rtl: Boolean,
     turntable: TurntableSharedState,
     onClose: () -> Unit,
     onNavigate: (Screen) -> Unit,
@@ -85,7 +88,7 @@ internal fun VinylLyricsLayer(
             musicState = musicState,
             onHandlePlayerActions = onHandlePlayerActions,
             reveal = reveal,
-            onHeaderArtworkBounds = { headerArt = it }
+            onHeaderArtworkBounds = { headerArt = Rect(it.left - windowOrigin.x, it.top - windowOrigin.y, it.right - windowOrigin.x, it.bottom - windowOrigin.y) }
         )
         if (!VinylLyricsMath.landed(p)) {
             VinylLyricsFlight(
@@ -93,6 +96,7 @@ internal fun VinylLyricsLayer(
                 musicState = musicState,
                 fullArt = fullArt,
                 headerArt = headerArt,
+                rtl = rtl,
                 turntable = turntable
             )
         }
@@ -106,6 +110,7 @@ private fun VinylLyricsFlight(
     musicState: MusicState,
     fullArt: Rect,
     headerArt: Rect?,
+    rtl: Boolean,
     turntable: TurntableSharedState
 ) {
     val density = LocalDensity.current
@@ -113,10 +118,10 @@ private fun VinylLyricsFlight(
     val surface = MaterialTheme.colorScheme.surface
     val metal = MaterialTheme.colorScheme.secondary
 
-    val startLabel = VinylExpandMath.labelRectFor(fullArt)
+    val startLabel = VinylExpandMath.labelRectFor(fullArt, rtl)
     val cover = VinylLyricsMath.coverRect(progress, startLabel, headerArt ?: startLabel)
     val disc = VinylLyricsMath.discAround(cover)
-    val artBox = VinylExpandMath.artBoxForDisc(disc)
+    val artBox = VinylExpandMath.artBoxForDisc(disc, rtl)
     val degrees = VinylLyricsMath.coverDegrees(progress, turntable.rotation.value)
     val cornerPx = VinylLyricsMath.coverCornerPx(
         p = progress,
@@ -193,7 +198,7 @@ private fun VinylLyricsFlight(
     }
 }
 
-/** Places a child at [rect] (window space; this layer sits at the window origin). */
+/** Places a child at [rect] (sheet-local coordinates). */
 private fun Modifier.placeRect(rect: Rect): Modifier =
     layout { measurable, constraints ->
         val width = rect.width.coerceAtLeast(1f).roundToInt()

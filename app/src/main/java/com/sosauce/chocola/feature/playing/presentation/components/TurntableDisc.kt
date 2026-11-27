@@ -14,7 +14,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -23,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -49,12 +49,16 @@ internal const val TURNTABLE_COVER_SWAP_MS = 120
 internal fun TurntableDisc(
     musicState: MusicState,
     blur: Int,
+    drawLabel: Boolean = true,
+    recordAlpha: () -> Float = { 1f },
+    armAlpha: () -> Float = { 1f },
+    armOffset: () -> Float = { 0f },
+    rotationDegrees: ((Float) -> Float)? = null,
 ) {
     val accent = MaterialTheme.colorScheme.primary
     val surface = MaterialTheme.colorScheme.surface
     val metal = MaterialTheme.colorScheme.secondary
-    // Inside the expand overlay, angle and stars are shared with the transition so
-    // the record lands (and leaves) at the same angle with the same stars.
+    // The sheet and its lyrics layer share the record angle and reflected light.
     val shared = LocalTurntableShared.current
     val rotation = shared?.rotation ?: remember { Animatable(0f) }
     val armAngle = remember {
@@ -70,7 +74,7 @@ internal fun TurntableDisc(
     LaunchedEffect(musicState.isPlaying, lifecycle, motionPaused) {
         // Stop producing frames when the host lifecycle leaves the foreground.
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            if (musicState.isPlaying && !motionPaused) {
+            if (musicState.isPlaying && !motionPaused && !glintsStill) {
                 while (true) {
                     val start = rotation.value % 360f
                     rotation.snapTo(start)
@@ -81,14 +85,14 @@ internal fun TurntableDisc(
     }
     LaunchedEffect(musicState.isPlaying, lifecycle, motionPaused) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            if (musicState.isPlaying && !motionPaused) {
+            if (musicState.isPlaying && !motionPaused && !glintsStill) {
                 var lastFrame = 0L
                 while (true) {
                     withFrameNanos { now ->
                         val dt = if (lastFrame == 0L) 0f else ((now - lastFrame) / 1_000_000_000f)
                         lastFrame = now
                         // Glints only; read at draw time, so this redraws the sheen, no recomposition.
-                        if (!glintsStill) glint.advance(dt)
+                        glint.advance(dt)
                     }
                 }
             }
@@ -137,56 +141,61 @@ internal fun TurntableDisc(
     val vinylLayer = remember(surface, accent) { Modifier.turntableVinyl(surface, accent) }
     val sheenLayer = remember(surface, accent, glint) { Modifier.turntableSheen(surface, accent, glint) }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Box(Modifier.fillMaxSize().then(haloLayer))
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxSize(TURNTABLE_DISC_FRACTION)
-                    .align(Alignment.CenterStart)
-                    .graphicsLayer { rotationZ = rotation.value }
-                    .clip(CircleShape)
-                    .then(vinylLayer),
-            contentAlignment = Alignment.Center,
-        ) {
+        Box(Modifier.fillMaxSize().graphicsLayer {
+            alpha = recordAlpha()
+            compositingStrategy = CompositingStrategy.ModulateAlpha
+        }) {
+            Box(Modifier.fillMaxSize().then(haloLayer))
             Box(
-                modifier = Modifier.fillMaxSize(TURNTABLE_LABEL_FRACTION).clip(CircleShape).background(surface),
+                modifier =
+                    Modifier
+                        .fillMaxSize(TURNTABLE_DISC_FRACTION)
+                        .align(Alignment.CenterStart)
+                        .graphicsLayer { rotationZ = rotationDegrees?.invoke(rotation.value) ?: rotation.value }
+                        .clip(CircleShape)
+                        .then(vinylLayer),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(
-                    painter = painterResource(R.drawable.music_note),
-                    contentDescription = null,
-                    tint = accent,
-                    modifier = Modifier.fillMaxSize(0.35f),
-                )
-                // Covers swap with a short crossfade from the previous cover,
-                // so fast skipping never flashes the empty note icon.
-                val context = LocalContext.current
-                val artUri = musicState.track.artUri
-                val artRequest =
-                    remember(artUri) {
-                        ImageRequest.Builder(context).data(artUri).crossfade(TURNTABLE_COVER_SWAP_MS).build()
-                    }
-                AsyncImage(
-                    model = artRequest,
-                    contentDescription = stringResource(R.string.artwork),
-                    placeholder = lastCover,
-                    onSuccess = { lastCover = it.painter },
-                    onError = { lastCover = null },
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize().cloudy(radius = blur, enabled = blur > 0),
-                )
+                if (drawLabel) Box(
+                    modifier = Modifier.fillMaxSize(TURNTABLE_LABEL_FRACTION).clip(CircleShape).background(surface),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.music_note),
+                        contentDescription = null,
+                        tint = accent,
+                        modifier = Modifier.fillMaxSize(0.35f),
+                    )
+                    // Covers swap with a short crossfade from the previous cover,
+                    // so fast skipping never flashes the empty note icon.
+                    val context = LocalContext.current
+                    val artUri = musicState.track.artUri
+                    val artRequest =
+                        remember(artUri) {
+                            ImageRequest.Builder(context).data(artUri).crossfade(TURNTABLE_COVER_SWAP_MS).build()
+                        }
+                    AsyncImage(
+                        model = artRequest,
+                        contentDescription = stringResource(R.string.artwork),
+                        placeholder = lastCover,
+                        onSuccess = { lastCover = it.painter },
+                        onError = { lastCover = null },
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize().cloudy(radius = blur, enabled = blur > 0),
+                    )
+                }
             }
+            // Light does not turn with the record: the sheen sits on top, unrotated.
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxSize(TURNTABLE_DISC_FRACTION)
+                        .align(Alignment.CenterStart)
+                        .then(sheenLayer),
+            )
         }
-        // Light does not turn with the record: the sheen sits on top, unrotated.
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxSize(TURNTABLE_DISC_FRACTION)
-                    .align(Alignment.CenterStart)
-                    .then(sheenLayer),
-        )
-        Canvas(Modifier.fillMaxSize()) {
-            drawTurntableArm(armAngle.value, surface, metal)
+        Canvas(Modifier.fillMaxSize().graphicsLayer { alpha = armAlpha() }) {
+            drawTurntableArm(armAngle.value + armOffset(), surface, metal)
         }
     }
 }

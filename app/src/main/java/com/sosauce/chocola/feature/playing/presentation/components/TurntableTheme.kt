@@ -63,14 +63,25 @@ fun rememberTurntableEnabled(): Boolean {
 
 /**
  * Artwork-seeded dark color state for the turntable page. Hoistable: the expand
- * overlay keeps one alive while the mini player is shown, so the colors are
+ * sheet keeps one alive while the mini player is shown, so the colors are
  * ready before the page opens. While a new cover is loading, the previous
  * seed is kept instead of falling back to the system color for a moment.
  */
 @Composable
 fun rememberTurntableThemeState(artworkUri: String?): DynamicMaterialThemeState {
-    val context = LocalContext.current
+    val seed = rememberPlayerArtworkSeed(artworkUri)
+    return playerTurntableThemeState(seed)
+}
+
+@Composable
+internal fun playerTurntableThemeState(seed: Color?): DynamicMaterialThemeState {
     val fallback = anyDarkColorScheme().primary
+    return rememberDynamicMaterialThemeState(seedColor = seed ?: fallback, isDark = true)
+}
+
+@Composable
+internal fun rememberPlayerArtworkSeed(artworkUri: String?): Color? {
+    val context = LocalContext.current
     var seed by remember { mutableStateOf<Color?>(null) }
     val dominantColorState = rememberDominantColorState()
     LaunchedEffect(artworkUri) {
@@ -102,7 +113,7 @@ fun rememberTurntableThemeState(artworkUri: String?): DynamicMaterialThemeState 
             seed = dominantColorState.color
         }
     }
-    return rememberDynamicMaterialThemeState(seedColor = seed ?: fallback, isDark = true)
+    return seed
 }
 
 /** Color change for the track the user stopped on (design value: 300ms). */
@@ -170,8 +181,7 @@ fun TurntableTheme(
         return
     }
     if (LocalTurntableThemeHoisted.current) {
-        // Colors come from the overlay. The overlay sits in its own window, so
-        // the backdrop gets an opaque base; the transition draws the same one.
+        // The caller supplies the colors. Keep the backdrop opaque on this layout.
         Box(
             Modifier
                 .fillMaxSize()

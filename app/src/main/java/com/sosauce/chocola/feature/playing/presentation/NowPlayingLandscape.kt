@@ -40,6 +40,7 @@ import com.sosauce.chocola.core.presentation.components.dialogs.tracksDetails.Tr
 import com.sosauce.chocola.core.presentation.navigation.Screen
 import com.sosauce.chocola.core.presentation.preferences.rememberSnapSpeedAndPitch
 import com.sosauce.chocola.feature.playing.presentation.components.Artwork
+import com.sosauce.chocola.feature.playing.presentation.components.LocalArtworkSlot
 import com.sosauce.chocola.feature.playing.presentation.components.PlayingTopRow
 import com.sosauce.chocola.feature.playing.presentation.components.QuickActionsRow
 import com.sosauce.chocola.feature.playing.presentation.components.rememberTurntableEnabled
@@ -51,8 +52,6 @@ fun NowPlayingLandscape(
     hiddenButtons: Set<NowPlayingButton>,
     onNavigate: (Screen) -> Unit,
     onShrinkToSearchbar: () -> Unit,
-    onArtworkBoundsChanged: ((androidx.compose.ui.geometry.Rect) -> Unit)? = null,
-    dragToClose: NowPlayingDragToClose? = null
 ) {
     var showSpeedCard by remember { mutableStateOf(false) }
     var snap by rememberSnapSpeedAndPitch()
@@ -62,9 +61,7 @@ fun NowPlayingLandscape(
 
     val useTurntable = rememberTurntableEnabled()
     Scaffold(
-        // Pull down anywhere on the page to close.
-        modifier = Modifier.dragToClose(dragToClose),
-        containerColor = if (useTurntable) Color.Transparent else MaterialTheme.colorScheme.background
+        containerColor = if (useTurntable || LocalArtworkSlot.current != null) Color.Transparent else MaterialTheme.colorScheme.background
     ) { paddingValues ->
 
         if (showDetailsDialog) {
@@ -107,7 +104,6 @@ fun NowPlayingLandscape(
 //                        .fillMaxWidth(0.4f),
                     musicState = musicState,
                     onHandlePlayerActions = onHandlePlayerActions,
-                    onArtworkBoundsChanged = onArtworkBoundsChanged
                 )
             }
         )
@@ -115,9 +111,7 @@ fun NowPlayingLandscape(
 }
 
 /**
- * Landscape page body: artwork slot on the start side, controls column beside
- * it. Shared with the expand transition, which passes an empty box the size of
- * the measured artwork, so its last frame lays the controls out like the page.
+ * Landscape page body with the artwork slot at the start and controls beside it.
  */
 @Composable
 internal fun NowPlayingLandscapeBody(

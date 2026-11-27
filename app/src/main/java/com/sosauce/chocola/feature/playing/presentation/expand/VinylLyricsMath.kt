@@ -103,3 +103,22 @@ object VinylLyricsMath {
     fun coverDegrees(p: Float, startDegrees: Float): Float =
         VinylExpandMath.normalizeDegrees(startDegrees) * (1f - smoothstep(UPRIGHT_START, 1f, p))
 }
+
+internal fun VinylExpandMath.discRectFor(art: Rect): Rect {
+    val side = minOf(art.width, art.height) * VinylExpandMath.DISC_FRACTION
+    val top = art.center.y - side / 2f
+    return Rect(art.left, top, art.left + side, top + side)
+}
+
+internal fun VinylExpandMath.labelRectFor(art: Rect, rtl: Boolean = false): Rect {
+    val label = labelSlot(SheetRect(art.left, art.top, art.right, art.bottom), rtl)
+    return Rect(label.left, label.top, label.right, label.bottom)
+}
+
+internal fun VinylExpandMath.artBoxForDisc(disc: Rect, rtl: Boolean = false): Rect {
+    val label = disc.width * VinylExpandMath.LABEL_FRACTION
+    val half = label / 2f
+    val center = disc.center
+    val art = artAroundLabel(SheetRect(center.x - half, center.y - half, center.x + half, center.y + half), rtl)
+    return Rect(art.left, art.top, art.right, art.bottom)
+}

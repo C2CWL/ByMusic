@@ -10,10 +10,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.material3.MaterialTheme
@@ -48,7 +46,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEach
 import com.sosauce.chocola.R
 import com.sosauce.chocola.core.designsystem.components.NoResult
-import com.sosauce.chocola.core.designsystem.components.SelectOverlayItem
 import com.sosauce.chocola.core.domain.model.CuteTrack
 import com.sosauce.chocola.core.domain.player.MusicState
 import com.sosauce.chocola.core.domain.player.PlaySource
@@ -57,11 +54,11 @@ import com.sosauce.chocola.core.presentation.components.CuteSearchbar
 import com.sosauce.chocola.core.presentation.components.CuteSearchbarDefaults
 import com.sosauce.chocola.core.presentation.components.TracksSelectedBar
 import com.sosauce.chocola.core.presentation.components.trackItems
-import com.sosauce.chocola.core.presentation.components.trackSelectActions
 import com.sosauce.chocola.core.presentation.navigation.Screen
 import com.sosauce.chocola.core.presentation.util.barsContentTransform
 import com.sosauce.chocola.core.presentation.util.selfAlignHorizontally
 import com.sosauce.chocola.feature.library.presentation.main.components.FolderHeader
+import com.sosauce.chocola.feature.playing.presentation.expand.LocalPlayerSheet
 import com.sosauce.nekobites.components.LoadingBox
 import com.sosauce.nekobites.components.NoXFound
 import com.sosauce.nekobites.components.Spacer
@@ -82,7 +79,7 @@ fun SharedTransitionScope.MainScreen(
     val multiSelectState = rememberSweetSelectState<CuteTrack>()
     val activeTrackId = remember(musicState.track) { musicState.track.mediaId }
 
-    var fullPlayerVisible by remember { mutableStateOf(false) }
+    val fullPlayerVisible = LocalPlayerSheet.current?.ownsBack == true
     val groupByFolders = state.groupByFolders
     val background by com.sosauce.chocola.core.presentation.preferences.rememberLibraryBackground()
     var locateTrackId by remember { mutableStateOf<String?>(null) }
@@ -175,7 +172,6 @@ fun SharedTransitionScope.MainScreen(
                     CuteSearchbar(
                         modifier = Modifier.selfAlignHorizontally(),
                         libraryStyle = true,
-                        onFullPlayerChanged = { fullPlayerVisible = it },
                         musicState = musicState,
                         textFieldState = textFieldState,
                         onHandlePlayerActions = onHandlePlayerAction,

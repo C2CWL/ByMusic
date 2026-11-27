@@ -41,7 +41,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -81,9 +80,7 @@ import com.sosauce.chocola.core.domain.online.OnlineLyricsProvider
 import com.sosauce.chocola.core.domain.online.OnlineMediaId
 import com.sosauce.chocola.core.domain.online.QualityRequest
 import com.sosauce.chocola.core.domain.player.MusicState
-import com.sosauce.chocola.core.domain.player.PlayerActions
 import com.sosauce.chocola.core.presentation.components.MiniPlayerBarHost
-import com.sosauce.chocola.core.presentation.navigation.Screen
 import com.sosauce.chocola.feature.recognition.domain.RecognitionPluginInfo
 import com.sosauce.chocola.feature.recognition.presentation.RecognitionEntryButton
 import com.sosauce.chocola.feature.recognition.presentation.RecognitionEntrySection
@@ -103,8 +100,6 @@ fun SharedTransitionScope.OnlineMusicScreen(
     onLoadMore: () -> Unit,
     onPlay: (track: CuteTrack, queue: List<CuteTrack>) -> Unit,
     musicState: MusicState,
-    onHandlePlayerActions: (PlayerActions) -> Unit,
-    onNavigate: (Screen) -> Unit,
     onManagePlugins: () -> Unit,
     recognitionPlugins: List<RecognitionPluginInfo> = emptyList(),
     onStartRecognition: () -> Unit = {},
@@ -146,11 +141,7 @@ fun SharedTransitionScope.OnlineMusicScreen(
             )
         },
         bottomBar = {
-            MiniPlayerBarHost(
-                musicState = musicState,
-                onHandlePlayerActions = onHandlePlayerActions,
-                onNavigate = onNavigate
-            )
+            MiniPlayerBarHost(musicState = musicState)
         }
     ) { padding ->
         // Bottom inset goes into contentPadding so results scroll under the glass bar.
