@@ -1,12 +1,13 @@
 package com.sosauce.chocola.feature.playing.presentation.expand
 
 import androidx.compose.ui.geometry.Rect
+import kotlin.math.roundToInt
 
 /**
  * Pure geometry and state-machine helpers for the mini-player → now-playing
  * expand transition.
  *
- * The 340 ms duration, FastOutSlowIn timing, fade windows and settle
+ * The 450 ms duration, emphasized-decelerate timing, fade windows and settle
  * thresholds are this app's own scheme. They are not claimed to be Salt
  * Player parameters.
  *
@@ -15,15 +16,41 @@ import androidx.compose.ui.geometry.Rect
  */
 object PlayerExpandMath {
 
-    const val DURATION_MS = 300
+    /** Full-distance settle (0 -> 1 or 1 -> 0). Shorter settles scale down with the distance left. */
+    const val DURATION_MS = 450
+    const val MIN_DURATION_MS = 180
+
+    fun settleDurationMs(from: Float, to: Float): Int {
+        val distance = kotlin.math.abs(to.coerceIn(0f, 1f) - from.coerceIn(0f, 1f))
+        return (DURATION_MS * distance).roundToInt().coerceIn(MIN_DURATION_MS, DURATION_MS)
+    }
 
     /**
      * Applied once by the tween; shared by container and cover so the
-     * artwork never separates from its card. Fast out, soft landing.
+     * artwork never separates from its card. Emphasized decelerate,
+     * cubic-bezier(0.2, 0, 0, 1), used for both directions: opening and
+     * closing run the same curve, and the first frames of a collapse no
+     * longer jump back half the way (the old 1-(1-t)^3 did in ~60 ms).
      */
-    fun settleEasing(fraction: Float): Float {
-        val t = fraction.coerceIn(0f, 1f)
-        return 1f - (1f - t) * (1f - t) * (1f - t)
+    fun settleEasing(fraction: Float): Float = cubicBezier(fraction, 0.2f, 0f, 0f, 1f)
+
+    /** y of the CSS-style cubic-bezier(x1, y1, x2, y2) at x, solved by bisection. */
+    fun cubicBezier(x: Float, x1: Float, y1: Float, x2: Float, y2: Float): Float {
+        val target = x.coerceIn(0f, 1f)
+        if (target <= 0f) return 0f
+        if (target >= 1f) return 1f
+        fun curve(t: Float, a: Float, b: Float): Float {
+            val u = 1f - t
+            return 3f * u * u * t * a + 3f * u * t * t * b + t * t * t
+        }
+        var lo = 0f
+        var hi = 1f
+        var t = target
+        repeat(40) {
+            t = (lo + hi) / 2f
+            if (curve(t, x1, x2) < target) lo = t else hi = t
+        }
+        return curve(t, y1, y2).coerceIn(0f, 1f)
     }
 
     const val FULL_CHROME_FADE_START = 0.22f
@@ -46,8 +73,22 @@ object PlayerExpandMath {
      */
     const val BACKGROUND_FADE_END = 0.4f
 
-    /** Specular glass rim on the rising card: full at the mini bar, gone early. */
-    const val GLASS_RIM_FADE_END = 0.35f
+    /** The mini bar's own face (title, buttons) on the card: full at 0, gone by here. */
+    const val MINI_FACE_FADE_END = 0.2f
+
+    /** The mini bar's glass surface on the card: full at 0, gone by here. */
+    const val MINI_SURFACE_FADE_END = 0.35f
+
+    /** Card shadow equals the mini bar's (6dp) at 0 and is gone on the full page. */
+    const val MINI_ELEVATION_DP = 6f
+    const val ELEVATION_FADE_START = 0.6f
+
+    /**
+     * After the card is back on the mini bar (progress 0) the overlay stays for
+     * this many frames while the real bar is already visible underneath, so the
+     * popup window never disappears before the bar is drawn again.
+     */
+    const val HANDOFF_LINGER_FRAMES = 2
 
     /** Container corners match the mini bar, stay round while it rises, square at 1. */
     const val LIBRARY_CONTAINER_CORNER_START_DP = 28f
@@ -55,7 +96,8 @@ object PlayerExpandMath {
     const val CONTAINER_CORNER_SQUARE_FROM = 0.35f
 
     const val COVER_CORNER_END_DP = 24f
-    const val LIBRARY_COVER_CORNER_START_DP = 5f
+    /** Same as the mini bar's 10dp artwork clip, so the cover starts exactly on it. */
+    const val LIBRARY_COVER_CORNER_START_DP = 10f
     const val FLOATING_COVER_CORNER_START_DP = 10f
 
     enum class Phase {
@@ -78,9 +120,26 @@ object PlayerExpandMath {
     fun transitionBackgroundAlpha(progress: Float): Float =
         smoothstep(0f, BACKGROUND_FADE_END, progress)
 
-    /** Alpha of the glass rim drawn on the transition card (1 at the mini bar). */
-    fun glassRimAlpha(progress: Float): Float =
-        1f - smoothstep(0f, GLASS_RIM_FADE_END, progress)
+    fun miniFaceAlpha(progress: Float): Float =
+        1f - smoothstep(0f, MINI_FACE_FADE_END, progress)
+
+    fun miniSurfaceAlpha(progress: Float): Float =
+        1f - smoothstep(0f, MINI_SURFACE_FADE_END, progress)
+
+    fun containerElevationDp(progress: Float): Float =
+        MINI_ELEVATION_DP * (1f - smoothstep(ELEVATION_FADE_START, 1f, progress))
+
+    /**
+     * The real mini bar is hidden as soon as the card has drawn a frame over it
+     * (same pixels, so the swap is invisible) and stays hidden until progress is
+     * back to exactly 0. Never two bars, never neither.
+     */
+    fun barHidden(progress: Float, cardDrawn: Boolean): Boolean =
+        isSettledExpanded(progress) || (cardDrawn && progress > 0f)
+
+    /** Finger velocity (px/s, positive = down) as expand progress per second. */
+    fun progressVelocity(velocityPxPerSec: Float, travelPx: Float): Float =
+        if (travelPx <= 0f) 0f else -velocityPxPerSec / travelPx
 
     fun fullChromeAlpha(progress: Float): Float =
         smoothstep(FULL_CHROME_FADE_START, FULL_CHROME_FADE_END, progress)

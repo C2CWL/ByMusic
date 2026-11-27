@@ -15,6 +15,8 @@ class PlayerExpandMathTest {
         assertEquals(1f, PlayerExpandMath.settleEasing(1f))
         assertTrue(PlayerExpandMath.settleEasing(0.25f) > 0.55f)
         assertTrue(PlayerExpandMath.settleEasing(0.5f) > 0.85f)
+        // Soft start: the first frames do not throw the card half way (old ease-out did).
+        assertTrue(PlayerExpandMath.settleEasing(0.05f) < 0.05f)
         var previous = -1f
         for (i in 0..100) {
             val value = PlayerExpandMath.settleEasing(i / 100f)
@@ -71,13 +73,65 @@ class PlayerExpandMathTest {
     }
 
     @Test
-    fun glassRimLeavesBeforeTheChromeAndNeverReachesTheSettledPage() {
-        assertEquals(1f, PlayerExpandMath.glassRimAlpha(0f), 0f)
-        assertEquals(0f, PlayerExpandMath.glassRimAlpha(PlayerExpandMath.GLASS_RIM_FADE_END), 0f)
-        assertEquals(0f, PlayerExpandMath.glassRimAlpha(1f), 0f)
-        assertTrue(PlayerExpandMath.glassRimAlpha(0.1f) in 0.01f..0.99f)
-        // Rim gone before the page background is opaque, so nothing pops at the handoff.
-        assertTrue(PlayerExpandMath.GLASS_RIM_FADE_END <= PlayerExpandMath.BACKGROUND_FADE_END)
+    fun miniBarCopyOnTheCardIsWholeAtZeroAndGoneBeforeThePage() {
+        assertEquals(1f, PlayerExpandMath.miniFaceAlpha(0f), 0f)
+        assertEquals(1f, PlayerExpandMath.miniSurfaceAlpha(0f), 0f)
+        assertEquals(0f, PlayerExpandMath.miniFaceAlpha(PlayerExpandMath.MINI_FACE_FADE_END), 0f)
+        assertEquals(0f, PlayerExpandMath.miniSurfaceAlpha(PlayerExpandMath.MINI_SURFACE_FADE_END), 0f)
+        assertEquals(0f, PlayerExpandMath.miniFaceAlpha(1f), 0f)
+        assertEquals(0f, PlayerExpandMath.miniSurfaceAlpha(1f), 0f)
+        // Face leaves first, the glass surface stays until the page background covers the card.
+        assertTrue(PlayerExpandMath.MINI_FACE_FADE_END < PlayerExpandMath.MINI_SURFACE_FADE_END)
+        assertTrue(PlayerExpandMath.MINI_SURFACE_FADE_END <= PlayerExpandMath.BACKGROUND_FADE_END)
+        var face = 2f
+        var surface = 2f
+        for (i in 0..100) {
+            val p = i / 100f
+            assertTrue(PlayerExpandMath.miniFaceAlpha(p) <= face + 1e-6f)
+            assertTrue(PlayerExpandMath.miniSurfaceAlpha(p) <= surface + 1e-6f)
+            face = PlayerExpandMath.miniFaceAlpha(p)
+            surface = PlayerExpandMath.miniSurfaceAlpha(p)
+        }
+    }
+
+    @Test
+    fun cardShadowStartsAsTheBarShadowAndIsGoneOnThePage() {
+        assertEquals(PlayerExpandMath.MINI_ELEVATION_DP, PlayerExpandMath.containerElevationDp(0f), 0f)
+        assertEquals(PlayerExpandMath.MINI_ELEVATION_DP, PlayerExpandMath.containerElevationDp(PlayerExpandMath.ELEVATION_FADE_START), 0f)
+        assertEquals(0f, PlayerExpandMath.containerElevationDp(1f), 0f)
+    }
+
+    @Test
+    fun barIsHiddenOnlyWhileTheCardIsOnScreenAway() {
+        // Before the card has drawn, the bar stays (never neither).
+        assertFalse(PlayerExpandMath.barHidden(0.1f, cardDrawn = false))
+        // Card drawn and moving: only the card (never two bars).
+        assertTrue(PlayerExpandMath.barHidden(0.001f, cardDrawn = true))
+        assertTrue(PlayerExpandMath.barHidden(0.5f, cardDrawn = true))
+        // Settled page: bar hidden even if the card never drew (restored state).
+        assertTrue(PlayerExpandMath.barHidden(1f, cardDrawn = false))
+        // Back on the bar: the bar is visible in that same frame.
+        assertFalse(PlayerExpandMath.barHidden(0f, cardDrawn = true))
+        assertFalse(PlayerExpandMath.barHidden(0f, cardDrawn = false))
+        assertTrue(PlayerExpandMath.HANDOFF_LINGER_FRAMES >= 1)
+    }
+
+    @Test
+    fun releaseVelocityBecomesProgressVelocity() {
+        // Finger down (positive px/s) closes: progress goes down.
+        assertEquals(-0.5f, PlayerExpandMath.progressVelocity(1000f, 2000f), 1e-6f)
+        assertEquals(0.5f, PlayerExpandMath.progressVelocity(-1000f, 2000f), 1e-6f)
+        // Unknown travel: no velocity, plain tween.
+        assertEquals(0f, PlayerExpandMath.progressVelocity(1000f, 0f), 0f)
+    }
+
+    @Test
+    fun settleDurationIsShortenedByTheDistanceLeft() {
+        assertEquals(PlayerExpandMath.DURATION_MS, PlayerExpandMath.settleDurationMs(0f, 1f))
+        assertEquals(PlayerExpandMath.DURATION_MS, PlayerExpandMath.settleDurationMs(1f, 0f))
+        assertEquals(225, PlayerExpandMath.settleDurationMs(0.5f, 0f))
+        assertEquals(PlayerExpandMath.MIN_DURATION_MS, PlayerExpandMath.settleDurationMs(0.05f, 0f))
+        assertEquals(PlayerExpandMath.MIN_DURATION_MS, PlayerExpandMath.settleDurationMs(1f, 1f))
     }
 
     @Test
@@ -152,6 +206,7 @@ class PlayerExpandMathTest {
 
     @Test
     fun durationIsTheAppSchemeAndHasNoHold() {
-        assertEquals(300, PlayerExpandMath.DURATION_MS)
+        assertEquals(450, PlayerExpandMath.DURATION_MS)
+        assertTrue(PlayerExpandMath.DURATION_MS in 420..480)
     }
 }

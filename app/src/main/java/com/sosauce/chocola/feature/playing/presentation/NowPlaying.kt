@@ -1,5 +1,7 @@
 package com.sosauce.chocola.feature.playing.presentation
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.expandVertically
@@ -8,8 +10,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -23,17 +25,14 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
@@ -131,7 +130,8 @@ fun NowPlayingLayout(
                 onHandlePlayerActions = onHandlePlayerActions,
                 onNavigate = onNavigate,
                 onShrinkToSearchbar = onShrinkToSearchbar,
-                onArtworkBoundsChanged = onArtworkBoundsChanged
+                onArtworkBoundsChanged = onArtworkBoundsChanged,
+                dragToClose = dragToClose
             )
         }
 
@@ -146,7 +146,8 @@ private fun NowPlayingContent(
     onHandlePlayerActions: (PlayerActions) -> Unit,
     onNavigate: (Screen) -> Unit,
     onShrinkToSearchbar: () -> Unit,
-    onArtworkBoundsChanged: ((Rect) -> Unit)? = null
+    onArtworkBoundsChanged: ((Rect) -> Unit)? = null,
+    dragToClose: NowPlayingDragToClose? = null
 ) {
     var snap by rememberSnapSpeedAndPitch()
     var showSpeedCard by remember { mutableStateOf(false) }
@@ -180,7 +181,8 @@ private fun NowPlayingContent(
     }
 
     Scaffold(
-        modifier = modifier,
+        // Pull down anywhere on the page to close (runs the expand transition backwards).
+        modifier = modifier.dragToClose(dragToClose),
         containerColor = if (useTurntable) Color.Transparent else MaterialTheme.colorScheme.background,
         topBar = {
             NowPlayingTopBar(
@@ -201,63 +203,84 @@ private fun NowPlayingContent(
             )
         }
     ) { paddingValues ->
-
-
-        if (useArtBackground && !useTurntable) {
-            AsyncImage(
-                model = musicState.track.artUri,
-                contentDescription = null,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .cloudy(100),
-                contentScale = ContentScale.Crop,
-                colorFilter = ColorFilter.tint(
-                    color = MaterialTheme.colorScheme.background.copy(0.7f),
-                    blendMode = BlendMode.Darken
+        ClassicNowPlayingBody(
+            paddingValues = paddingValues,
+            musicState = musicState,
+            hiddenButtons = hiddenButtons,
+            onHandlePlayerActions = onHandlePlayerActions,
+            showArtBackground = useArtBackground && !useTurntable,
+            artwork = { artModifier ->
+                Artwork(
+                    modifier = artModifier,
+                    musicState = musicState,
+                    onHandlePlayerActions = onHandlePlayerActions,
+                    onArtworkBoundsChanged = onArtworkBoundsChanged,
                 )
-            )
-        }
+            }
+        )
+    }
+}
 
-
-        Column(
+/**
+ * Body of the classic (non-turntable) portrait page. Shared with the expand
+ * transition, which passes an empty box of the measured size as [artwork], so
+ * the transition's last frame is laid out exactly like the page.
+ */
+@Composable
+internal fun ClassicNowPlayingBody(
+    paddingValues: PaddingValues,
+    musicState: MusicState,
+    hiddenButtons: Set<NowPlayingButton>,
+    onHandlePlayerActions: (PlayerActions) -> Unit,
+    showArtBackground: Boolean,
+    artwork: @Composable (Modifier) -> Unit
+) {
+    if (showArtBackground) {
+        AsyncImage(
+            model = musicState.track.artUri,
+            contentDescription = null,
             modifier = Modifier
-                .padding(paddingValues)
-                .padding(horizontal = 15.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Artwork(
-                // Lets the artwork shrink to a square that fits the leftover height in short windows
-                // (e.g. split-screen), instead of overflowing.
-                modifier = Modifier.weight(1f, fill = false),
-                musicState = musicState,
-                onHandlePlayerActions = onHandlePlayerActions,
-                onArtworkBoundsChanged = onArtworkBoundsChanged,
+                .fillMaxSize()
+                .cloudy(100),
+            contentScale = ContentScale.Crop,
+            colorFilter = ColorFilter.tint(
+                color = MaterialTheme.colorScheme.background.copy(0.7f),
+                blendMode = BlendMode.Darken
             )
-            TitleAndArtist(
-                title = musicState.track.title,
-                artist = musicState.track.artist,
-                album = musicState.track.album,
-                isFavorite = musicState.track.isFavorite,
-                onToggleFavorite = {
-                    musicState.track.mediaId.toLongOrNull()
-                        ?.let { onHandlePlayerActions(PlayerActions.ToggleFavorite(it)) }
-                },
-                hiddenButtons = hiddenButtons
-            )
-            CuteSlider(
-                musicState = musicState,
-                onHandlePlayerActions = onHandlePlayerActions
-            )
-            ActionButtonsRow(
-                musicState = musicState,
-                onHandlePlayerActions = onHandlePlayerActions,
-                hiddenButtons = hiddenButtons
-            )
-        }
+        )
     }
 
-
+    Column(
+        modifier = Modifier
+            .padding(paddingValues)
+            .padding(horizontal = 15.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Lets the artwork shrink to a square that fits the leftover height in short windows
+        // (e.g. split-screen), instead of overflowing.
+        artwork(Modifier.weight(1f, fill = false))
+        TitleAndArtist(
+            title = musicState.track.title,
+            artist = musicState.track.artist,
+            album = musicState.track.album,
+            isFavorite = musicState.track.isFavorite,
+            onToggleFavorite = {
+                musicState.track.mediaId.toLongOrNull()
+                    ?.let { onHandlePlayerActions(PlayerActions.ToggleFavorite(it)) }
+            },
+            hiddenButtons = hiddenButtons
+        )
+        CuteSlider(
+            musicState = musicState,
+            onHandlePlayerActions = onHandlePlayerActions
+        )
+        ActionButtonsRow(
+            musicState = musicState,
+            onHandlePlayerActions = onHandlePlayerActions,
+            hiddenButtons = hiddenButtons
+        )
+    }
 }
 
 /**

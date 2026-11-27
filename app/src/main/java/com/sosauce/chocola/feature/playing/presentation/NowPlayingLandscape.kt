@@ -5,6 +5,8 @@
 
 package com.sosauce.chocola.feature.playing.presentation
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -20,10 +22,8 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import top.yukonga.miuix.kmp.basic.Scaffold
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -62,6 +62,8 @@ fun NowPlayingLandscape(
 
     val useTurntable = rememberTurntableEnabled()
     Scaffold(
+        // Pull down anywhere on the page to close.
+        modifier = Modifier.dragToClose(dragToClose),
         containerColor = if (useTurntable) Color.Transparent else MaterialTheme.colorScheme.background
     ) { paddingValues ->
 
@@ -99,7 +101,6 @@ fun NowPlayingLandscape(
             onShrinkToSearchbar = onShrinkToSearchbar,
             onShowSpeedCard = { showSpeedCard = true },
             vinylLayout = useTurntable,
-            recordAreaModifier = Modifier.dragToClose(dragToClose),
             artwork = {
                 Artwork(
 //                    pagerModifier = Modifier

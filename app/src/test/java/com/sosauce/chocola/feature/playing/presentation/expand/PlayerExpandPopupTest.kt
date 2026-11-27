@@ -80,7 +80,11 @@ class PlayerExpandPopupTest {
         assertEquals(miniCard, PlayerExpandMath.containerRect(0f, miniCard, viewport))
         assertEquals(28f, PlayerExpandMath.containerCornerRadiusDp(0f, libraryStyle = true), 0f)
         assertEquals(0f, PlayerExpandMath.transitionBackgroundAlpha(0f), 0f)
-        assertEquals(1f, PlayerExpandMath.glassRimAlpha(0f), 0f)
+        // At 0 the card is the bar: its glass, face and 6dp shadow, 10dp cover corner.
+        assertEquals(1f, PlayerExpandMath.miniSurfaceAlpha(0f), 0f)
+        assertEquals(1f, PlayerExpandMath.miniFaceAlpha(0f), 0f)
+        assertEquals(6f, PlayerExpandMath.containerElevationDp(0f), 0f)
+        assertEquals(10f, PlayerExpandMath.coverCornerRadiusDp(0f, libraryStyle = true), 0f)
         // Overlay becomes touchable as soon as the card is visible at all.
         assertTrue(PlayerExpandPopup.isInteractive(0.01f))
         assertFalse(PlayerExpandPopup.isInteractive(0f))

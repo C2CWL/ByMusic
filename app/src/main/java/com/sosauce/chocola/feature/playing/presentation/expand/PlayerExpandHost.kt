@@ -2,82 +2,48 @@
 
 package com.sosauce.chocola.feature.playing.presentation.expand
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import android.provider.Settings
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
-import coil3.compose.AsyncImage
-import com.sosauce.chocola.R
-import com.sosauce.chocola.core.designsystem.NowPlayingButton
-import com.sosauce.chocola.core.designsystem.components.ActionButtonsRow
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.height
-import com.sosauce.chocola.core.designsystem.components.CuteSlider
 import com.sosauce.chocola.core.domain.player.MusicState
 import com.sosauce.chocola.core.domain.player.PlayerActions
-import com.sosauce.chocola.core.presentation.components.TitleAndArtist
 import com.sosauce.chocola.core.presentation.navigation.Screen
-import com.sosauce.chocola.core.presentation.preferences.rememberHiddenNowPlayingButtons
 import com.sosauce.chocola.feature.playing.presentation.NowPlaying
 import com.sosauce.chocola.feature.playing.presentation.NowPlayingDragToClose
-import com.sosauce.chocola.feature.playing.presentation.components.MoreOptionsButton
-import com.sosauce.chocola.feature.playing.presentation.components.QuickActionsRow
 import com.sosauce.chocola.feature.playing.presentation.expand.PlayerExpandMath.Phase
 import com.sosauce.chocola.core.presentation.preferences.rememberUseTurntable
 import com.sosauce.chocola.feature.playing.presentation.components.LocalTurntableEnabledOverride
@@ -91,7 +57,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
 /**
  * Coordinator for the mini-player expand transition. All visual pieces
@@ -120,6 +85,33 @@ class PlayerExpandController internal constructor(
      */
     var pageDragging by mutableStateOf(false)
         private set
+
+    /**
+     * The transition card has drawn a frame with progress > 0. From then on the
+     * library bar is hidden ([barHidden]) until progress is back at 0, so the
+     * bar and the card (which starts as an exact copy of it) are never both
+     * visible as two different things.
+     */
+    var cardDrawn by mutableStateOf(false)
+        private set
+
+    /** Pixel copy of the mini bar's glass surface, taken when it was tapped. */
+    var miniSurface by mutableStateOf<ImageBitmap?>(null)
+        private set
+
+    val barHidden: Boolean get() = PlayerExpandMath.barHidden(animatable.value, cardDrawn)
+
+    fun onCardDrawn() {
+        if (!cardDrawn && animatable.value > 0f) cardDrawn = true
+    }
+
+    internal fun onHandoffFinished() {
+        if (animatable.value <= 0f) cardDrawn = false
+    }
+
+    fun onMiniSurface(snapshot: ImageBitmap?) {
+        if (snapshot != null) miniSurface = snapshot
+    }
 
     val progress: Float get() = animatable.value
     val isRunning: Boolean get() = animatable.isRunning
@@ -169,10 +161,7 @@ class PlayerExpandController internal constructor(
         }
     }
 
-    private val settleSpec = tween<Float>(
-        durationMillis = PlayerExpandMath.DURATION_MS,
-        easing = Easing { PlayerExpandMath.settleEasing(it) }
-    )
+    private val settleEasing = Easing { PlayerExpandMath.settleEasing(it) }
     private var settleJob: Job? = null
 
     fun onMiniContainer(bounds: Rect) {
@@ -218,10 +207,17 @@ class PlayerExpandController internal constructor(
         pageDragging = true
     }
 
-    fun onPageDragSettled(velocityPxPerSec: Float) {
+    /**
+     * A page swipe ended. Continues from the current progress with the finger's
+     * speed ([travelPx] converts px/s into progress/s); never restarts.
+     */
+    fun onPageDragSettled(velocityPxPerSec: Float, travelPx: Float = 0f) {
         pageDragging = false
         if (reduceMotion) return
-        animateTo(PlayerExpandMath.pageDragSettleTarget(animatable.value, velocityPxPerSec))
+        animateTo(
+            PlayerExpandMath.pageDragSettleTarget(animatable.value, velocityPxPerSec),
+            initialVelocity = PlayerExpandMath.progressVelocity(velocityPxPerSec, travelPx)
+        )
     }
 
     fun collapse() {
@@ -245,10 +241,11 @@ class PlayerExpandController internal constructor(
         settleJob = scope.launch { animatable.snapTo(next) }
     }
 
-    fun onDragSettled(velocityPxPerSec: Float) {
+    /** A drag on the card ended: settle from here, carrying the finger's speed. */
+    fun onDragSettled(velocityPxPerSec: Float, travelPx: Float = 0f) {
         if (reduceMotion) return
         val target = PlayerExpandMath.settleTarget(animatable.value, velocityPxPerSec)
-        animateTo(target, initialVelocity = 0f)
+        animateTo(target, initialVelocity = PlayerExpandMath.progressVelocity(velocityPxPerSec, travelPx))
     }
 
     fun onPlayerNotReady() {
@@ -292,13 +289,31 @@ class PlayerExpandController internal constructor(
         }
     }
 
+    /**
+     * Taps / back use the same decelerate curve both ways, shortened by the
+     * distance left (so a reverse mid-way is not a slow restart). A release
+     * with speed uses a critically damped spring that starts at that speed:
+     * no stop, no jump, no overshoot past 0 or 1 (the animatable is bounded).
+     */
     private fun animateTo(target: Float, initialVelocity: Float = 0f) {
         settleJob?.cancel()
         phase = Phase.Settling
+        val from = animatable.value
+        val spec: AnimationSpec<Float> = if (initialVelocity == 0f) {
+            tween(
+                durationMillis = PlayerExpandMath.settleDurationMs(from, target),
+                easing = settleEasing
+            )
+        } else {
+            spring(
+                dampingRatio = Spring.DampingRatioNoBouncy,
+                stiffness = Spring.StiffnessMediumLow
+            )
+        }
         settleJob = scope.launch {
             animatable.animateTo(
                 targetValue = target,
-                animationSpec = settleSpec,
+                animationSpec = spec,
                 initialVelocity = initialVelocity
             )
             phase = when {
@@ -322,7 +337,8 @@ class PlayerExpandController internal constructor(
 fun rememberPlayerExpandController(initiallyExpanded: Boolean): PlayerExpandController {
     val scope = rememberCoroutineScope()
     val animatable = remember {
-        Animatable(if (initiallyExpanded) 1f else 0f)
+        // Bounded: a fast release can never push the card past the page or the bar.
+        Animatable(if (initiallyExpanded) 1f else 0f).apply { updateBounds(0f, 1f) }
     }
     val controller = remember(scope, animatable) {
         PlayerExpandController(scope, animatable)
@@ -379,13 +395,41 @@ fun PlayerExpandOverlay(
     } else {
         MaterialTheme.colorScheme.surfaceContainer
     }
+    // The bar's colors, read here (outside the turntable theme) so the card's
+    // copy of the bar looks exactly like the bar.
+    val barColors = MaterialTheme.colorScheme
+    val barContentColor = LocalContentColor.current
+    val miniSurface = controller.miniSurface
+    val skin = if (libraryStyle) {
+        remember(miniSurface, barColors, barContentColor, miniBackground) {
+            MiniCardSkin(miniSurface, miniBackground, barColors, barContentColor)
+        }
+    } else {
+        null
+    }
 
     val readProgress = remember(controller) { { controller.progress } }
     val movingOrExpanded by remember(controller) { derivedStateOf { controller.progress > 0f } }
     val interactive by remember(controller) {
         derivedStateOf { PlayerExpandPopup.isInteractive(controller.progress) }
     }
+    // Hand-back to the bar: when progress reaches 0 the bar is shown again in
+    // that frame (barHidden), and the card, now identical to it, stays on top
+    // for a couple of frames so the popup window goes away over the same pixels.
+    var lingering by remember(controller) { mutableStateOf(false) }
+    LaunchedEffect(controller, movingOrExpanded) {
+        if (movingOrExpanded) {
+            lingering = true
+        } else {
+            if (lingering) {
+                repeat(PlayerExpandMath.HANDOFF_LINGER_FRAMES) { withFrameNanos { } }
+            }
+            lingering = false
+            controller.onHandoffFinished()
+        }
+    }
     val showOverlay = movingOrExpanded ||
+        lingering ||
         controller.pendingMeasure ||
         controller.pendingExpand ||
         controller.phase == Phase.Preparing
@@ -450,9 +494,12 @@ fun PlayerExpandOverlay(
 
                 // The page is composed first so the transition layer sits above it
                 // and its slot never moves between transition and settled states.
-                val keepPageReady = style == VinylExpandMath.Style.Vinyl &&
-                    canDrawTransition &&
-                    prepareSettledPage
+                val keepPageReady = canDrawTransition && prepareSettledPage
+                val travel = if (miniContainer != null) {
+                    PlayerExpandMath.travelPx(viewport.height, miniContainer.height)
+                } else {
+                    0f
+                }
                 // Lyrics layer over the settled turntable page (0 = page, 1 = lyrics).
                 val lyricsProgress = if (style == VinylExpandMath.Style.Vinyl && settled) {
                     controller.lyricsProgress
@@ -500,19 +547,15 @@ fun PlayerExpandOverlay(
                                 onNavigate = onNavigate,
                                 onShrinkToSearchbar = controller::collapse,
                                 onArtworkBoundsChanged = controller::onFullArt,
-                                // Swipe down on the settled turntable page runs the
-                                // expand progress backwards (same transition layer).
-                                dragToClose = if (style == VinylExpandMath.Style.Vinyl && canDrawTransition) {
+                                // Pull down anywhere on the settled page (both styles)
+                                // runs the expand progress backwards with the finger.
+                                dragToClose = if (canDrawTransition) {
                                     NowPlayingDragToClose(
                                         onStart = controller::onPageDragStarted,
                                         onDelta = { px ->
-                                            val travel = PlayerExpandMath.travelPx(
-                                                viewport.height,
-                                                miniContainer!!.height
-                                            )
                                             controller.onDragDelta(PlayerExpandMath.dragDeltaProgress(px, travel))
                                         },
-                                        onStop = controller::onPageDragSettled
+                                        onStop = { velocity -> controller.onPageDragSettled(velocity, travel) }
                                     )
                                 } else {
                                     null
@@ -533,29 +576,31 @@ fun PlayerExpandOverlay(
                         viewport = viewport,
                         miniBackground = miniBackground,
                         turntable = turntableShared,
+                        skin = skin,
+                        onCardDrawn = controller::onCardDrawn,
                         onDragDelta = { px ->
-                            val travel = PlayerExpandMath.travelPx(viewport.height, miniContainer.height)
                             controller.onDragDelta(PlayerExpandMath.dragDeltaProgress(px, travel))
                         },
-                        onDragSettled = controller::onDragSettled,
+                        onDragSettled = { velocity -> controller.onDragSettled(velocity, travel) },
                         onCollapse = controller::collapse,
                         onHandlePlayerActions = onHandlePlayerActions,
                         onNavigate = onNavigate
                     )
                 } else if (!settled && canDrawTransition) {
-                    TransitionLayer(
-                        readProgress = readProgress,
+                    ClassicTransitionLayer(
+                        progress = readProgress,
                         libraryStyle = libraryStyle,
                         musicState = musicState,
                         miniContainer = miniContainer!!,
                         miniArt = miniArt!!,
                         fullArt = fullArt!!,
                         viewport = viewport,
+                        skin = skin,
+                        onCardDrawn = controller::onCardDrawn,
                         onDragDelta = { px ->
-                            val travel = PlayerExpandMath.travelPx(viewport.height, miniContainer.height)
                             controller.onDragDelta(PlayerExpandMath.dragDeltaProgress(px, travel))
                         },
-                        onDragSettled = controller::onDragSettled,
+                        onDragSettled = { velocity -> controller.onDragSettled(velocity, travel) },
                         onCollapse = controller::collapse,
                         onHandlePlayerActions = onHandlePlayerActions,
                         onNavigate = onNavigate
@@ -592,231 +637,6 @@ fun PlayerExpandOverlay(
             } else {
                 overlayBody()
             }
-        }
-    }
-}
-
-@Composable
-private fun TransitionLayer(
-    readProgress: () -> Float,
-    libraryStyle: Boolean,
-    musicState: MusicState,
-    miniContainer: Rect,
-    miniArt: Rect,
-    fullArt: Rect,
-    viewport: Rect,
-    onDragDelta: (Float) -> Unit,
-    onDragSettled: (Float) -> Unit,
-    onCollapse: () -> Unit,
-    onHandlePlayerActions: (PlayerActions) -> Unit,
-    onNavigate: (Screen) -> Unit
-) {
-    val density = LocalDensity.current
-    val progress = readProgress()
-    // The tween already applies the settle easing; while dragging, progress
-    // is set directly and stays 1:1 with the finger. No second transform here.
-    val container = PlayerExpandMath.containerRect(progress, miniContainer, viewport)
-    val cover = PlayerExpandMath.coverRect(progress, miniArt, fullArt)
-    val containerCorner = PlayerExpandMath.containerCornerRadiusDp(progress, libraryStyle)
-    val coverCorner = PlayerExpandMath.coverCornerRadiusDp(progress, libraryStyle)
-    val fullChrome = PlayerExpandMath.fullChromeAlpha(progress)
-    val topChrome = PlayerExpandMath.topChromeAlpha(progress)
-    val background = MaterialTheme.colorScheme.background
-    val backgroundAlpha = PlayerExpandMath.transitionBackgroundAlpha(progress)
-    val glassRimAlpha = PlayerExpandMath.glassRimAlpha(progress)
-    val darkSurface = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    val dragState = rememberDraggableState { delta -> onDragDelta(delta) }
-
-    Box(Modifier.fillMaxSize()) {
-        val left = container.left
-        val top = container.top
-        val widthPx = container.width.coerceAtLeast(1f)
-        val heightPx = container.height.coerceAtLeast(1f)
-        val cornerDp = containerCorner.dp
-        val containerShape = remember(cornerDp) { RoundedCornerShape(cornerDp) }
-        Box(
-            modifier = Modifier
-                .offset { IntOffset(left.roundToInt(), top.roundToInt()) }
-                .requiredSize(with(density) { widthPx.toDp() }, with(density) { heightPx.toDp() })
-                .shadow(
-                    // Scaled with the card's opacity: a full shadow under a still
-                    // see-through card would show as a grey smear inside it.
-                    elevation = if (progress in 0.02f..0.98f) (8f * backgroundAlpha).dp else 0.dp,
-                    shape = containerShape
-                )
-                .clip(containerShape)
-                .drawWithContent {
-                    drawRect(background, alpha = backgroundAlpha)
-                    drawContent()
-                    drawTransitionGlassRim(glassRimAlpha, cornerDp.toPx(), darkSurface)
-                }
-                .draggable(
-                    state = dragState,
-                    orientation = Orientation.Vertical,
-                    onDragStopped = { velocity -> onDragSettled(velocity) }
-                )
-        ) {
-            if (fullChrome > 0f) {
-                TransitionChrome(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer { alpha = fullChrome },
-                    musicState = musicState,
-                    cover = cover,
-                    container = container,
-                    progress = progress,
-                    topChromeAlpha = topChrome,
-                    pointerEnabled = progress > 0.8f,
-                    onCollapse = onCollapse,
-                    onHandlePlayerActions = onHandlePlayerActions,
-                    onNavigate = onNavigate
-                )
-            }
-
-            // Single cover, positioned in container space so the rising clip applies.
-            val coverShape = remember(coverCorner) { RoundedCornerShape(coverCorner.dp) }
-            Box(
-                modifier = Modifier
-                    .offset {
-                        IntOffset(
-                            (cover.left - container.left).roundToInt(),
-                            (cover.top - container.top).roundToInt()
-                        )
-                    }
-                    .requiredSize(
-                        with(density) { cover.width.coerceAtLeast(1f).toDp() },
-                        with(density) { cover.height.coerceAtLeast(1f).toDp() }
-                    )
-                    .clip(coverShape)
-            ) {
-                val artUri = musicState.track.artUri
-                if (artUri.isNullOrBlank()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.music_note),
-                            contentDescription = null,
-                            tint = contentColorFor(MaterialTheme.colorScheme.surfaceContainerHigh)
-                        )
-                    }
-                } else {
-                    AsyncImage(
-                        model = artUri,
-                        contentDescription = stringResource(R.string.artwork),
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TransitionChrome(
-    modifier: Modifier = Modifier,
-    musicState: MusicState,
-    cover: Rect,
-    container: Rect,
-    progress: Float,
-    topChromeAlpha: Float,
-    pointerEnabled: Boolean,
-    onCollapse: () -> Unit,
-    onHandlePlayerActions: (PlayerActions) -> Unit,
-    onNavigate: (Screen) -> Unit
-) {
-    val density = LocalDensity.current
-    val hiddenButtons = rememberHiddenNowPlayingButtons()
-    val startGap = with(density) { 12.dp.toPx() }
-    val endGap = with(density) { 22.dp.toPx() }
-    val gap = PlayerExpandMath.chromeGapPx(progress, startGap, endGap)
-    val columnTopInContainer = (cover.bottom + gap - container.top).coerceAtLeast(0f)
-
-    Box(modifier = modifier.graphicsLayer { alpha = if (pointerEnabled) 1f else 1f }) {
-        if (topChromeAlpha > 0f) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(horizontal = 15.dp, vertical = 8.dp)
-                    .graphicsLayer { alpha = topChromeAlpha },
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (NowPlayingButton.CLOSE !in hiddenButtons) {
-                    IconButton(
-                        onClick = onCollapse,
-                        enabled = pointerEnabled && topChromeAlpha > 0.5f,
-                        shapes = IconButtonDefaults.shapes(),
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                            contentColor = contentColorFor(MaterialTheme.colorScheme.surfaceContainer)
-                        ),
-                        modifier = Modifier.size(
-                            IconButtonDefaults.smallContainerSize(
-                                IconButtonDefaults.IconButtonWidthOption.Wide
-                            )
-                        )
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.arrow_down),
-                            contentDescription = null,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                }
-                Box(Modifier.weight(1f))
-                MoreOptionsButton(
-                    modifier = Modifier,
-                    musicState = musicState,
-                    onNavigate = onNavigate,
-                    onShrinkToSearchbar = onCollapse,
-                    onHandlePlayerActions = onHandlePlayerActions,
-                    hiddenButtons = hiddenButtons
-                )
-            }
-        }
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .offset { IntOffset(0, columnTopInContainer.roundToInt()) }
-                .padding(horizontal = 15.dp)
-                .graphicsLayer { this.alpha = 1f },
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            TitleAndArtist(
-                title = musicState.track.title,
-                artist = musicState.track.artist,
-                album = musicState.track.album,
-                isFavorite = musicState.track.isFavorite,
-                onToggleFavorite = {
-                    if (pointerEnabled) {
-                        musicState.track.mediaId.toLongOrNull()
-                            ?.let { onHandlePlayerActions(PlayerActions.ToggleFavorite(it)) }
-                    }
-                },
-                hiddenButtons = hiddenButtons
-            )
-            CuteSlider(
-                musicState = musicState,
-                onHandlePlayerActions = onHandlePlayerActions
-            )
-            ActionButtonsRow(
-                musicState = musicState,
-                onHandlePlayerActions = onHandlePlayerActions,
-                hiddenButtons = hiddenButtons
-            )
-            QuickActionsRow(
-                musicState = musicState,
-                onShowSpeedCard = {},
-                onHandlePlayerActions = onHandlePlayerActions,
-                hiddenButtons = hiddenButtons
-            )
         }
     }
 }

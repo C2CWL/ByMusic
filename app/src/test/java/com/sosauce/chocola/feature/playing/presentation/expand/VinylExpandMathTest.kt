@@ -50,22 +50,37 @@ class VinylExpandMathTest {
     }
 
     @Test
-    fun recordGrowsAroundCoverAndLandsExactly() {
-        val start = VinylExpandMath.labelRect(0f, miniArt, fullArt)
-        assertRect(start, VinylExpandMath.discRect(0f, start))
-        val end = VinylExpandMath.labelRect(1f, miniArt, fullArt)
-        assertRect(VinylExpandMath.discRectFor(fullArt), VinylExpandMath.discRect(1f, end))
+    fun squareCoverGrowsIntoTheRecordFirstThenShrinksIntoTheLabel() {
+        val disc = VinylExpandMath.discRectFor(fullArt)
+        // Halfway the square cover covers exactly the record's place.
+        assertRect(disc, VinylExpandMath.labelRect(VinylExpandMath.SQUARE_PHASE_END, miniArt, fullArt))
         var previous = 0f
         for (i in 0..20) {
-            val p = i / 20f
+            val p = i / 20f * VinylExpandMath.SQUARE_PHASE_END
             val label = VinylExpandMath.labelRect(p, miniArt, fullArt)
-            val disc = VinylExpandMath.discRect(p, label)
-            assertTrue("record never smaller than cover", disc.width >= label.width - 1e-3f)
-            assertEquals(label.center.x, disc.center.x, 1e-2f)
-            assertEquals(label.center.y, disc.center.y, 1e-2f)
-            assertTrue("record keeps growing", disc.width >= previous)
-            previous = disc.width
+            assertEquals("cover stays square", label.width, label.height, 1e-2f)
+            assertTrue("cover grows in the first half", label.width >= previous - 1e-3f)
+            previous = label.width
         }
+        for (i in 0..20) {
+            val p = VinylExpandMath.SQUARE_PHASE_END + i / 20f * (1f - VinylExpandMath.SQUARE_PHASE_END)
+            val label = VinylExpandMath.labelRect(p, miniArt, fullArt)
+            // Second half: shrinks in place on the record's center.
+            assertEquals(disc.center.x, label.center.x, 1e-2f)
+            assertEquals(disc.center.y, label.center.y, 1e-2f)
+            assertTrue("cover shrinks in the second half", label.width <= previous + 1e-3f)
+            previous = label.width
+        }
+    }
+
+    @Test
+    fun recordStaysAtItsSettledPlaceAndOnlyFadesInLate() {
+        val disc = VinylExpandMath.discRectFor(fullArt)
+        for (i in 0..20) {
+            assertRect(disc, VinylExpandMath.discRect(i / 20f, fullArt))
+        }
+        assertEquals(0f, VinylExpandMath.discAlpha(VinylExpandMath.SQUARE_PHASE_END), 0f)
+        assertEquals(0f, VinylExpandMath.discAlpha(0.3f), 0f)
     }
 
     @Test
@@ -75,13 +90,16 @@ class VinylExpandMathTest {
     }
 
     @Test
-    fun coverCornersCloseIntoCircleByHalfway() {
+    fun coverCornersStaySquareFirstThenCloseIntoCircle() {
         val side = 200f
         assertEquals(12f, VinylExpandMath.labelCornerRadiusPx(0f, 12f, side), 1e-4f)
+        // Square-cover phase keeps the mini corner.
+        assertEquals(12f, VinylExpandMath.labelCornerRadiusPx(0.25f, 12f, side), 1e-4f)
+        assertEquals(12f, VinylExpandMath.labelCornerRadiusPx(VinylExpandMath.SQUARE_PHASE_END, 12f, side), 1e-4f)
         assertEquals(100f, VinylExpandMath.labelCornerRadiusPx(VinylExpandMath.ROUND_END, 12f, side), 1e-4f)
         assertEquals(100f, VinylExpandMath.labelCornerRadiusPx(1f, 12f, side), 1e-4f)
-        val mid = VinylExpandMath.labelCornerRadiusPx(0.25f, 12f, side)
-        assertTrue(mid in 12f..100f)
+        val mid = VinylExpandMath.labelCornerRadiusPx(0.7f, 12f, side)
+        assertTrue(mid in 12.01f..99.99f)
         // A start corner larger than a circle is clamped.
         assertEquals(100f, VinylExpandMath.labelCornerRadiusPx(0f, 400f, side), 1e-4f)
     }
@@ -98,8 +116,10 @@ class VinylExpandMathTest {
         // Still stars only near the end.
         assertEquals(0f, VinylExpandMath.starsAlpha(0.7f), 0f)
         assertEquals(1f, VinylExpandMath.starsAlpha(1f), 0f)
-        // Backdrop: mini-bar color at 0, page backdrop fully by the end.
+        // Backdrop: mini-bar color at 0 and through the square phase start, page backdrop fully by the end.
         assertEquals(0f, VinylExpandMath.backdropAlpha(0f), 0f)
+        assertEquals(0f, VinylExpandMath.backdropAlpha(0.4f), 0f)
+        assertTrue(VinylExpandMath.backdropAlpha(0.6f) in 0.01f..0.99f)
         assertEquals(1f, VinylExpandMath.backdropAlpha(1f), 0f)
     }
 
@@ -109,7 +129,9 @@ class VinylExpandMathTest {
         // 250 degrees lands as -110, the same orientation turned the short way.
         assertEquals(-110f, VinylExpandMath.recordRotation(1f, 250f), 1e-3f)
         assertEquals(90f, VinylExpandMath.recordRotation(1f, 450f), 1e-3f)
-        assertEquals(-55f, VinylExpandMath.recordRotation(0.5f, 250f), 1e-3f)
+        // Upright through the square phase, turns only in the second half.
+        assertEquals(0f, VinylExpandMath.recordRotation(0.5f, 250f), 1e-3f)
+        assertEquals(-55f, VinylExpandMath.recordRotation(0.75f, 250f), 1e-3f)
     }
 
     @Test
