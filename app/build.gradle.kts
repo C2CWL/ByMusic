@@ -28,8 +28,8 @@ android {
         minSdk = 28
         targetSdk = 37
         resourceConfigurations += listOf("zh-rCN")
-        versionCode = 25
-        versionName = "2.5"
+        versionCode = 26
+        versionName = "2.6"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
