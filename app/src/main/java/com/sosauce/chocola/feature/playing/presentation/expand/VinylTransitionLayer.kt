@@ -5,6 +5,7 @@
 
 package com.sosauce.chocola.feature.playing.presentation.expand
 
+import androidx.compose.runtime.getValue
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
@@ -21,13 +22,11 @@ import androidx.compose.material3.MaterialTheme
 import top.yukonga.miuix.kmp.basic.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
@@ -64,10 +63,13 @@ import kotlin.math.roundToInt
 /**
  * Expand transition when the turntable page is on. Must be composed inside the
  * same turntable color theme as the settled page (the overlay does this), so
- * colors never change on landing. Every frame is a turntable frame: no square
- * full-size cover, no classic backdrop. The record is still (no spin, no glint
- * motion) while moving; the settled page continues from the same angle/glints.
- * Halo, body and sheen use the exact drawing of the settled page.
+ * colors never change on landing. The card starts as the mini bar itself
+ * ([MiniCardSkin]); in the first half the square cover grows into the record's
+ * place on the light card, in the second half it shrinks into the round label
+ * while the record, the dark backdrop and the stars fade in around it. The
+ * record is still (no spin, no glint motion) while moving; the settled page
+ * continues from the same angle/glints. Halo, body and sheen use the exact
+ * drawing of the settled page.
  */
 @Composable
 internal fun VinylTransitionLayer(
@@ -80,6 +82,8 @@ internal fun VinylTransitionLayer(
     viewport: Rect,
     miniBackground: Color,
     turntable: TurntableSharedState,
+    skin: MiniCardSkin?,
+    onCardDrawn: () -> Unit,
     onDragDelta: (Float) -> Unit,
     onDragSettled: (Float) -> Unit,
     onCollapse: () -> Unit,
@@ -94,7 +98,7 @@ internal fun VinylTransitionLayer(
         derivedStateOf {
             val t = progress()
             val label = VinylExpandMath.labelRect(t, miniArt, fullArt)
-            val disc = VinylExpandMath.discRect(t, label)
+            val disc = VinylExpandMath.discRect(t, fullArt)
             VinylArtFrame(label, disc, VinylExpandMath.artBoxForDisc(disc))
         }
     }
@@ -104,6 +108,9 @@ internal fun VinylTransitionLayer(
     val startRadiusPx = with(density) { PlayerExpandMath.coverCornerRadiusDp(0f, libraryStyle).dp.toPx() }
     val recordDegrees = { VinylExpandMath.recordRotation(progress(), turntable.rotation.value) }
     val showChrome by remember(progress) { derivedStateOf { PlayerExpandMath.fullChromeAlpha(progress()) > 0f } }
+    val showFace by remember(progress, skin) {
+        derivedStateOf { skin != null && PlayerExpandMath.miniFaceAlpha(progress()) > 0f }
+    }
     val dragState = rememberDraggableState { delta -> onDragDelta(delta) }
 
     val accent = MaterialTheme.colorScheme.primary
@@ -111,7 +118,6 @@ internal fun VinylTransitionLayer(
     val metal = MaterialTheme.colorScheme.secondary
     val backdrop = turntableBackdropBrush()
     val starlight = MaterialTheme.colorScheme.onSurface
-    val darkSurface = surface.luminance() < 0.5f
     val armDegrees = TurntableMotion.playPauseArmTarget(musicState.isPlaying)
 
     Box(Modifier.fillMaxSize(), contentAlignment = AbsoluteAlignment.TopLeft) {
@@ -124,11 +130,16 @@ internal fun VinylTransitionLayer(
                 .graphicsLayer {
                     val t = progress()
                     shape = RoundedCornerShape(PlayerExpandMath.containerCornerRadiusDp(t, libraryStyle).dp)
-                    shadowElevation = if (t in 0.02f..0.98f) {
-                        // Grows with the card's opacity so no shadow shows through the glass.
-                        8.dp.toPx() * PlayerExpandMath.transitionBackgroundAlpha(t)
+                    if (skin != null) {
+                        // The bar's own shadow at 0, gone before the page lands.
+                        miniCardShadow(skin, t)
                     } else {
-                        0f
+                        shadowElevation = if (t in 0.02f..0.98f) {
+                            // Grows with the card's opacity so no shadow shows through the glass.
+                            8.dp.toPx() * PlayerExpandMath.transitionBackgroundAlpha(t)
+                        } else {
+                            0f
+                        }
                     }
                     clip = true
                 }
@@ -136,6 +147,10 @@ internal fun VinylTransitionLayer(
                     val t = progress()
                     val backgroundAlpha = PlayerExpandMath.transitionBackgroundAlpha(t)
                     val backdropAlpha = VinylExpandMath.backdropAlpha(t)
+                    // At 0 the card is the bar's glass (snapshot); the light mini
+                    // color carries the first half, the dark turntable backdrop
+                    // and stars only come in from 0.4.
+                    if (skin != null) drawMiniSurface(skin, t)
                     drawRect(miniBackground, alpha = backgroundAlpha)
                     if (backdropAlpha > 0f) {
                         drawRect(surface, alpha = backdropAlpha * backgroundAlpha)
@@ -143,11 +158,7 @@ internal fun VinylTransitionLayer(
                         drawTurntableStars(starlight, alpha = backdropAlpha * backgroundAlpha)
                     }
                     drawContent()
-                    drawTransitionGlassRim(
-                        alpha = PlayerExpandMath.glassRimAlpha(t),
-                        cornerRadiusPx = PlayerExpandMath.containerCornerRadiusDp(t, libraryStyle).dp.toPx(),
-                        dark = darkSurface
-                    )
+                    if (t > 0f) onCardDrawn()
                 }
                 .draggable(
                     state = dragState,
@@ -165,6 +176,15 @@ internal fun VinylTransitionLayer(
                 },
             contentAlignment = AbsoluteAlignment.TopLeft
         ) {
+            if (showFace && skin != null) {
+                MiniCardFace(
+                    skin = skin,
+                    miniContainer = miniContainer,
+                    musicState = musicState,
+                    progress = progress
+                )
+            }
+
             if (showChrome) {
                 VinylTransitionChrome(
                     musicState = musicState,
@@ -186,7 +206,7 @@ internal fun VinylTransitionLayer(
                     .turntableHalo(surface, accent)
             )
 
-            // Record body, grown around the cover.
+            // Record body: fixed at its settled place, fades in under the shrinking cover.
             Box(
                 Modifier
                     .fixedArtLayer(endDisc, { frame.value.disc })
@@ -208,7 +228,8 @@ internal fun VinylTransitionLayer(
                     .turntableSheen(surface, accent, turntable.glint) { VinylExpandMath.starsAlpha(progress()) }
             )
 
-            // The one cover: mini art at 0, record label at 1. Corners close into a circle.
+            // The one cover: mini art at 0, a square over the whole record at 0.5,
+            // record label at 1. Corners only close into a circle in the second half.
             Box(
                 modifier = Modifier
                     .fixedArtLayer(endLabel, { frame.value.label }) {

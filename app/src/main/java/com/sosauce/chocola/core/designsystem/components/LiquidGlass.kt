@@ -1,32 +1,39 @@
 package com.sosauce.chocola.core.designsystem.components
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
+import android.graphics.Shader
 import android.os.Build
+import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.RenderEffect
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.addOutline
+import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
@@ -120,110 +127,149 @@ fun Modifier.glassBackdropSource(
         }
 }
 
+/** Which surface the mini player actually draws; logged once per change for diagnostics. */
+enum class GlassMode { Off, Static, Live }
+
+private const val GLASS_TAG = "ByMusicGlass"
+
 /**
  * Liquid-glass surface for the mini player.
  *
- * - Setting off: opaque surface (unchanged behaviour).
- * - API 31+ with a [GlassBackdrop]: live blur of only this surface's area, a light
- *   tint for text contrast, and a specular rim.
- * - Otherwise (API 28–30, or no backdrop on this screen): the static [libraryGlass]
- *   with the same specular rim.
+ * - Setting off ([GlassMode.Off]): opaque surface (unchanged behaviour).
+ * - API 31+ with a [GlassBackdrop] ([GlassMode.Live]): live blur + saturation of
+ *   only this surface's area, a light 15–25% tint, a light-grey outer edge and a
+ *   white inner highlight.
+ * - Otherwise ([GlassMode.Static], API 28–30 or no backdrop on this screen): the
+ *   static translucent gradient with the same edge and highlight.
+ *
+ * Everything except the content is recorded into [surfaceCapture] (if given)
+ * before it is drawn, so the expand transition can start from a pixel copy of
+ * exactly this surface.
  */
 @Composable
 fun Modifier.liquidGlass(
     shape: Shape,
-    backdrop: GlassBackdrop? = LocalGlassBackdrop.current
+    backdrop: GlassBackdrop? = LocalGlassBackdrop.current,
+    surfaceCapture: GraphicsLayer? = null
 ): Modifier {
     val enabled by rememberLightweightGlass()
     val colors = MaterialTheme.colorScheme
-    // Off: libraryGlass already falls back to the opaque surface.
-    if (!enabled) return libraryGlass(shape)
-
     val dark = colors.surface.luminance() < 0.5f
-    val rim = rememberGlassRim(dark)
-    if (backdrop == null || !GlassBackdrop.isSupported) {
-        return libraryGlass(shape).glassRim(shape, rim)
+    val mode = when {
+        !enabled -> GlassMode.Off
+        backdrop != null && GlassBackdrop.isSupported -> GlassMode.Live
+        else -> GlassMode.Static
+    }
+    LaunchedEffect(mode) {
+        Log.i(
+            GLASS_TAG,
+            "mini player glass mode=$mode sdk=${Build.VERSION.SDK_INT} " +
+                "setting=$enabled backdrop=${backdrop != null}"
+        )
     }
 
+    val ownCapture = rememberGraphicsLayer()
+    val capture = surfaceCapture ?: ownCapture
     val blurLayer = rememberGraphicsLayer()
     val blurRadius = 22.dp
     var selfOffset by remember { mutableStateOf(Offset.Zero) }
-    // Tint keeps text readable over whatever scrolls behind (pure black included).
-    val tintTop = colors.surface.copy(alpha = if (dark) 0.58f else 0.50f)
-    val tintBottom = colors.surfaceContainerHigh.copy(alpha = if (dark) 0.50f else 0.38f)
+
+    val surface = colors.surface
+    val tintTop = if (dark) colors.surface.copy(alpha = 0.50f) else colors.surface.copy(alpha = 0.22f)
+    val tintBottom = if (dark) {
+        colors.surfaceContainerHigh.copy(alpha = 0.42f)
+    } else {
+        colors.surfaceContainerHigh.copy(alpha = 0.15f)
+    }
+    val staticTop = colors.surfaceContainerHigh.copy(alpha = 0.72f)
+    val staticBottom = colors.surface.copy(alpha = 0.60f)
+    val edgeColor = if (dark) Color.White.copy(alpha = 0.14f) else Color.Black.copy(alpha = 0.10f)
+    val highlightTop = if (dark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.95f)
+    val highlightBottom = if (dark) Color.White.copy(alpha = 0.03f) else Color.White.copy(alpha = 0.30f)
 
     return this
         .onGloballyPositioned { selfOffset = it.positionInWindow() }
         .clip(shape)
-        .drawBehind {
-            val base = backdrop.baseColor.takeOrElse(colors.surface)
-            drawRect(base)
-            val source = backdrop.layer
-            if (source != null && backdrop.recorded) {
-                val radiusPx = blurRadius.toPx()
-                val pad = ceil(radiusPx * 2f)
-                blurLayer.renderEffect = BlurEffect(radiusPx, radiusPx, TileMode.Clamp)
-                blurLayer.record(
-                    size = IntSize(
-                        (size.width + pad * 2).toInt().coerceAtLeast(1),
-                        (size.height + pad * 2).toInt().coerceAtLeast(1)
-                    )
-                ) {
-                    translate(
-                        left = backdrop.sourceOffset.x - selfOffset.x + pad,
-                        top = backdrop.sourceOffset.y - selfOffset.y + pad
-                    ) {
-                        drawLayer(source)
+        .drawWithCache {
+            val outline = shape.createOutline(size, layoutDirection, this)
+            val clip = Path().apply { addOutline(outline) }
+            val stroke = 1.dp.toPx()
+            val inset = stroke * 1.5f
+            val innerOutline = shape.createOutline(
+                Size((size.width - inset * 2f).coerceAtLeast(1f), (size.height - inset * 2f).coerceAtLeast(1f)),
+                layoutDirection,
+                this
+            )
+            val radiusPx = blurRadius.toPx()
+            val pad = ceil(radiusPx * 2f)
+            val effect: RenderEffect? = if (mode == GlassMode.Live && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                glassRenderEffect(radiusPx)
+            } else {
+                null
+            }
+            val tint = Brush.verticalGradient(listOf(tintTop, tintBottom))
+            val staticFill = Brush.verticalGradient(listOf(staticTop, staticBottom))
+            val highlight = Brush.verticalGradient(listOf(highlightTop, highlightBottom))
+
+            fun DrawScope.drawEdges() {
+                drawOutline(outline, color = edgeColor, style = Stroke(width = stroke * 2f))
+                translate(inset, inset) {
+                    drawOutline(innerOutline, brush = highlight, style = Stroke(width = stroke))
+                }
+            }
+
+            fun DrawScope.drawSurface() {
+                when (mode) {
+                    GlassMode.Off -> drawRect(surface)
+                    GlassMode.Static -> {
+                        drawRect(staticFill)
+                        drawEdges()
+                    }
+                    GlassMode.Live -> {
+                        val bd = backdrop
+                        val source = bd?.layer
+                        drawRect(bd?.baseColor?.takeOrElse(surface) ?: surface)
+                        if (bd != null && source != null && bd.recorded && effect != null) {
+                            blurLayer.renderEffect = effect
+                            blurLayer.record(
+                                size = IntSize(
+                                    (size.width + pad * 2).toInt().coerceAtLeast(1),
+                                    (size.height + pad * 2).toInt().coerceAtLeast(1)
+                                )
+                            ) {
+                                translate(
+                                    left = bd.sourceOffset.x - selfOffset.x + pad,
+                                    top = bd.sourceOffset.y - selfOffset.y + pad
+                                ) {
+                                    drawLayer(source)
+                                }
+                            }
+                            translate(-pad, -pad) { drawLayer(blurLayer) }
+                        }
+                        drawRect(tint)
+                        drawEdges()
                     }
                 }
-                translate(-pad, -pad) { drawLayer(blurLayer) }
             }
-            drawRect(Brush.verticalGradient(listOf(tintTop, tintBottom)))
+
+            onDrawWithContent {
+                capture.record {
+                    clipPath(clip) { drawSurface() }
+                }
+                drawLayer(capture)
+                drawContent()
+            }
         }
-        .glassRim(shape, rim)
+}
+
+/** Blur, then saturation, so the colours behind read through the light tint. */
+@RequiresApi(Build.VERSION_CODES.S)
+private fun glassRenderEffect(radiusPx: Float): RenderEffect {
+    val blur = android.graphics.RenderEffect.createBlurEffect(radiusPx, radiusPx, Shader.TileMode.CLAMP)
+    val saturation = ColorMatrix().apply { setSaturation(1.6f) }
+    val color = android.graphics.RenderEffect.createColorFilterEffect(ColorMatrixColorFilter(saturation))
+    // createChainEffect(outer, inner): inner (blur) runs first.
+    return android.graphics.RenderEffect.createChainEffect(color, blur).asComposeRenderEffect()
 }
 
 private fun Color.takeOrElse(other: Color): Color = if (this == Color.Unspecified) other else this
-
-internal data class GlassRim(val highlight: Color, val edge: Color, val glow: Color)
-
-@Composable
-private fun rememberGlassRim(dark: Boolean): GlassRim = remember(dark) {
-    if (dark) {
-        GlassRim(
-            highlight = Color.White.copy(alpha = 0.16f),
-            edge = Color.White.copy(alpha = 0.10f),
-            glow = Color.White.copy(alpha = 0.06f)
-        )
-    } else {
-        GlassRim(
-            highlight = Color.White.copy(alpha = 0.90f),
-            edge = Color.White.copy(alpha = 0.55f),
-            glow = Color.White.copy(alpha = 0.35f)
-        )
-    }
-}
-
-/** Specular top light, thin bright edge and a soft corner glow drawn over the content. */
-internal fun Modifier.glassRim(shape: Shape, rim: GlassRim): Modifier = drawWithCache {
-    val stroke = 1.dp.toPx()
-    val inset = Size(size.width - stroke, size.height - stroke)
-    val insetOutline = shape.createOutline(inset, layoutDirection, this)
-    val glow = Brush.radialGradient(
-        colors = listOf(rim.glow, Color.Transparent),
-        center = Offset(size.width * 0.12f, -size.height * 0.35f),
-        radius = size.width * 0.45f
-    )
-    val edgeBrush = Brush.verticalGradient(listOf(rim.highlight, rim.edge, rim.edge.copy(alpha = rim.edge.alpha * 0.6f)))
-    onDrawWithContent {
-        drawRect(glow)
-        drawContent()
-        translate(stroke / 2f, stroke / 2f) {
-            drawOutlineStroke(insetOutline, edgeBrush, stroke)
-        }
-    }
-}
-
-private fun DrawScope.drawOutlineStroke(outline: Outline, brush: Brush, width: Float) {
-    drawOutline(outline = outline, brush = brush, style = Stroke(width = width))
-}

@@ -2,6 +2,8 @@
 
 package com.sosauce.chocola.core.presentation.components
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
@@ -26,11 +28,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.unit.Dp
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,7 +70,10 @@ import com.sosauce.chocola.feature.playing.presentation.expand.systemAnimationsD
  * Compact player bar with a liquid-glass surface ([liquidGlass]).
  * Only the bar's own area is blurred, from the screen's [LocalGlassBackdrop]
  * (API 31+); there is no full-screen bitmap capture (see #83/#85). Without a
- * backdrop or below API 31 it falls back to the static library glass.
+ * backdrop or below API 31 it falls back to the static glass.
+ *
+ * Tapping first copies the glass surface (only this bar's pixels, once) and
+ * hands it to [onSurfaceSnapshot], so the expand card starts as exactly this bar.
  */
 @Composable
 fun SharedTransitionScope.MiniPlayerBar(
@@ -74,86 +84,133 @@ fun SharedTransitionScope.MiniPlayerBar(
     onOpenFullPlayer: () -> Unit,
     miniArtAlpha: Float = 1f,
     onMiniCardBoundsChanged: (Rect) -> Unit = {},
-    onMiniArtBoundsChanged: (Rect) -> Unit = {}
+    onMiniArtBoundsChanged: (Rect) -> Unit = {},
+    onSurfaceSnapshot: (ImageBitmap?) -> Unit = {}
 ) {
     if (!musicState.isPlayerReady) return
 
     val colors = MaterialTheme.colorScheme
-    val shape = RoundedCornerShape(28.dp)
+    val shape = RoundedCornerShape(MiniPlayerDefaults.CORNER_DP.dp)
+    val surfaceLayer = rememberGraphicsLayer()
+    val scope = rememberCoroutineScope()
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .navigationBarsPadding()
-            .height(64.dp)
-            .shadow(
-                elevation = 6.dp,
-                shape = shape,
-                ambientColor = colors.scrim.copy(alpha = 0.12f),
-                spotColor = colors.scrim.copy(alpha = 0.20f)
-            )
-            .liquidGlass(shape)
-            .clickable { onOpenFullPlayer() }
+            .height(MiniPlayerDefaults.HEIGHT_DP.dp)
+            .miniPlayerShadow(shape, colors.scrim, MiniPlayerDefaults.ELEVATION_DP.dp)
+            .liquidGlass(shape, surfaceCapture = surfaceLayer)
+            .clickable {
+                scope.launch {
+                    val snapshot = if (surfaceLayer.size.width > 0 && surfaceLayer.size.height > 0) {
+                        runCatching { surfaceLayer.toImageBitmap() }.getOrNull()
+                    } else {
+                        null
+                    }
+                    onSurfaceSnapshot(snapshot)
+                    onOpenFullPlayer()
+                }
+            }
             .onGloballyPositioned { onMiniCardBoundsChanged(it.boundsInWindow()) },
         contentAlignment = Alignment.Center
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
+        MiniPlayerFace(
+            musicState = musicState,
+            onHandlePlayerActions = onHandlePlayerActions,
+            onNavigate = onNavigate,
+            artAlpha = miniArtAlpha,
+            onArtBoundsChanged = onMiniArtBoundsChanged
+        )
+    }
+}
+
+/** Shared sizes of the mini bar, also used by the expand card that starts on it. */
+object MiniPlayerDefaults {
+    const val CORNER_DP = 28f
+    const val HEIGHT_DP = 64f
+    const val ELEVATION_DP = 6f
+    const val ART_CORNER_DP = 10f
+}
+
+/** The mini bar's shadow; the expand card uses the same colors so its first frame matches. */
+fun Modifier.miniPlayerShadow(shape: Shape, scrim: Color, elevation: Dp): Modifier = shadow(
+    elevation = elevation,
+    shape = shape,
+    ambientColor = scrim.copy(alpha = 0.12f),
+    spotColor = scrim.copy(alpha = 0.20f)
+)
+
+/**
+ * The mini bar's content (artwork, title, artist, play/pause, queue). Drawn by
+ * the bar itself and, with the artwork hidden and inert actions, by the expand
+ * card while it leaves / returns to the bar, so both are the same pixels.
+ */
+@Composable
+internal fun MiniPlayerFace(
+    musicState: MusicState,
+    onHandlePlayerActions: (PlayerActions) -> Unit,
+    onNavigate: (Screen) -> Unit,
+    artAlpha: Float = 1f,
+    onArtBoundsChanged: (Rect) -> Unit = {}
+) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        modifier = Modifier.padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .onGloballyPositioned { onArtBoundsChanged(it.boundsInWindow()) }
+                .graphicsLayer { alpha = artAlpha }
+                .clip(RoundedCornerShape(MiniPlayerDefaults.ART_CORNER_DP.dp))
+                .background(colors.surfaceContainerHigh),
+            contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(colors.surfaceContainerHigh)
-                    .onGloballyPositioned { onMiniArtBoundsChanged(it.boundsInWindow()) }
-                    .graphicsLayer { alpha = miniArtAlpha },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.music_note),
-                    contentDescription = null,
-                    modifier = Modifier.size(22.dp),
-                    tint = contentColorFor(colors.surfaceContainerHigh)
-                )
-                AsyncImage(
-                    model = musicState.track.artUri,
-                    contentDescription = stringResource(R.string.artwork),
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 12.dp)
-            ) {
-                Text(
-                    text = musicState.track.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = colors.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = musicState.track.artist,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            PlayPauseButton(
-                isPlaying = musicState.isPlaying,
-                onHandlePlayerActions = onHandlePlayerActions
+            Icon(
+                painter = painterResource(R.drawable.music_note),
+                contentDescription = null,
+                modifier = Modifier.size(22.dp),
+                tint = contentColorFor(colors.surfaceContainerHigh)
             )
+            AsyncImage(
+                model = musicState.track.artUri,
+                contentDescription = stringResource(R.string.artwork),
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
 
-            IconButton(onClick = { onNavigate(Screen.Queue) }) {
-                Icon(painterResource(R.drawable.queue), stringResource(R.string.queue))
-            }
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 12.dp)
+        ) {
+            Text(
+                text = musicState.track.title,
+                style = MaterialTheme.typography.titleMedium,
+                color = colors.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = musicState.track.artist,
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        PlayPauseButton(
+            isPlaying = musicState.isPlaying,
+            onHandlePlayerActions = onHandlePlayerActions
+        )
+
+        IconButton(onClick = { onNavigate(Screen.Queue) }) {
+            Icon(painterResource(R.drawable.queue), stringResource(R.string.queue))
         }
     }
 }
@@ -208,9 +265,12 @@ fun SharedTransitionScope.MiniPlayerBarHost(
         controller.collapse()
     }
 
+    // The card takes over from the bar on its first frame and hands back at
+    // progress 0 (see PlayerExpandMath.barHidden): the bar is never shown
+    // together with a different-looking card.
     Box(
         modifier = modifier.graphicsLayer {
-            alpha = if (PlayerExpandMath.isSettledExpanded(controller.progress)) 0f else 1f
+            alpha = if (controller.barHidden) 0f else 1f
         }
     ) {
         MiniPlayerBar(
@@ -218,11 +278,9 @@ fun SharedTransitionScope.MiniPlayerBarHost(
             onHandlePlayerActions = onHandlePlayerActions,
             onNavigate = onNavigate,
             onOpenFullPlayer = { controller.open() },
-            miniArtAlpha = if (expanding && PlayerExpandMath.boundsReady(
-                controller.miniContainer, controller.miniArt, controller.fullArt
-            )) 0f else 1f,
             onMiniCardBoundsChanged = { controller.onMiniContainer(it) },
-            onMiniArtBoundsChanged = { controller.onMiniArt(it) }
+            onMiniArtBoundsChanged = { controller.onMiniArt(it) },
+            onSurfaceSnapshot = { controller.onMiniSurface(it) }
         )
     }
 

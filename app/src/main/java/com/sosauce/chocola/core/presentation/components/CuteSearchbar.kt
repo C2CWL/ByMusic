@@ -94,6 +94,7 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -201,7 +202,13 @@ fun SharedTransitionScope.CuteSearchbar(
     // so the scaffold bottom bar does not jump and mini bounds stay valid.
     Box(
         modifier = modifier.graphicsLayer {
-            alpha = if (PlayerExpandMath.isSettledExpanded(controller.progress)) 0f else 1f
+            // Library glass bar: the expand card replaces it on the card's first
+            // frame and hands back at progress 0 (PlayerExpandMath.barHidden).
+            alpha = if (libraryStyle) {
+                if (controller.barHidden) 0f else 1f
+            } else {
+                if (PlayerExpandMath.isSettledExpanded(controller.progress)) 0f else 1f
+            }
         }
     ) {
         CuteSearchbarContent(
@@ -214,14 +221,18 @@ fun SharedTransitionScope.CuteSearchbar(
                 controller.onDragDelta(deltaFraction)
             },
             onInteractiveExpandSettled = { velocity ->
-                controller.onDragSettled(velocity)
+                controller.onDragSettled(
+                    velocity,
+                    travelPx = windowInfo.containerSize.height.toFloat()
+                )
             },
             isExpanding = { controller.progress > 0f },
-            miniArtAlpha = if (expanding && PlayerExpandMath.boundsReady(
+            miniArtAlpha = if (!libraryStyle && expanding && PlayerExpandMath.boundsReady(
                 controller.miniContainer, controller.miniArt, controller.fullArt
             )) 0f else 1f,
             onMiniCardBoundsChanged = { controller.onMiniContainer(it) },
             onMiniArtBoundsChanged = { controller.onMiniArt(it) },
+            onMiniSurfaceSnapshot = { controller.onMiniSurface(it) },
             sortMenu = sortMenu,
             onNavigate = onNavigate,
             libraryStyle = libraryStyle,
@@ -254,6 +265,7 @@ private fun SharedTransitionScope.CuteSearchbarContent(
     miniArtAlpha: Float = 1f,
     onMiniCardBoundsChanged: (Rect) -> Unit = {},
     onMiniArtBoundsChanged: (Rect) -> Unit = {},
+    onMiniSurfaceSnapshot: (ImageBitmap?) -> Unit = {},
     libraryStyle: Boolean = false,
     fab: @Composable (() -> Unit)? = null,
     backButton: @Composable (() -> Unit)? = null,
@@ -268,7 +280,8 @@ private fun SharedTransitionScope.CuteSearchbarContent(
             onOpenFullPlayer = onOpenFullPlayer,
             miniArtAlpha = miniArtAlpha,
             onMiniCardBoundsChanged = onMiniCardBoundsChanged,
-            onMiniArtBoundsChanged = onMiniArtBoundsChanged
+            onMiniArtBoundsChanged = onMiniArtBoundsChanged,
+            onSurfaceSnapshot = onMiniSurfaceSnapshot
         )
         return
     }
