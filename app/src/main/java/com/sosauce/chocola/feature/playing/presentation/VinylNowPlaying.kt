@@ -4,9 +4,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -27,11 +24,9 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
@@ -56,31 +51,6 @@ import com.sosauce.chocola.feature.playing.presentation.components.Artwork
 import com.sosauce.chocola.feature.playing.presentation.components.CuteTimePicker
 import com.sosauce.chocola.feature.playing.presentation.components.NowPlayingTrackDropdownMenu
 
-/**
- * Swipe-down-to-close on the settled page. The host forwards it to the same
- * expand progress the open animation uses, so dragging down plays the
- * expand animation backwards.
- */
-class NowPlayingDragToClose(
-    val onStart: () -> Unit,
-    val onDelta: (Float) -> Unit,
-    val onStop: (Float) -> Unit
-)
-
-/** Vertical drag that feeds [drag]; no-op without one. */
-@Composable
-internal fun Modifier.dragToClose(drag: NowPlayingDragToClose?): Modifier {
-    if (drag == null) return this
-    val current by rememberUpdatedState(drag)
-    val state = rememberDraggableState { delta -> current.onDelta(delta) }
-    return draggable(
-        state = state,
-        orientation = Orientation.Vertical,
-        onDragStarted = { current.onStart() },
-        onDragStopped = { velocity -> current.onStop(velocity) }
-    )
-}
-
 /** Accessibility: a "close" action, since the page has no close button. */
 private fun Modifier.closeAction(label: String, onClose: () -> Unit): Modifier =
     semantics {
@@ -96,8 +66,6 @@ internal fun VinylNowPlayingContent(
     onHandlePlayerActions: (PlayerActions) -> Unit,
     onNavigate: (Screen) -> Unit,
     onShrinkToSearchbar: () -> Unit,
-    onArtworkBoundsChanged: ((Rect) -> Unit)?,
-    dragToClose: NowPlayingDragToClose?
 ) {
     var snap by rememberSnapSpeedAndPitch()
     var showSpeedCard by remember { mutableStateOf(false) }
@@ -113,8 +81,7 @@ internal fun VinylNowPlayingContent(
     }
 
     Scaffold(
-        // Pull down anywhere on the page (not only on the record) to close.
-        modifier = modifier.dragToClose(dragToClose),
+        modifier = modifier,
         containerColor = Color.Transparent
     ) { paddingValues ->
         VinylNowPlayingBody(
@@ -130,19 +97,13 @@ internal fun VinylNowPlayingContent(
                     modifier = artModifier,
                     musicState = musicState,
                     onHandlePlayerActions = onHandlePlayerActions,
-                    onArtworkBoundsChanged = onArtworkBoundsChanged
                 )
             }
         )
     }
 }
 
-/**
- * Portrait turntable body. Shared with the expand transition, which passes an
- * empty box for [artwork], so its last frame lays the controls out exactly
- * like the page (the controls are anchored to the bottom and do not move with
- * the record).
- */
+/** Portrait turntable body with the controls anchored below the artwork slot. */
 @Composable
 internal fun VinylNowPlayingBody(
     paddingValues: PaddingValues,

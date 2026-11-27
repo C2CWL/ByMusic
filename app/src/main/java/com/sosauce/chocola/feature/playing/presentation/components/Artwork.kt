@@ -36,18 +36,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.layout
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Constraints
@@ -128,21 +126,38 @@ private fun TurntableArtwork(
     }
 }
 
+/** The root sheet supplies artwork while the normal layout measures its slot. */
+internal val LocalArtworkSlot = staticCompositionLocalOf<(@Composable (Modifier) -> Unit)?> { null }
+
 @Composable
 fun Artwork(
     modifier: Modifier = Modifier,
     musicState: MusicState,
     onHandlePlayerActions: (PlayerActions) -> Unit,
-    onArtworkBoundsChanged: ((Rect) -> Unit)? = null,
-    artworkContentAlpha: Float = 1f,
 ) {
+    val isLandscape = rememberIsLandscape()
+    val slotModifier = if (isLandscape) {
+        modifier.fillMaxWidth(0.4f).aspectRatio(1f)
+    } else {
+        modifier.layout { measurable, constraints ->
+            val height = if (constraints.hasBoundedHeight) constraints.maxHeight else constraints.maxWidth
+            val side = minOf(constraints.maxWidth, height).coerceAtLeast(0)
+            val placeable = measurable.measure(Constraints.fixed(side, side))
+            layout(side, side) { placeable.place(0, 0) }
+        }
+    }
+    val slot = LocalArtworkSlot.current
+    if (slot != null) {
+        slot(slotModifier)
+        return
+    }
+
     val useCarousel by rememberCarousel()
     var artworkShape by rememberArtworkShape()
     val artLyrics by rememberArtLyrics()
     val shapeMorph by rememberNowPlayingShapeMorph()
     val useTurntable = rememberTurntableEnabled()
 
-    val isLandscape = rememberIsLandscape()
     var showLyrics by remember { mutableStateOf(false) }
     val blur by animateIntAsState(
         targetValue = if (showLyrics) 100 else 0,
@@ -160,28 +175,9 @@ fun Artwork(
     } else ArtworkShape.toShape(artworkShape)
 
     Box(
-        modifier = if (isLandscape) {
-            modifier
-                .fillMaxWidth(0.4f)
-                .aspectRatio(1f)
-        } else {
-            modifier
-                // Shrink to fit
-                .layout { measurable, constraints ->
-                    val side = minOf(
-                        constraints.maxWidth,
-                        if (constraints.hasBoundedHeight) constraints.maxHeight
-                        else constraints.maxWidth
-                    ).coerceAtLeast(0)
-                    val placeable = measurable.measure(Constraints.fixed(side, side))
-                    layout(side, side) { placeable.place(0, 0) }
-                }
-        }
-            .onGloballyPositioned { coordinates ->
-                onArtworkBoundsChanged?.invoke(coordinates.boundsInWindow())
-            }
+        modifier = slotModifier
             .clickable(
-                enabled = artLyrics && artworkContentAlpha > 0.9f,
+                enabled = artLyrics,
                 indication = null,
                 interactionSource = null,
                 onClick = { showLyrics = !showLyrics }
@@ -189,7 +185,6 @@ fun Artwork(
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
-                alpha = artworkContentAlpha
             }
     ) {
         if (useTurntable) {

@@ -29,7 +29,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -54,6 +53,7 @@ import com.sosauce.chocola.core.presentation.preferences.rememberIsLandscape
 import com.sosauce.chocola.core.presentation.preferences.rememberSnapSpeedAndPitch
 import com.sosauce.chocola.core.presentation.preferences.rememberUseArtAsBackground
 import com.sosauce.chocola.feature.playing.presentation.components.Artwork
+import com.sosauce.chocola.feature.playing.presentation.components.LocalArtworkSlot
 import com.sosauce.chocola.feature.playing.presentation.components.MoreOptionsButton
 import com.sosauce.chocola.feature.playing.presentation.components.QuickActionsRow
 import com.sosauce.chocola.feature.playing.presentation.components.TurntableTheme
@@ -67,8 +67,6 @@ fun NowPlaying(
     onHandlePlayerActions: (PlayerActions) -> Unit,
     onNavigate: (Screen) -> Unit,
     onShrinkToSearchbar: () -> Unit = {},
-    onArtworkBoundsChanged: ((Rect) -> Unit)? = null,
-    dragToClose: NowPlayingDragToClose? = null
 ) {
     NowPlayingLayout(
         modifier = modifier,
@@ -77,8 +75,6 @@ fun NowPlaying(
         onHandlePlayerActions = onHandlePlayerActions,
         onNavigate = onNavigate,
         onShrinkToSearchbar = onShrinkToSearchbar,
-        onArtworkBoundsChanged = onArtworkBoundsChanged,
-        dragToClose = dragToClose
     )
 }
 
@@ -94,12 +90,10 @@ fun NowPlayingLayout(
     onHandlePlayerActions: (PlayerActions) -> Unit,
     onNavigate: (Screen) -> Unit,
     onShrinkToSearchbar: () -> Unit = {},
-    onArtworkBoundsChanged: ((Rect) -> Unit)? = null,
-    dragToClose: NowPlayingDragToClose? = null
 ) {
     val isLandscape = rememberIsLandscape()
     val useTurntable = rememberTurntableEnabled()
-    TurntableTheme(enabled = useTurntable, artworkUri = musicState.track.artUri) {
+    val content: @Composable () -> Unit = {
         if (isLandscape) {
             NowPlayingLandscape(
                 musicState = musicState,
@@ -107,8 +101,6 @@ fun NowPlayingLayout(
                 onHandlePlayerActions = onHandlePlayerActions,
                 onNavigate = onNavigate,
                 onShrinkToSearchbar = onShrinkToSearchbar,
-                onArtworkBoundsChanged = onArtworkBoundsChanged,
-                dragToClose = dragToClose
             )
         } else if (useTurntable) {
             // Turntable page: no top bar, every control at the bottom.
@@ -119,8 +111,6 @@ fun NowPlayingLayout(
                 onHandlePlayerActions = onHandlePlayerActions,
                 onNavigate = onNavigate,
                 onShrinkToSearchbar = onShrinkToSearchbar,
-                onArtworkBoundsChanged = onArtworkBoundsChanged,
-                dragToClose = dragToClose
             )
         } else {
             NowPlayingContent(
@@ -130,11 +120,14 @@ fun NowPlayingLayout(
                 onHandlePlayerActions = onHandlePlayerActions,
                 onNavigate = onNavigate,
                 onShrinkToSearchbar = onShrinkToSearchbar,
-                onArtworkBoundsChanged = onArtworkBoundsChanged,
-                dragToClose = dragToClose
             )
         }
 
+    }
+    if (LocalArtworkSlot.current != null) {
+        content()
+    } else {
+        TurntableTheme(enabled = useTurntable, artworkUri = musicState.track.artUri, content = content)
     }
 }
 
@@ -146,8 +139,6 @@ private fun NowPlayingContent(
     onHandlePlayerActions: (PlayerActions) -> Unit,
     onNavigate: (Screen) -> Unit,
     onShrinkToSearchbar: () -> Unit,
-    onArtworkBoundsChanged: ((Rect) -> Unit)? = null,
-    dragToClose: NowPlayingDragToClose? = null
 ) {
     var snap by rememberSnapSpeedAndPitch()
     var showSpeedCard by remember { mutableStateOf(false) }
@@ -181,9 +172,8 @@ private fun NowPlayingContent(
     }
 
     Scaffold(
-        // Pull down anywhere on the page to close (runs the expand transition backwards).
-        modifier = modifier.dragToClose(dragToClose),
-        containerColor = if (useTurntable) Color.Transparent else MaterialTheme.colorScheme.background,
+        modifier = modifier,
+        containerColor = if (useTurntable || LocalArtworkSlot.current != null) Color.Transparent else MaterialTheme.colorScheme.background,
         topBar = {
             NowPlayingTopBar(
                 musicState = musicState,
@@ -214,7 +204,6 @@ private fun NowPlayingContent(
                     modifier = artModifier,
                     musicState = musicState,
                     onHandlePlayerActions = onHandlePlayerActions,
-                    onArtworkBoundsChanged = onArtworkBoundsChanged,
                 )
             }
         )
@@ -222,9 +211,7 @@ private fun NowPlayingContent(
 }
 
 /**
- * Body of the classic (non-turntable) portrait page. Shared with the expand
- * transition, which passes an empty box of the measured size as [artwork], so
- * the transition's last frame is laid out exactly like the page.
+ * Body of the Classic portrait page. The sheet supplies the measured artwork slot.
  */
 @Composable
 internal fun ClassicNowPlayingBody(
@@ -284,8 +271,7 @@ internal fun ClassicNowPlayingBody(
 }
 
 /**
- * Top bar of the portrait now playing page. Shared with the expand transition
- * so the turntable transition's last frame lays it out exactly like the page.
+ * Top bar of the portrait Classic player.
  */
 @Composable
 internal fun NowPlayingTopBar(

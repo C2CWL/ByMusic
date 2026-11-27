@@ -62,6 +62,7 @@ import com.sosauce.chocola.core.presentation.navigation.Screen
 import com.sosauce.chocola.core.presentation.util.barsContentTransform
 import com.sosauce.chocola.core.presentation.util.selfAlignHorizontally
 import com.sosauce.chocola.feature.library.presentation.main.components.FolderHeader
+import com.sosauce.chocola.feature.playing.presentation.expand.LocalPlayerSheet
 import com.sosauce.nekobites.components.LoadingBox
 import com.sosauce.nekobites.components.NoXFound
 import com.sosauce.nekobites.components.Spacer
@@ -82,7 +83,7 @@ fun SharedTransitionScope.MainScreen(
     val multiSelectState = rememberSweetSelectState<CuteTrack>()
     val activeTrackId = remember(musicState.track) { musicState.track.mediaId }
 
-    var fullPlayerVisible by remember { mutableStateOf(false) }
+    val fullPlayerVisible = LocalPlayerSheet.current?.ownsBack == true
     val groupByFolders = state.groupByFolders
     val background by com.sosauce.chocola.core.presentation.preferences.rememberLibraryBackground()
     var locateTrackId by remember { mutableStateOf<String?>(null) }
@@ -175,7 +176,6 @@ fun SharedTransitionScope.MainScreen(
                     CuteSearchbar(
                         modifier = Modifier.selfAlignHorizontally(),
                         libraryStyle = true,
-                        onFullPlayerChanged = { fullPlayerVisible = it },
                         musicState = musicState,
                         textFieldState = textFieldState,
                         onHandlePlayerActions = onHandlePlayerAction,

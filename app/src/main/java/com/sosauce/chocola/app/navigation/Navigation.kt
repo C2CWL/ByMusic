@@ -4,6 +4,13 @@ package com.sosauce.chocola.app.navigation
 
 import android.app.Activity
 import android.widget.Toast
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.hideFromAccessibility
+import com.sosauce.chocola.feature.playing.presentation.expand.LocalPlayerSheet
+import com.sosauce.chocola.feature.playing.presentation.expand.PlayerDockEntry
+import com.sosauce.chocola.feature.playing.presentation.expand.PlayerSheet
+import com.sosauce.chocola.feature.playing.presentation.expand.rememberPlayerSheetState
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -95,17 +102,24 @@ fun Nav(
     }
     val musicState by musicViewModel.musicState.collectAsStateWithLifecycle()
 
+    val playerSheet = rememberPlayerSheetState()
+
     SharedTransitionLayout {
         CompositionLocalProvider(
-            LocalScreen provides currentScreen
+            LocalScreen provides currentScreen,
+            LocalPlayerSheet provides playerSheet
         ) {
             Box(
                 modifier = Modifier.fillMaxSize()
             ) {
                 NavDisplay(
                 backStack = backStack,
-                onBack = { backStack.navigateBack() },
-                modifier = Modifier.background(MaterialTheme.colorScheme.background),
+                onBack = { if (!playerSheet.ownsBack) backStack.navigateBack() },
+                modifier = Modifier.background(MaterialTheme.colorScheme.background).then(
+                    if (playerSheet.ownsBack) {
+                        Modifier.focusProperties { canFocus = false }.clearAndSetSemantics { hideFromAccessibility() }
+                    } else Modifier
+                ),
                 entryDecorators = listOf(
                     rememberSaveableStateHolderNavEntryDecorator(),
                     rememberViewModelStoreNavEntryDecorator()
@@ -130,19 +144,21 @@ fun Nav(
                 },
                 entryProvider = entryProvider {
 
-                    entry<Screen.Main> {
+                    entry<Screen.Main> { key ->
+                        PlayerDockEntry(key) {
 
-                        val viewModel = koinViewModel<MainViewModel>()
-                        val state by viewModel.state.collectAsStateWithLifecycle()
+                            val viewModel = koinViewModel<MainViewModel>()
+                            val state by viewModel.state.collectAsStateWithLifecycle()
 
-                        MainScreen(
-                            state = state,
-                            musicState = musicState,
-                            textFieldState = viewModel.textFieldState,
-                            onNavigate = backStack::navigate,
-                            onHandlePlayerAction = musicViewModel::handlePlayerActions,
-                            onFolderToggle = viewModel::toggleHiddenFolder
-                        )
+                            MainScreen(
+                                state = state,
+                                musicState = musicState,
+                                textFieldState = viewModel.textFieldState,
+                                onNavigate = backStack::navigate,
+                                onHandlePlayerAction = musicViewModel::handlePlayerActions,
+                                onFolderToggle = viewModel::toggleHiddenFolder
+                            )
+                        }
                     }
 
                     entry<Screen.Favorites> {
@@ -157,56 +173,56 @@ fun Nav(
                         )
                     }
 
-                    entry<Screen.Online> {
-                        // Mockup 06: shown once, before anything online can happen.
-                        val disclaimerAccepted = rememberOnlineDisclaimerAccepted()
-                        val disclaimerScope = rememberCoroutineScope()
-                        val disclaimerContext = LocalContext.current
-                        val recognitionRegistry = koinInject<RecognitionPluginRegistry>()
-                        val recognitionPlugins by recognitionRegistry.plugins.collectAsStateWithLifecycle()
-                        val onlineViewModel = koinViewModel<OnlineSearchViewModel>()
-                        val onlineState by onlineViewModel.state.collectAsStateWithLifecycle()
-                        val onlineLyrics = koinInject<OnlineLyricsProvider>()
-                        OnlineMusicScreen(
-                            state = onlineState,
-                            onlineLyrics = onlineLyrics,
-                            onNavigateBack = backStack::navigateBack,
-                            onQueryChange = onlineViewModel::setQuery,
-                            onSearch = onlineViewModel::search,
-                            onRetry = onlineViewModel::retry,
-                            onSelectPlugin = onlineViewModel::select,
-                            onLoadMore = onlineViewModel::loadMore,
-                            onPlay = { track, queue ->
-                                musicViewModel.handlePlayerActions(
-                                    PlayerActions.PlayFromSource(
-                                        mediaId = track.mediaId,
-                                        source = PlaySource.ExplicitTracks(queue)
+                    entry<Screen.Online> { key ->
+                        PlayerDockEntry(key) {
+                            // Mockup 06: shown once, before anything online can happen.
+                            val disclaimerAccepted = rememberOnlineDisclaimerAccepted()
+                            val disclaimerScope = rememberCoroutineScope()
+                            val disclaimerContext = LocalContext.current
+                            val recognitionRegistry = koinInject<RecognitionPluginRegistry>()
+                            val recognitionPlugins by recognitionRegistry.plugins.collectAsStateWithLifecycle()
+                            val onlineViewModel = koinViewModel<OnlineSearchViewModel>()
+                            val onlineState by onlineViewModel.state.collectAsStateWithLifecycle()
+                            val onlineLyrics = koinInject<OnlineLyricsProvider>()
+                            OnlineMusicScreen(
+                                state = onlineState,
+                                onlineLyrics = onlineLyrics,
+                                onNavigateBack = backStack::navigateBack,
+                                onQueryChange = onlineViewModel::setQuery,
+                                onSearch = onlineViewModel::search,
+                                onRetry = onlineViewModel::retry,
+                                onSelectPlugin = onlineViewModel::select,
+                                onLoadMore = onlineViewModel::loadMore,
+                                onPlay = { track, queue ->
+                                    musicViewModel.handlePlayerActions(
+                                        PlayerActions.PlayFromSource(
+                                            mediaId = track.mediaId,
+                                            source = PlaySource.ExplicitTracks(queue)
+                                        )
                                     )
-                                )
-                            },
-                            onManagePlugins = {
-                                backStack.navigate(
-                                    Screen.Settings(
-                                        initialScreen = com.sosauce.chocola.feature.settings.presentation.components.SettingsScreen.Plugins
+                                },
+                                onManagePlugins = {
+                                    backStack.navigate(
+                                        Screen.Settings(
+                                            initialScreen = com.sosauce.chocola.feature.settings.presentation.components.SettingsScreen.Plugins
+                                        )
                                     )
-                                )
-                            },
-                            musicState = musicState,
-                            onHandlePlayerActions = musicViewModel::handlePlayerActions,
-                            onNavigate = backStack::navigate,
-                            recognitionPlugins = recognitionPlugins.map { it.info },
-                            onStartRecognition = {
-                                backStack.navigate(Screen.Recognition(autoStart = true))
-                            },
-                            onOpenRecognitionHistory = {
-                                backStack.navigate(Screen.RecognitionHistory)
-                            }
-                        )
-                        if (disclaimerAccepted == false) {
-                            OnlineDisclaimerDialog(
-                                onAccept = { disclaimerScope.launch { disclaimerContext.acceptOnlineDisclaimer() } },
-                                onDecline = backStack::navigateBack
+                                },
+                                musicState = musicState,
+                                recognitionPlugins = recognitionPlugins.map { it.info },
+                                onStartRecognition = {
+                                    backStack.navigate(Screen.Recognition(autoStart = true))
+                                },
+                                onOpenRecognitionHistory = {
+                                    backStack.navigate(Screen.RecognitionHistory)
+                                }
                             )
+                            if (disclaimerAccepted == false) {
+                                OnlineDisclaimerDialog(
+                                    onAccept = { disclaimerScope.launch { disclaimerContext.acceptOnlineDisclaimer() } },
+                                    onDecline = backStack::navigateBack
+                                )
+                            }
                         }
                     }
 
@@ -226,18 +242,20 @@ fun Nav(
                         )
                     }
 
-                    entry<Screen.Albums> {
+                    entry<Screen.Albums> { key ->
+                        PlayerDockEntry(key) {
 
-                        val viewModel = koinViewModel<AlbumsViewModel>()
-                        val state by viewModel.state.collectAsStateWithLifecycle()
+                            val viewModel = koinViewModel<AlbumsViewModel>()
+                            val state by viewModel.state.collectAsStateWithLifecycle()
 
-                        AlbumsScreen(
-                            state = state,
-                            musicState = musicState,
-                            textFieldState = viewModel.textFieldState,
-                            onHandlePlayerActions = musicViewModel::handlePlayerActions,
-                            onNavigate = backStack::navigate
-                        )
+                            AlbumsScreen(
+                                state = state,
+                                musicState = musicState,
+                                textFieldState = viewModel.textFieldState,
+                                onHandlePlayerActions = musicViewModel::handlePlayerActions,
+                                onNavigate = backStack::navigate
+                            )
+                        }
                     }
 
                     entry<Screen.Settings> { key ->
@@ -258,51 +276,57 @@ fun Nav(
                     }
 
                     entry<Screen.AlbumsDetails> { key ->
+                        PlayerDockEntry(key) {
 
-                        val viewModel = koinViewModel<AlbumDetailsViewModel>(
-                            parameters = { parametersOf(key.name) }
-                        )
-                        val state by viewModel.state.collectAsStateWithLifecycle()
+                            val viewModel = koinViewModel<AlbumDetailsViewModel>(
+                                parameters = { parametersOf(key.name) }
+                            )
+                            val state by viewModel.state.collectAsStateWithLifecycle()
 
-                        AlbumDetailsScreen(
-                            state = state,
-                            textFieldState = viewModel.textFieldState,
-                            onNavigateUp = backStack::navigateBack,
-                            musicState = musicState,
-                            onNavigate = backStack::navigate,
-                            onHandlePlayerActions = musicViewModel::handlePlayerActions
-                        )
+                            AlbumDetailsScreen(
+                                state = state,
+                                textFieldState = viewModel.textFieldState,
+                                onNavigateUp = backStack::navigateBack,
+                                musicState = musicState,
+                                onNavigate = backStack::navigate,
+                                onHandlePlayerActions = musicViewModel::handlePlayerActions
+                            )
+                        }
                     }
 
-                    entry<Screen.Artists> {
+                    entry<Screen.Artists> { key ->
+                        PlayerDockEntry(key) {
 
-                        val viewModel = koinViewModel<ArtistsViewModel>()
-                        val state by viewModel.state.collectAsStateWithLifecycle()
+                            val viewModel = koinViewModel<ArtistsViewModel>()
+                            val state by viewModel.state.collectAsStateWithLifecycle()
 
-                        ArtistsScreen(
-                            state = state,
-                            musicState = musicState,
-                            textFieldState = viewModel.textFieldState,
-                            onNavigate = backStack::navigate,
-                            onHandlePlayerActions = musicViewModel::handlePlayerActions,
-                        )
+                            ArtistsScreen(
+                                state = state,
+                                musicState = musicState,
+                                textFieldState = viewModel.textFieldState,
+                                onNavigate = backStack::navigate,
+                                onHandlePlayerActions = musicViewModel::handlePlayerActions,
+                            )
+                        }
                     }
 
                     entry<Screen.ArtistsDetails> { key ->
+                        PlayerDockEntry(key) {
 
-                        val viewModel = koinViewModel<ArtistDetailsViewModel>(
-                            parameters = { parametersOf(key.name) }
-                        )
-                        val state by viewModel.state.collectAsStateWithLifecycle()
+                            val viewModel = koinViewModel<ArtistDetailsViewModel>(
+                                parameters = { parametersOf(key.name) }
+                            )
+                            val state by viewModel.state.collectAsStateWithLifecycle()
 
-                        ArtistDetailsScreen(
-                            state = state,
-                            textFieldState = viewModel.textFieldState,
-                            onNavigate = backStack::navigate,
-                            onNavigateBack = backStack::navigateBack,
-                            onHandlePlayerAction = musicViewModel::handlePlayerActions,
-                            musicState = musicState
-                        )
+                            ArtistDetailsScreen(
+                                state = state,
+                                textFieldState = viewModel.textFieldState,
+                                onNavigate = backStack::navigate,
+                                onNavigateBack = backStack::navigateBack,
+                                onHandlePlayerAction = musicViewModel::handlePlayerActions,
+                                musicState = musicState
+                            )
+                        }
                     }
 
                     entry<Screen.MetadataEditor> { key ->
@@ -359,36 +383,40 @@ fun Nav(
                         )
                     }
 
-                    entry<Screen.Playlists> {
+                    entry<Screen.Playlists> { key ->
+                        PlayerDockEntry(key) {
 
-                        val playlistViewModel = koinViewModel<PlaylistViewModel>()
-                        val state by playlistViewModel.state.collectAsStateWithLifecycle()
+                            val playlistViewModel = koinViewModel<PlaylistViewModel>()
+                            val state by playlistViewModel.state.collectAsStateWithLifecycle()
 
-                        PlaylistsScreen(
-                            state = state,
-                            textFieldState = playlistViewModel.textFieldState,
-                            onHandlePlaylistAction = playlistViewModel::handlePlaylistActions,
-                            musicState = musicState,
-                            onNavigate = backStack::navigate,
-                            onHandlePlayerAction = musicViewModel::handlePlayerActions
-                        )
+                            PlaylistsScreen(
+                                state = state,
+                                textFieldState = playlistViewModel.textFieldState,
+                                onHandlePlaylistAction = playlistViewModel::handlePlaylistActions,
+                                musicState = musicState,
+                                onNavigate = backStack::navigate,
+                                onHandlePlayerAction = musicViewModel::handlePlayerActions
+                            )
+                        }
                     }
 
                     entry<Screen.PlaylistDetails> { key ->
-                        val viewModel = koinViewModel<PlaylistDetailsViewModel>(
-                            parameters = { parametersOf(key.id) }
-                        )
-                        val state by viewModel.state.collectAsStateWithLifecycle()
+                        PlayerDockEntry(key) {
+                            val viewModel = koinViewModel<PlaylistDetailsViewModel>(
+                                parameters = { parametersOf(key.id) }
+                            )
+                            val state by viewModel.state.collectAsStateWithLifecycle()
 
-                        PlaylistDetailsScreen(
-                            state = state,
-                            musicState = musicState,
-                            onNavigate = backStack::navigate,
-                            onNavigateBack = backStack::navigateBack,
-                            textFieldState = viewModel.textFieldState,
-                            onHandlePlayerAction = musicViewModel::handlePlayerActions,
-                            onHandlePlaylistAction = viewModel::handlePlaylistActions
-                        )
+                            PlaylistDetailsScreen(
+                                state = state,
+                                musicState = musicState,
+                                onNavigate = backStack::navigate,
+                                onNavigateBack = backStack::navigateBack,
+                                textFieldState = viewModel.textFieldState,
+                                onHandlePlayerAction = musicViewModel::handlePlayerActions,
+                                onHandlePlaylistAction = viewModel::handlePlaylistActions
+                            )
+                        }
                     }
 
                     entry<Screen.Queue> {
@@ -421,7 +449,15 @@ fun Nav(
 //                        )
 //                    }
                 }
-            )
+                )
+                playerSheet.HandleBack(enabled = musicState.isPlayerReady)
+                PlayerSheet(
+                    state = playerSheet,
+                    route = currentScreen,
+                    musicState = musicState,
+                    onHandlePlayerActions = musicViewModel::handlePlayerActions,
+                    onNavigate = backStack::navigate
+                )
             }
         }
     }
