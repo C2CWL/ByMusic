@@ -27,7 +27,8 @@ import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.GraphicsLayerScope
@@ -110,6 +111,7 @@ internal fun VinylTransitionLayer(
     val metal = MaterialTheme.colorScheme.secondary
     val backdrop = turntableBackdropBrush()
     val starlight = MaterialTheme.colorScheme.onSurface
+    val darkSurface = surface.luminance() < 0.5f
     val armDegrees = TurntableMotion.playPauseArmTarget(musicState.isPlaying)
 
     Box(Modifier.fillMaxSize(), contentAlignment = AbsoluteAlignment.TopLeft) {
@@ -122,10 +124,15 @@ internal fun VinylTransitionLayer(
                 .graphicsLayer {
                     val t = progress()
                     shape = RoundedCornerShape(PlayerExpandMath.containerCornerRadiusDp(t, libraryStyle).dp)
-                    shadowElevation = if (t in 0.02f..0.98f) 8.dp.toPx() else 0f
+                    shadowElevation = if (t in 0.02f..0.98f) {
+                        // Grows with the card's opacity so no shadow shows through the glass.
+                        8.dp.toPx() * PlayerExpandMath.transitionBackgroundAlpha(t)
+                    } else {
+                        0f
+                    }
                     clip = true
                 }
-                .drawBehind {
+                .drawWithContent {
                     val t = progress()
                     val backgroundAlpha = PlayerExpandMath.transitionBackgroundAlpha(t)
                     val backdropAlpha = VinylExpandMath.backdropAlpha(t)
@@ -135,6 +142,12 @@ internal fun VinylTransitionLayer(
                         drawRect(backdrop, alpha = backdropAlpha * backgroundAlpha)
                         drawTurntableStars(starlight, alpha = backdropAlpha * backgroundAlpha)
                     }
+                    drawContent()
+                    drawTransitionGlassRim(
+                        alpha = PlayerExpandMath.glassRimAlpha(t),
+                        cornerRadiusPx = PlayerExpandMath.containerCornerRadiusDp(t, libraryStyle).dp.toPx(),
+                        dark = darkSurface
+                    )
                 }
                 .draggable(
                     state = dragState,

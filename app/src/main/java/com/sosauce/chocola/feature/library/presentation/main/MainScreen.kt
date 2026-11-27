@@ -26,6 +26,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import com.sosauce.chocola.core.designsystem.components.LocalGlassBackdrop
+import com.sosauce.chocola.core.designsystem.components.glassBackdropSource
+import com.sosauce.chocola.core.designsystem.components.rememberGlassBackdrop
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -133,6 +137,9 @@ fun SharedTransitionScope.MainScreen(
             )
         }
     ) {
+    // Liquid-glass mini player samples this screen's list (bottom bar is not recorded).
+    val glassBackdrop = rememberGlassBackdrop()
+    CompositionLocalProvider(LocalGlassBackdrop provides glassBackdrop) {
     Scaffold(
         contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
@@ -182,7 +189,11 @@ fun SharedTransitionScope.MainScreen(
         }
     ) { paddingValues ->
 
-        Box(Modifier.fillMaxSize()) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .glassBackdropSource(glassBackdrop, baseColor = MaterialTheme.colorScheme.background)
+        ) {
             if (background.startsWith("content://")) {
                 coil3.compose.AsyncImage(
                     model = background,
@@ -276,6 +287,7 @@ fun SharedTransitionScope.MainScreen(
                 }
             }
         }
+    }
     }
     }
 }

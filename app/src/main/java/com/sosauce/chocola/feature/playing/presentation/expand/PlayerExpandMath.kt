@@ -39,6 +39,21 @@ object PlayerExpandMath {
     const val OPEN_VELOCITY_PX_PER_SEC = -800f
     const val CLOSE_VELOCITY_PX_PER_SEC = 800f
 
+    /**
+     * The see-through window over the list stays open a little longer than the
+     * old 0.22 so the card reads as glass while it rises; the page background is
+     * fully opaque well before the settled page takes over (no flash at 1).
+     */
+    const val BACKGROUND_FADE_END = 0.4f
+
+    /** Specular glass rim on the rising card: full at the mini bar, gone early. */
+    const val GLASS_RIM_FADE_END = 0.35f
+
+    /** Container corners match the mini bar, stay round while it rises, square at 1. */
+    const val LIBRARY_CONTAINER_CORNER_START_DP = 28f
+    const val FLOATING_CONTAINER_CORNER_START_DP = 24f
+    const val CONTAINER_CORNER_SQUARE_FROM = 0.35f
+
     const val COVER_CORNER_END_DP = 24f
     const val LIBRARY_COVER_CORNER_START_DP = 5f
     const val FLOATING_COVER_CORNER_START_DP = 10f
@@ -61,7 +76,11 @@ object PlayerExpandMath {
 
     /** Reveal the real mini-player before the transition window is removed. */
     fun transitionBackgroundAlpha(progress: Float): Float =
-        smoothstep(0f, FULL_CHROME_FADE_START, progress)
+        smoothstep(0f, BACKGROUND_FADE_END, progress)
+
+    /** Alpha of the glass rim drawn on the transition card (1 at the mini bar). */
+    fun glassRimAlpha(progress: Float): Float =
+        1f - smoothstep(0f, GLASS_RIM_FADE_END, progress)
 
     fun fullChromeAlpha(progress: Float): Float =
         smoothstep(FULL_CHROME_FADE_START, FULL_CHROME_FADE_END, progress)
@@ -78,8 +97,14 @@ object PlayerExpandMath {
         return lerp(start, COVER_CORNER_END_DP, progress.coerceIn(0f, 1f))
     }
 
-    fun containerCornerRadiusDp(progress: Float, libraryStyle: Boolean): Float =
-        if (libraryStyle) 0f else lerp(24f, 0f, progress.coerceIn(0f, 1f))
+    fun containerCornerRadiusDp(progress: Float, libraryStyle: Boolean): Float {
+        val start = if (libraryStyle) {
+            LIBRARY_CONTAINER_CORNER_START_DP
+        } else {
+            FLOATING_CONTAINER_CORNER_START_DP
+        }
+        return start * (1f - smoothstep(CONTAINER_CORNER_SQUARE_FROM, 1f, progress))
+    }
 
     fun containerRect(progress: Float, miniContainer: Rect, viewport: Rect): Rect {
         val t = progress.coerceIn(0f, 1f)

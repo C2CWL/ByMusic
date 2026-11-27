@@ -70,4 +70,19 @@ class PlayerExpandPopupTest {
             assertTrue(flags and WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS != 0)
         }
     }
+
+    @Test
+    fun collapsedCardSitsExactlyOnTheRoundedMiniBar() {
+        // Library mini bar: 12dp side margins, 28dp corners. The overlay card at
+        // progress 0 must have the same rect and corner so the handoff does not flash.
+        val viewport = Rect(0f, 0f, 1080f, 2400f)
+        val miniCard = Rect(36f, 2160f, 1044f, 2352f)
+        assertEquals(miniCard, PlayerExpandMath.containerRect(0f, miniCard, viewport))
+        assertEquals(28f, PlayerExpandMath.containerCornerRadiusDp(0f, libraryStyle = true), 0f)
+        assertEquals(0f, PlayerExpandMath.transitionBackgroundAlpha(0f), 0f)
+        assertEquals(1f, PlayerExpandMath.glassRimAlpha(0f), 0f)
+        // Overlay becomes touchable as soon as the card is visible at all.
+        assertTrue(PlayerExpandPopup.isInteractive(0.01f))
+        assertFalse(PlayerExpandPopup.isInteractive(0f))
+    }
 }

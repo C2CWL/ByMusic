@@ -27,8 +27,11 @@ class PlayerExpandMathTest {
     fun transitionBackgroundRevealsTheRealMiniBarBeforeFullChromeFadesIn() {
         assertEquals(0f, PlayerExpandMath.transitionBackgroundAlpha(0f), 0f)
         assertEquals(1f, PlayerExpandMath.transitionBackgroundAlpha(1f), 0f)
-        assertEquals(0.5f, PlayerExpandMath.transitionBackgroundAlpha(PlayerExpandMath.FULL_CHROME_FADE_START / 2f), 1e-5f)
-        assertEquals(1f, PlayerExpandMath.transitionBackgroundAlpha(PlayerExpandMath.FULL_CHROME_FADE_START), 0f)
+        assertEquals(0.5f, PlayerExpandMath.transitionBackgroundAlpha(PlayerExpandMath.BACKGROUND_FADE_END / 2f), 1e-5f)
+        assertEquals(1f, PlayerExpandMath.transitionBackgroundAlpha(PlayerExpandMath.BACKGROUND_FADE_END), 0f)
+        // The card is still see-through when the full chrome starts, opaque before the settled page.
+        assertTrue(PlayerExpandMath.transitionBackgroundAlpha(PlayerExpandMath.FULL_CHROME_FADE_START) < 1f)
+        assertTrue(PlayerExpandMath.BACKGROUND_FADE_END < PlayerExpandMath.CLOSE_PROGRESS_THRESHOLD)
         assertEquals(0f, PlayerExpandMath.fullChromeAlpha(0f), 1e-5f)
         assertEquals(1f, PlayerExpandMath.fullChromeAlpha(1f), 1e-5f)
         assertEquals(0f, PlayerExpandMath.topChromeAlpha(0f), 1e-5f)
@@ -52,11 +55,29 @@ class PlayerExpandMathTest {
     }
 
     @Test
-    fun libraryContainerCornersStaySquare() {
-        assertEquals(0f, PlayerExpandMath.containerCornerRadiusDp(0f, libraryStyle = true), 0f)
+    fun containerCornersStartAtTheMiniBarAndEndSquare() {
+        assertEquals(28f, PlayerExpandMath.containerCornerRadiusDp(0f, libraryStyle = true), 0f)
         assertEquals(0f, PlayerExpandMath.containerCornerRadiusDp(1f, libraryStyle = true), 0f)
         assertEquals(24f, PlayerExpandMath.containerCornerRadiusDp(0f, libraryStyle = false), 0f)
         assertEquals(0f, PlayerExpandMath.containerCornerRadiusDp(1f, libraryStyle = false), 0f)
+        // Still fully round while the card first rises, then shrinks monotonically.
+        assertEquals(28f, PlayerExpandMath.containerCornerRadiusDp(PlayerExpandMath.CONTAINER_CORNER_SQUARE_FROM, true), 0f)
+        var previous = Float.MAX_VALUE
+        for (i in 0..100) {
+            val value = PlayerExpandMath.containerCornerRadiusDp(i / 100f, libraryStyle = true)
+            assertTrue(value <= previous + 1e-5f)
+            previous = value
+        }
+    }
+
+    @Test
+    fun glassRimLeavesBeforeTheChromeAndNeverReachesTheSettledPage() {
+        assertEquals(1f, PlayerExpandMath.glassRimAlpha(0f), 0f)
+        assertEquals(0f, PlayerExpandMath.glassRimAlpha(PlayerExpandMath.GLASS_RIM_FADE_END), 0f)
+        assertEquals(0f, PlayerExpandMath.glassRimAlpha(1f), 0f)
+        assertTrue(PlayerExpandMath.glassRimAlpha(0.1f) in 0.01f..0.99f)
+        // Rim gone before the page background is opaque, so nothing pops at the handoff.
+        assertTrue(PlayerExpandMath.GLASS_RIM_FADE_END <= PlayerExpandMath.BACKGROUND_FADE_END)
     }
 
     @Test

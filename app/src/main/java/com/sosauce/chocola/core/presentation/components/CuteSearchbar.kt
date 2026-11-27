@@ -191,6 +191,8 @@ fun SharedTransitionScope.CuteSearchbar(
         }
     }
 
+    FreezeGlassWhileExpanding(expanding)
+
     BackHandler(enabled = expanding) {
         controller.collapse()
     }
