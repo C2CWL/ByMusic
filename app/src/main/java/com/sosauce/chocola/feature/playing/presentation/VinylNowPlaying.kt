@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
@@ -25,7 +24,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -46,9 +44,10 @@ import com.sosauce.chocola.core.domain.player.PlayerActions
 import com.sosauce.chocola.core.presentation.components.SpeedCard
 import com.sosauce.chocola.core.presentation.components.TitleAndArtist
 import com.sosauce.chocola.core.presentation.navigation.Screen
+import com.sosauce.chocola.core.presentation.preferences.rememberSeekButtonsDuration
 import com.sosauce.chocola.core.presentation.preferences.rememberSnapSpeedAndPitch
-import com.sosauce.chocola.feature.playing.presentation.components.Artwork
 import com.sosauce.chocola.feature.playing.presentation.components.CuteTimePicker
+import com.sosauce.chocola.feature.playing.presentation.components.LocalOpenVinylLyrics
 import com.sosauce.chocola.feature.playing.presentation.components.NowPlayingTrackDropdownMenu
 
 /** Accessibility: a "close" action, since the page has no close button. */
@@ -57,7 +56,7 @@ private fun Modifier.closeAction(label: String, onClose: () -> Unit): Modifier =
         customActions = listOf(CustomAccessibilityAction(label) { onClose(); true })
     }
 
-/** Turntable page in portrait: record on top, every control at the bottom. */
+/** Portrait turntable page and its speed dialog. */
 @Composable
 internal fun VinylNowPlayingContent(
     modifier: Modifier = Modifier,
@@ -84,107 +83,15 @@ internal fun VinylNowPlayingContent(
         modifier = modifier,
         containerColor = Color.Transparent
     ) { paddingValues ->
-        VinylNowPlayingBody(
+        PortraitVinylBody(
             paddingValues = paddingValues,
             musicState = musicState,
             hiddenButtons = hiddenButtons,
-            onHandlePlayerActions = onHandlePlayerActions,
+            onAction = onHandlePlayerActions,
             onNavigate = onNavigate,
-            onShrinkToSearchbar = onShrinkToSearchbar,
-            onShowSpeedCard = { showSpeedCard = true },
-            artwork = { artModifier ->
-                Artwork(
-                    modifier = artModifier,
-                    musicState = musicState,
-                    onHandlePlayerActions = onHandlePlayerActions,
-                )
-            }
+            onClose = onShrinkToSearchbar,
+            onShowSpeedCard = { showSpeedCard = true }
         )
-    }
-}
-
-/** Portrait turntable body with the controls anchored below the artwork slot. */
-@Composable
-internal fun VinylNowPlayingBody(
-    paddingValues: PaddingValues,
-    musicState: MusicState,
-    hiddenButtons: Set<NowPlayingButton>,
-    onHandlePlayerActions: (PlayerActions) -> Unit,
-    onNavigate: (Screen) -> Unit,
-    onShrinkToSearchbar: () -> Unit,
-    onShowSpeedCard: () -> Unit,
-    recordAreaModifier: Modifier = Modifier,
-    handleAlpha: () -> Float = { 1f },
-    artwork: @Composable (Modifier) -> Unit
-) {
-    val closeLabel = stringResource(R.string.close)
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(paddingValues)
-            .padding(horizontal = 15.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        // Everything above the title is the record's: swipe down here to close.
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .closeAction(closeLabel, onShrinkToSearchbar)
-                .then(recordAreaModifier)
-        ) {
-            VinylHandle(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = VinylLayout.HANDLE_TOP_DP.dp)
-                    .graphicsLayer { alpha = handleAlpha() }
-            )
-            Box(
-                modifier = Modifier.align(BiasAlignment(0f, VinylLayout.RECORD_VERTICAL_BIAS))
-            ) {
-                artwork(
-                    Modifier.sizeIn(
-                        maxWidth = VinylLayout.MAX_RECORD_DP.dp,
-                        maxHeight = VinylLayout.MAX_RECORD_DP.dp
-                    )
-                )
-            }
-        }
-        Spacer(Modifier.height(12.dp))
-        TitleAndArtist(
-            title = musicState.track.title,
-            artist = musicState.track.artist,
-            album = musicState.track.album,
-            isFavorite = musicState.track.isFavorite,
-            onToggleFavorite = {
-                musicState.track.mediaId.toLongOrNull()
-                    ?.let { onHandlePlayerActions(PlayerActions.ToggleFavorite(it)) }
-            },
-            hiddenButtons = hiddenButtons
-        )
-        Spacer(Modifier.height(16.dp))
-        CuteSlider(
-            musicState = musicState,
-            onHandlePlayerActions = onHandlePlayerActions
-        )
-        Spacer(Modifier.height(16.dp))
-        ActionButtonsRow(
-            musicState = musicState,
-            onHandlePlayerActions = onHandlePlayerActions,
-            hiddenButtons = hiddenButtons
-        )
-        if (VinylLayout.showsBar(hiddenButtons)) {
-            Spacer(Modifier.height(16.dp))
-            VinylControlBar(
-                musicState = musicState,
-                hiddenButtons = hiddenButtons,
-                onHandlePlayerActions = onHandlePlayerActions,
-                onNavigate = onNavigate,
-                onShrinkToSearchbar = onShrinkToSearchbar,
-                onShowSpeedCard = onShowSpeedCard
-            )
-        }
-        Spacer(Modifier.height(12.dp))
     }
 }
 
@@ -214,8 +121,11 @@ internal fun VinylControlBar(
     onNavigate: (Screen) -> Unit,
     onShrinkToSearchbar: () -> Unit,
     onShowSpeedCard: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    groups: List<List<NowPlayingButton>> = VinylLayout.BAR_GROUPS,
+    plain: Boolean = false
 ) {
+    val seekDuration by rememberSeekButtonsDuration()
     var showTimePicker by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
 
@@ -240,16 +150,17 @@ internal fun VinylControlBar(
     val timerRunning = musicState.sleepTimerRemainingDuration > 0
 
     // Inside the expand overlay: lyrics open as a layer of the overlay.
-    val openVinylLyrics = com.sosauce.chocola.feature.playing.presentation.components.LocalOpenVinylLyrics.current
+    val openVinylLyrics = LocalOpenVinylLyrics.current
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(VinylLayout.BAR_HEIGHT_DP.dp)
-            .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f), CircleShape)
-            .padding(horizontal = 6.dp),
+            .height(if (plain) 48.dp else VinylLayout.BAR_HEIGHT_DP.dp)
+            .then(if (plain) Modifier else Modifier
+                .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.72f), CircleShape)
+                .padding(horizontal = 6.dp)),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        VinylLayout.visibleBarGroups(hiddenButtons).forEachIndexed { groupIndex, group ->
+        VinylLayout.visibleBarGroups(hiddenButtons, groups).forEachIndexed { groupIndex, group ->
             if (groupIndex > 0) {
                 Box(
                     Modifier
@@ -268,7 +179,7 @@ internal fun VinylControlBar(
                     NowPlayingButton.SPEED -> R.drawable.speed_filled to isRateChanged
                     NowPlayingButton.SLEEP_TIMER ->
                         (if (timerRunning) R.drawable.sleep_timer_active_filled else R.drawable.sleep_timer_filled) to timerRunning
-                    else -> R.drawable.more_vert to false
+                    else -> button.icon to false
                 }
                 Box(
                     modifier = Modifier
@@ -285,6 +196,8 @@ internal fun VinylControlBar(
                                 NowPlayingButton.REPEAT -> onHandlePlayerActions(PlayerActions.ChangeRepeatMode)
                                 NowPlayingButton.SPEED -> onShowSpeedCard()
                                 NowPlayingButton.SLEEP_TIMER -> showTimePicker = true
+                                NowPlayingButton.REWIND -> onHandlePlayerActions(PlayerActions.RewindTo(seekDuration * 1000L))
+                                NowPlayingButton.FORWARD -> onHandlePlayerActions(PlayerActions.SeekTo(seekDuration * 1000L))
                                 else -> showMoreMenu = !showMoreMenu
                             }
                         },

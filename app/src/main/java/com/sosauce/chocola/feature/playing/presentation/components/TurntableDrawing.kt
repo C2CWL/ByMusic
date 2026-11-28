@@ -18,9 +18,11 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import kotlin.math.PI
 import kotlin.math.cos
@@ -75,19 +77,20 @@ private fun isOledSurface(surface: Color): Boolean = surface.luminance() < Turnt
  * not turn with the record (see [turntableSheen]). Everything that does not
  * depend on the draw is built once per size and color.
  */
-internal fun Modifier.turntableVinyl(surface: Color, accent: Color): Modifier =
+internal fun Modifier.turntableVinyl(surface: Color, accent: Color, vivid: Boolean = false): Modifier =
     drawWithCache {
         val radius = size.minDimension / 2f
         val oled = isOledSurface(surface)
         val tint = if (oled) 0.7f else 1f
+        val colorStrength = if (vivid) 1.65f * tint else tint
         val body =
             Brush.radialGradient(
                 0f to surface,
-                0.54f to lerp(surface, accent, 0.10f * tint),
-                0.60f to lerp(surface, accent, 0.24f * tint),
-                0.80f to lerp(surface, accent, 0.17f * tint),
-                0.96f to lerp(surface, accent, 0.27f * tint),
-                1f to lerp(surface, accent, 0.12f * tint),
+                0.54f to lerp(surface, accent, 0.10f * colorStrength),
+                0.60f to lerp(surface, accent, 0.24f * colorStrength),
+                0.80f to lerp(surface, accent, 0.17f * colorStrength),
+                0.96f to lerp(surface, accent, 0.27f * colorStrength),
+                1f to lerp(surface, accent, 0.12f * colorStrength),
                 radius = radius,
             )
         val grooveColor = lerp(accent, Color.White, 0.35f)
@@ -227,14 +230,24 @@ internal fun DrawScope.drawTurntableArm(
     armAngle: Float,
     surface: Color,
     metal: Color,
+    wide: Boolean = false,
 ) {
+    if (wide && layoutDirection == LayoutDirection.Rtl) {
+        scale(scaleX = -1f, scaleY = 1f) {
+            drawArm(armAngle, surface, metal, wide)
+        }
+    } else drawArm(armAngle, surface, metal, wide)
+}
+
+private fun DrawScope.drawArm(armAngle: Float, surface: Color, metal: Color, wide: Boolean) {
     val unit = size.minDimension
-    val pivot = Offset(size.width * 0.88f, size.height * 0.13f)
+    val pivot = Offset(size.width * (if (wide) 0.975f else 0.88f), size.height * 0.13f)
+    val armStartX = if (wide) unit * .96f else unit * .87f
     rotate(armAngle, pivot) {
         val arm =
             Path().apply {
                 moveTo(pivot.x, pivot.y)
-                cubicTo(unit * 0.87f, unit * 0.36f, unit * 0.82f, unit * 0.61f, unit * 0.69f, unit * 0.74f)
+                cubicTo(armStartX, unit * 0.36f, unit * 0.82f, unit * 0.61f, unit * 0.69f, unit * 0.74f)
             }
         drawPath(arm, surface.copy(alpha = 0.7f), style = Stroke(unit * 0.023f, cap = StrokeCap.Round))
         drawPath(arm, lerp(surface, metal, 0.6f), style = Stroke(unit * 0.013f, cap = StrokeCap.Round))

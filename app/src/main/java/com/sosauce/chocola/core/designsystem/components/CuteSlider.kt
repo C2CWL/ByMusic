@@ -10,14 +10,21 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -32,10 +39,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.sosauce.chocola.R
@@ -51,14 +61,15 @@ import com.sosauce.chocola.core.presentation.preferences.rememberTrackStyle
 fun CuteSlider(
     musicState: MusicState,
     onHandlePlayerActions: (PlayerActions) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    compact: Boolean = false
 ) {
     val haptics = LocalHapticFeedback.current
     val thumbStyle by rememberThumbStyle()
     val trackStyle by rememberTrackStyle()
     val dynamicDuration by rememberDynamicDuration()
 
-    var tempSliderValue by remember { mutableStateOf<Float?>(null) }
+    var tempSliderValue by remember(musicState.track.mediaId) { mutableStateOf<Float?>(null) }
     var lastHapticSecond by remember { mutableLongStateOf(-1L) }
 
     val currentPosition = musicState.position.toFloat()
@@ -66,10 +77,10 @@ fun CuteSlider(
         targetValue = tempSliderValue ?: currentPosition
     )
     // key needed cuz else track range doesn't update when changing tracks
-    val sliderState = key(musicState.duration) {
+    val sliderState = key(musicState.track.mediaId, musicState.duration) {
         rememberSliderState(
             value = currentPosition,
-            trackRange = 0f..musicState.duration.toFloat()
+            trackRange = 0f..musicState.duration.coerceAtLeast(1L).toFloat()
         )
     }
 
@@ -80,7 +91,10 @@ fun CuteSlider(
 
     val multiplier = if (dynamicDuration) musicState.speed else 1f
 
-    Column(modifier = modifier) {
+    val colors = MaterialTheme.colorScheme
+    val timeColor = if (compact) colors.onSurfaceVariant else colors.primary
+    val timeStyle = if (compact) MaterialTheme.typography.labelMedium else LocalTextStyle.current
+    val times: @Composable () -> Unit = {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -89,7 +103,8 @@ fun CuteSlider(
         ) {
             Text(
                 text = DateUtils.formatElapsedTime(((musicState.position / multiplier) / 1000).toLong()),
-                color = MaterialTheme.colorScheme.primary
+                color = timeColor,
+                style = timeStyle
             )
 
             Spacer(Modifier.width(6.dp))
@@ -133,10 +148,13 @@ fun CuteSlider(
 
             Text(
                 text = DateUtils.formatElapsedTime(((musicState.duration / multiplier) / 1000).toLong()),
-                color = MaterialTheme.colorScheme.primary
+                color = timeColor,
+                style = timeStyle
             )
         }
-
+    }
+    Column(modifier = modifier) {
+        if (!compact) times()
         Slider(
             state = sliderState,
             onValueChange = { newValue ->
@@ -157,14 +175,29 @@ fun CuteSlider(
                 lastHapticSecond = -1L
             },
             thumb = {
-                when (thumbStyle) {
+                if (compact) {
+                    Box(Modifier.size(10.dp).background(colors.primary, CircleShape))
+                } else when (thumbStyle) {
                     ThumbStyle.STRAIGHT -> StraightThumb(it.isDragging)
                     ThumbStyle.BALL -> ClassicThumb(it.isDragging)
                     ThumbStyle.MORPHING -> MorphingThumb()
                 }
             },
             track = { trackState ->
-                when (trackStyle) {
+                if (compact) {
+                    Canvas(Modifier.fillMaxWidth().height(2.dp)) {
+                        val fraction = (trackState.value / musicState.duration.coerceAtLeast(1L))
+                            .coerceIn(0f, 1f)
+                        val rtl = layoutDirection == LayoutDirection.Rtl
+                        val start = Offset(if (rtl) size.width else 0f, center.y)
+                        val end = Offset(if (rtl) 0f else size.width, center.y)
+                        drawLine(colors.onSurfaceVariant.copy(alpha = .35f), start, end, size.height, StrokeCap.Round)
+                        if (fraction > 0f) {
+                            val progress = Offset(start.x + (end.x - start.x) * fraction, center.y)
+                            drawLine(colors.primary, start, progress, size.height, StrokeCap.Round)
+                        }
+                    }
+                } else when (trackStyle) {
                     TrackStyle.WAVY -> WavyTrack(
                         isPlaying = musicState.isPlaying,
                         sliderState = trackState
@@ -174,5 +207,6 @@ fun CuteSlider(
                 }
             }
         )
+        if (compact) times()
     }
 }

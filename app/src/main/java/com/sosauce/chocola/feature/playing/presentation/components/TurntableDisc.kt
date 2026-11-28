@@ -1,6 +1,13 @@
 package com.sosauce.chocola.feature.playing.presentation.components
 
 import android.os.SystemClock
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
@@ -26,8 +33,10 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
@@ -54,10 +63,11 @@ internal fun TurntableDisc(
     armAlpha: () -> Float = { 1f },
     armOffset: () -> Float = { 0f },
     rotationDegrees: ((Float) -> Float)? = null,
+    slideTracks: Boolean = false,
 ) {
     val accent = MaterialTheme.colorScheme.primary
     val surface = MaterialTheme.colorScheme.surface
-    val metal = MaterialTheme.colorScheme.secondary
+    val metal = if (slideTracks) accent else MaterialTheme.colorScheme.secondary
     // The sheet and its lyrics layer share the record angle and reflected light.
     val shared = LocalTurntableShared.current
     val rotation = shared?.rotation ?: remember { Animatable(0f) }
@@ -66,7 +76,6 @@ internal fun TurntableDisc(
     }
     val glint = shared?.glint ?: remember { TurntableGlintClock() }
     var seenMediaId by remember { mutableStateOf(musicState.track.mediaId) }
-    var lastCover by remember { mutableStateOf<Painter?>(null) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val motionPaused = LocalTurntableMotionPaused.current
     // "Remove animations" on: glints stay still (the sheen itself is static).
@@ -138,9 +147,9 @@ internal fun TurntableDisc(
     // The page recomposes on every position tick; remembering the drawing
     // modifiers keeps their caches (brushes, strokes) until size/color change.
     val haloLayer = remember(surface, accent) { Modifier.turntableHalo(surface, accent) }
-    val vinylLayer = remember(surface, accent) { Modifier.turntableVinyl(surface, accent) }
+    val vinylLayer = remember(surface, accent, slideTracks) { Modifier.turntableVinyl(surface, accent, vivid = slideTracks) }
     val sheenLayer = remember(surface, accent, glint) { Modifier.turntableSheen(surface, accent, glint) }
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+    val record: @Composable (String?) -> Unit = { artUri ->
         Box(Modifier.fillMaxSize().graphicsLayer {
             alpha = recordAlpha()
             compositingStrategy = CompositingStrategy.ModulateAlpha
@@ -168,15 +177,18 @@ internal fun TurntableDisc(
                     )
                     // Covers swap with a short crossfade from the previous cover,
                     // so fast skipping never flashes the empty note icon.
+                    var lastCover by remember { mutableStateOf<Painter?>(null) }
                     val context = LocalContext.current
-                    val artUri = musicState.track.artUri
                     val artRequest =
-                        remember(artUri) {
-                            ImageRequest.Builder(context).data(artUri).crossfade(TURNTABLE_COVER_SWAP_MS).build()
+                        remember(context, artUri, slideTracks) {
+                            ImageRequest.Builder(context)
+                                .data(artUri)
+                                .crossfade(if (slideTracks) 0 else TURNTABLE_COVER_SWAP_MS)
+                                .build()
                         }
                     AsyncImage(
                         model = artRequest,
-                        contentDescription = stringResource(R.string.artwork),
+                        contentDescription = if (slideTracks) null else stringResource(R.string.artwork),
                         placeholder = lastCover,
                         onSuccess = { lastCover = it.painter },
                         onError = { lastCover = null },
@@ -194,8 +206,36 @@ internal fun TurntableDisc(
                         .then(sheenLayer),
             )
         }
+    }
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        if (slideTracks) {
+            val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+            val track = musicState.track
+            val trackIndex = remember(musicState.loadedMedias, track.mediaId, musicState.mediaIndex) {
+                musicState.loadedMedias.indexOfFirst { it.mediaId == track.mediaId }
+                    .takeIf { it >= 0 } ?: musicState.mediaIndex
+            }
+            AnimatedContent(
+                targetState = trackIndex to track,
+                contentKey = { it.second.mediaId },
+                modifier = Modifier.fillMaxSize(),
+                transitionSpec = {
+                    if (motionPaused || glintsStill) {
+                        EnterTransition.None togetherWith ExitTransition.None
+                    } else {
+                        val direction = if ((targetState.first >= initialState.first) != rtl) 1 else -1
+                        (slideInHorizontally(tween(300)) { it * direction } togetherWith
+                            slideOutHorizontally(tween(300)) { -it * direction })
+                            .using(SizeTransform(clip = false))
+                    }
+                },
+                label = "Vinyl track"
+            ) { (_, track) -> record(track.artUri) }
+        } else {
+            record(musicState.track.artUri)
+        }
         Canvas(Modifier.fillMaxSize().graphicsLayer { alpha = armAlpha() }) {
-            drawTurntableArm(armAngle.value + armOffset(), surface, metal)
+            drawTurntableArm(armAngle.value + armOffset(), surface, metal, wide = slideTracks)
         }
     }
 }

@@ -17,10 +17,12 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellation
 import androidx.compose.foundation.gestures.awaitVerticalDragOrCancellation
 import androidx.compose.foundation.gestures.awaitVerticalTouchSlopOrCancellation
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.horizontalDrag
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -58,6 +60,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
@@ -105,6 +108,7 @@ import com.sosauce.chocola.core.presentation.components.drawMusicPosition
 import com.sosauce.chocola.core.presentation.navigation.Screen
 import com.sosauce.chocola.core.presentation.preferences.rememberArtLyrics
 import com.sosauce.chocola.core.presentation.preferences.rememberCarousel
+import com.sosauce.chocola.core.presentation.preferences.rememberIsLandscape
 import com.sosauce.chocola.core.presentation.preferences.rememberUseTurntable
 import com.sosauce.chocola.feature.lyrics.presentation.LyricsList
 import com.sosauce.chocola.feature.playing.presentation.NowPlaying
@@ -137,6 +141,8 @@ internal fun PlayerSheet(
     val entry = state.dockEntry(route)
     val dock = state.dock(entry)
     val vinyl by rememberUseTurntable()
+    val landscape = rememberIsLandscape()
+    val portraitVinyl = vinyl && !landscape
     val artworkSeed = rememberPlayerArtworkSeed(musicState.track.artUri.takeIf { musicState.isPlayerReady })
     val turntableTheme = playerTurntableThemeState(artworkSeed)
     val turntable = remember { TurntableSharedState() }
@@ -157,10 +163,15 @@ internal fun PlayerSheet(
     val window = root
     val viewport = window?.offset(-window.left, -window.top)
     val dockRect = if (dock != null && window != null) dock.bounds.offset(-window.left, -window.top) else null
-    val fullArt = if (window != null) fullArtInWindow?.offset(-window.left, -window.top) else null
-    val ready = musicState.isPlayerReady && dockRect != null && fullArt != null && viewport != null &&
-        fullArt.left >= 0f && fullArt.top >= 0f &&
-        fullArt.right <= viewport.right + 1f && fullArt.bottom <= viewport.bottom + 1f
+    val measuredArt = if (window != null) fullArtInWindow?.offset(-window.left, -window.top) else null
+    // Preserve an in-bounds layout slot while letting the portrait record bleed off the edge.
+    val fullArt = measuredArt?.let {
+        val shift = if (rtl) .085f else -.085f
+        if (portraitVinyl) it.offset(it.width * shift, 0f) else it
+    }
+    val ready = musicState.isPlayerReady && dockRect != null && measuredArt != null && viewport != null &&
+        measuredArt.left >= 0f && measuredArt.top >= 0f &&
+        measuredArt.right <= viewport.right + 1f && measuredArt.bottom <= viewport.bottom + 1f
 
     val hostedEntry = entry.takeIf { dock != null && musicState.isPlayerReady }
     LaunchedEffect(ready, hostedEntry, routeIdentity, musicState.isPlayerReady) {
@@ -325,7 +336,10 @@ internal fun PlayerSheet(
                     spotShadowColor = scrim.copy(alpha = .20f)
                     clip = true
                 }
-                .sheetDrag(state, entry, travel, fullArt, dock),
+                .sheetDrag(state, entry, travel, fullArt, dock)
+                .then(if (portraitVinyl && fullInteractive && fullArt != null) {
+                    Modifier.vinylTrackSwipe(fullArt, rtl, onHandlePlayerActions)
+                } else Modifier),
             contentAlignment = AbsoluteAlignment.TopLeft
         ) {
             val dockWidth = dockRect.width.roundToInt()
@@ -361,10 +375,21 @@ internal fun PlayerSheet(
             val fullPlayer: @Composable () -> Unit = {
                 val vinylColors = MaterialTheme.colorScheme
                 if (vinyl) {
-                    Box(Modifier.fillMaxSize()
-                        .graphicsLayer { alpha = VinylExpandMath.backdropAlpha(state.progress) }
-                        .background(vinylColors.surface)
-                        .turntableBackdrop())
+                    val backdropModifier = if (portraitVinyl) {
+                        val brush = remember(vinylColors.surface, vinylColors.primary) {
+                            Brush.verticalGradient(
+                                0f to vinylColors.surface,
+                                .64f to vinylColors.surface,
+                                1f to lerp(vinylColors.surface, vinylColors.primary, .16f)
+                            )
+                        }
+                        Modifier.background(brush)
+                    } else Modifier.background(vinylColors.surface).turntableBackdrop()
+                    Box(
+                        Modifier.fillMaxSize()
+                            .graphicsLayer { alpha = VinylExpandMath.backdropAlpha(state.progress) }
+                            .then(backdropModifier)
+                    )
                 }
                 Box(
                     Modifier.fillMaxSize()
@@ -411,7 +436,8 @@ internal fun PlayerSheet(
                             TurntableDisc(
                                 musicState = musicState,
                                 blur = 0,
-                                drawLabel = false,
+                                drawLabel = portraitVinyl,
+                                slideTracks = portraitVinyl,
                                 recordAlpha = { VinylExpandMath.discAlpha(state.progress) },
                                 armAlpha = { VinylExpandMath.armAlpha(state.progress) },
                                 armOffset = { VinylExpandMath.armOffset(state.progress) },
@@ -453,12 +479,13 @@ internal fun PlayerSheet(
                 state = state,
                 musicState = musicState,
                 readCover = { cover },
-                fullArt = fullArt,
+                fullArt = measuredArt,
                 travel = travel,
                 baseSide = label.width.roundToInt().coerceAtLeast(startArtSize.roundToInt()),
                 miniArtSize = startArtSize,
                 miniIconDp = if (glass) 22f else 20f,
                 vinyl = vinyl,
+                portraitVinyl = portraitVinyl,
                 rotation = { turntable.rotation.value },
                 lyricsVisible = lyricsVisible,
                 interactive = fullInteractive,
@@ -479,6 +506,7 @@ internal fun PlayerSheet(
                         fullArt = Rect(fullArt.left, fullArt.top, fullArt.right, fullArt.bottom),
                         windowOrigin = Offset(window.left, window.top),
                         rtl = rtl,
+                        portraitVinyl = portraitVinyl,
                         turntable = turntable,
                         onClose = state::closeLyrics,
                         onNavigate = goTo,
@@ -635,6 +663,39 @@ private fun Modifier.sheetDrag(
 }
 
 @Composable
+private fun Modifier.vinylTrackSwipe(
+    bounds: SheetRect,
+    rtl: Boolean,
+    onAction: (PlayerActions) -> Unit
+): Modifier {
+    val action by rememberUpdatedState(onAction)
+    return pointerInput(bounds, rtl) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            if (down.position.x !in bounds.left..bounds.right || down.position.y !in bounds.top..bounds.bottom) {
+                return@awaitEachGesture
+            }
+            var displacement = 0f
+            val drag = awaitHorizontalTouchSlopOrCancellation(down.id) { change, overSlop ->
+                val delta = change.position - down.position
+                if (abs(delta.x) > abs(delta.y)) {
+                    displacement = overSlop
+                    change.consume()
+                }
+            } ?: return@awaitEachGesture
+            val ended = horizontalDrag(drag.id) { change ->
+                displacement += change.position.x - change.previousPosition.x
+                change.consume()
+            }
+            if (ended && abs(displacement) > viewConfiguration.touchSlop) {
+                val previous = (displacement > 0f) != rtl
+                action(if (previous) PlayerActions.SeekToPreviousMusic else PlayerActions.SeekToNextMusic)
+            }
+        }
+    }
+}
+
+@Composable
 private fun SheetArtwork(
     state: PlayerSheetState,
     musicState: MusicState,
@@ -645,6 +706,7 @@ private fun SheetArtwork(
     miniArtSize: Float,
     miniIconDp: Float,
     vinyl: Boolean,
+    portraitVinyl: Boolean,
     rotation: () -> Float,
     lyricsVisible: Boolean,
     interactive: Boolean,
@@ -684,7 +746,12 @@ private fun SheetArtwork(
                 shape = RoundedCornerShape(radius / scaleX.coerceAtLeast(.001f))
                 clip = true
                 rotationZ = if (vinyl) VinylExpandMath.normalizeDegrees(rotation()) * VinylExpandMath.discAlpha(g) else 0f
-                alpha = if (lyricsVisible) 0f else 1f
+                alpha = when {
+                    lyricsVisible -> 0f
+                    // Hand the shared cover off to the sliding record at the full-size endpoint.
+                    portraitVinyl -> 1f - smoothstep(.85f, 1f, g)
+                    else -> 1f
+                }
             }
             .background(background)
             .sheetSemantics(interactive)

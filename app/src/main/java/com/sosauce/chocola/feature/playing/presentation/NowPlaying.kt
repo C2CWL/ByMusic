@@ -103,7 +103,6 @@ fun NowPlayingLayout(
                 onShrinkToSearchbar = onShrinkToSearchbar,
             )
         } else if (useTurntable) {
-            // Turntable page: no top bar, every control at the bottom.
             VinylNowPlayingContent(
                 modifier = modifier,
                 musicState = musicState,
