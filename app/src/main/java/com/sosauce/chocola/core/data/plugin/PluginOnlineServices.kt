@@ -15,6 +15,7 @@ import com.sosauce.chocola.core.domain.online.tryInOrder
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -124,6 +125,42 @@ class PluginMusicService(
         val merged = JsonObject(item + extra + ("platform" to JsonPrimitive(runtime.manifest.platform)))
         withContext(Dispatchers.IO) { items.putAll(mapOf(id to merged)) }
         return merged
+    }
+
+    /** Generic, method-whitelisted call for the remaining MusicFree protocol methods. */
+    suspend fun callMethod(
+        pluginId: String,
+        method: String,
+        args: List<JsonElement> = emptyList(),
+        timeoutMillis: Long = 20_000L
+    ): JsonElement {
+        require(method in MusicFreeProtocol.METHODS) { "未知的插件协议方法：$method" }
+        return manager.call(pluginId, method, args, timeoutMillis)
+    }
+
+    suspend fun albumInfo(id: OnlineMediaId): JsonElement {
+        val platform = manager.runtime(id.pluginId).manifest.platform
+        return callMethod(id.pluginId, "getAlbumInfo", listOf(itemFor(id, platform)))
+    }
+
+    suspend fun musicSheetInfo(id: OnlineMediaId): JsonElement {
+        val platform = manager.runtime(id.pluginId).manifest.platform
+        return callMethod(id.pluginId, "getMusicSheetInfo", listOf(itemFor(id, platform)))
+    }
+
+    suspend fun topLists(pluginId: String): JsonElement = callMethod(pluginId, "getTopLists")
+
+    suspend fun topListDetail(pluginId: String, listId: String): JsonElement =
+        callMethod(pluginId, "getTopListDetail", listOf(JsonPrimitive(listId)))
+
+    suspend fun recommendSheetTags(pluginId: String): JsonElement = callMethod(pluginId, "getRecommendSheetTags")
+
+    suspend fun recommendSheetsByTag(pluginId: String, tag: String): JsonElement =
+        callMethod(pluginId, "getRecommendSheetsByTag", listOf(JsonPrimitive(tag)))
+
+    suspend fun musicComments(id: OnlineMediaId): JsonElement {
+        val platform = manager.runtime(id.pluginId).manifest.platform
+        return callMethod(id.pluginId, "getMusicComments", listOf(itemFor(id, platform)))
     }
 }
 

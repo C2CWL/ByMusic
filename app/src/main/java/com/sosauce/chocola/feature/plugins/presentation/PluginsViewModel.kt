@@ -14,6 +14,7 @@ import com.sosauce.chocola.core.data.plugin.PluginEntry
 import com.sosauce.chocola.core.data.plugin.PluginFileReader
 import com.sosauce.chocola.core.data.plugin.PluginImport
 import com.sosauce.chocola.core.data.plugin.PluginManager
+import com.sosauce.chocola.core.data.plugin.PluginSubscriptionStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -34,6 +35,7 @@ enum class ImportTab { FILE, LINK }
 data class ImportSheetState(
     val tab: ImportTab = ImportTab.FILE,
     val url: String = "",
+    val subscriptions: List<String> = emptyList(),
     val isReading: Boolean = false,
     val error: String? = null,
     val candidate: PluginCandidate? = null,
@@ -71,6 +73,7 @@ class PluginsViewModel(
     private val eventChannel = Channel<PluginsEvent>(Channel.BUFFERED)
     val events = eventChannel.receiveAsFlow()
     private var readJob: Job? = null
+    private val subscriptions = PluginSubscriptionStore(application)
 
     val state: StateFlow<PluginsUiState> = combine(ui, manager.plugins) { s, plugins ->
         s.copy(plugins = plugins.sortedBy { it.plugin.installedAtMs })
@@ -80,7 +83,7 @@ class PluginsViewModel(
         viewModelScope.launch { manager.ensureLoaded() }
     }
 
-    fun openImport() = ui.update { it.copy(sheet = ImportSheetState()) }
+    fun openImport() = ui.update { it.copy(sheet = ImportSheetState(subscriptions = subscriptions.list())) }
 
     fun closeSheet() {
         if (ui.value.sheet?.isInstalling == true) return
@@ -117,6 +120,26 @@ class PluginsViewModel(
         read { manager.readImportUrl(url) }
     }
 
+    fun addSubscription(url: String) {
+        val clean = url.trim()
+        if (!clean.startsWith("https://", ignoreCase = true)) {
+            updateSheet { it.copy(error = application.getString(R.string.plugins_url_required)) }
+            return
+        }
+        subscriptions.add(clean)
+        updateSheet { it.copy(url = clean, subscriptions = subscriptions.list(), error = null) }
+    }
+
+    fun removeSubscription(url: String) {
+        subscriptions.remove(url)
+        updateSheet { it.copy(subscriptions = subscriptions.list()) }
+    }
+
+    fun refreshSubscription(url: String) {
+        updateSheet { it.copy(url = url, error = null) }
+        read { manager.readImportUrl(url) }
+    }
+
     fun readCatalogEntry(entry: PluginCatalogEntry) = read(keepCatalog = true) {
         PluginImport.Script(manager.inspectFromUrl(entry.url))
     }
@@ -139,7 +162,12 @@ class PluginsViewModel(
             try {
                 when (val imported = block()) {
                     is PluginImport.Script -> updateSheet { it.copy(isReading = false, candidate = imported.candidate) }
-                    is PluginImport.Catalog -> updateSheet { it.copy(isReading = false, catalog = imported.catalog) }
+                    is PluginImport.Catalog -> {
+                        if (sheet.url.startsWith("https://", ignoreCase = true)) subscriptions.add(sheet.url)
+                        updateSheet {
+                            it.copy(isReading = false, catalog = imported.catalog, subscriptions = subscriptions.list())
+                        }
+                    }
                 }
             } catch (e: CancellationException) {
                 throw e

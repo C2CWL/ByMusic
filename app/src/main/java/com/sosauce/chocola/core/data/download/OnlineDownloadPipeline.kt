@@ -58,7 +58,7 @@ internal class OnlineDownloadPipeline(
         music.ensureUsable(id.pluginId)
         val temporary = File.createTempFile("online-download-", ".part", context.cacheDir)
         try {
-            val result = validateDownload(quality, expectedDurationMs, discard = { temporary.outputStream().close() }) { key ->
+            val result = validateDownload(quality, expectedDurationMs) { key ->
                 val source = try {
                     music.mediaSource(id, key, SOURCE_TIMEOUT_MS)
                 } catch (_: PluginException) {
@@ -72,9 +72,9 @@ internal class OnlineDownloadPipeline(
                     DiagLogger.w(TAG, "tier=$key stage=transfer failed")
                     return@validateDownload DownloadAttempt.Failed(DownloadRejection.UNAVAILABLE)
                 }
-                val verified = decodeDownloadAudio(temporary)
+                val audio = sniffDownload(temporary)
                     ?: return@validateDownload DownloadAttempt.Failed(DownloadRejection.INVALID_AUDIO)
-                DownloadAttempt.Decoded(verified.audio, verified.container)
+                DownloadAttempt.Ready(audio, audio.container)
             }
             when (result) {
                 is DownloadValidation.Rejected -> OnlineDownloadResult.Rejected(result.failures)
@@ -85,6 +85,25 @@ internal class OnlineDownloadPipeline(
         } finally {
             temporary.delete()
         }
+    }
+
+    /** Reads only the file header; a full MediaCodec decode is not a download requirement. */
+    private fun sniffDownload(file: File): DownloadAudio? {
+        val length = file.length()
+        if (length <= 0) return null
+        val header = file.inputStream().buffered().use { input ->
+            val bytes = ByteArray(AudioSniffer.HEADER_BYTES)
+            var offset = 0
+            while (offset < bytes.size) {
+                val count = input.read(bytes, offset, bytes.size - offset)
+                if (count <= 0) break
+                offset += count
+            }
+            bytes.copyOf(offset)
+        }
+        val sniff = AudioSniffer.sniff(header)
+        if (!sniff.container.isAudio) return null
+        return DownloadAudio(sniff.container, length, sniff.flac)
     }
 
     @androidx.annotation.RequiresApi(Build.VERSION_CODES.Q)

@@ -16,6 +16,12 @@ import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
+/**
+ * Direct HTTP transfer, following MusicFree's behavior: trust the URL the plugin gave us
+ * and save whatever the server returns. We no longer require a 200 status, a full 206
+ * Content-Range, an exact Content-Length, or a small file. Only a hard ceiling remains so
+ * a broken CDN cannot fill the phone; cancellation and header sanitization stay intact.
+ */
 internal class DownloadTransfer(base: OkHttpClient) {
     private val client = base.newBuilder().callTimeout(5, TimeUnit.MINUTES).build()
 
@@ -29,10 +35,10 @@ internal class DownloadTransfer(base: OkHttpClient) {
                     ?.let { value -> request.header("User-Agent", value) }
             }
         }
-        return transfer(request.removeHeader("Range").build(), target) == ResponseResult.Complete
+        return transfer(request.removeHeader("Range").build(), target)
     }
 
-    private suspend fun transfer(request: Request, target: File): ResponseResult =
+    private suspend fun transfer(request: Request, target: File): Boolean =
         // Open before enqueuing so a canceled callback cannot recreate a deleted temp file.
         target.outputStream().use { output ->
             suspendCancellableCoroutine { continuation ->
@@ -40,7 +46,7 @@ internal class DownloadTransfer(base: OkHttpClient) {
                 continuation.invokeOnCancellation { call.cancel() }
                 call.enqueue(object : Callback {
                     override fun onFailure(call: Call, e: IOException) {
-                        continuation.resume(ResponseResult.Rejected)
+                        continuation.resume(false)
                     }
 
                     override fun onResponse(call: Call, response: Response) {
@@ -56,49 +62,28 @@ internal class DownloadTransfer(base: OkHttpClient) {
             }
         }
 
-    private fun read(response: Response, output: OutputStream, canceled: () -> Boolean): ResponseResult {
-        val rangeSize = when (response.code) {
-            200 -> null
-            206 -> {
-                // Some CDNs return 206 even without Range. Accept only the entire object.
-                val range = FULL_RANGE.matchEntire(response.header("Content-Range").orEmpty())
-                    ?: return ResponseResult.Rejected
-                val total = range.groupValues[2].toLongOrNull() ?: return ResponseResult.Rejected
-                if (total !in 1L..MAX_BYTES || range.groupValues[1].toLongOrNull() != total - 1) {
-                    return ResponseResult.Rejected
-                }
-                total
-            }
-            else -> return ResponseResult.Rejected
-        }
-        val body = response.body ?: return ResponseResult.Rejected
-        val size = body.contentLength()
-        if (size == 0L || size > MAX_BYTES || (rangeSize != null && size >= 0 && size != rangeSize)) return ResponseResult.Rejected
-        var total = 0L
+    private fun read(response: Response, output: OutputStream, canceled: () -> Boolean): Boolean {
+        if (response.code !in 200..299) return false
+        val body = response.body ?: return false
         val input = body.byteStream()
         val buffer = ByteArray(64 * 1024)
+        var total = 0L
         while (!canceled()) {
             val count = try {
                 input.read(buffer)
             } catch (_: IOException) {
-                return ResponseResult.Rejected
+                return false
             }
             if (count == -1) break
             total += count
-            if (total > MAX_BYTES) return ResponseResult.Rejected
+            if (total > MAX_BYTES) return false
             output.write(buffer, 0, count)
         }
-        return if (!canceled() && total > 0 && (size < 0 || total == size) && (rangeSize == null || total == rangeSize)) ResponseResult.Complete
-        else ResponseResult.Rejected
-    }
-
-    private sealed interface ResponseResult {
-        data object Complete : ResponseResult
-        data object Rejected : ResponseResult
+        return !canceled() && total > 0
     }
 
     private companion object {
-        val FULL_RANGE = Regex("bytes 0-([0-9]+)/([0-9]+)", RegexOption.IGNORE_CASE)
-        const val MAX_BYTES = 256L * 1024 * 1024
+        /** Safety ceiling only; unlike the old code this is not an audio-format check. */
+        const val MAX_BYTES = 1024L * 1024 * 1024
     }
 }
