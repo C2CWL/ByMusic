@@ -23,6 +23,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -46,6 +47,7 @@ import coil3.request.crossfade
 import com.skydoves.cloudy.cloudy
 import com.sosauce.chocola.R
 import com.sosauce.chocola.core.domain.player.MusicState
+import com.sosauce.chocola.feature.playing.presentation.VinylLayout
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
@@ -146,27 +148,40 @@ internal fun TurntableDisc(
 
     // The page recomposes on every position tick; remembering the drawing
     // modifiers keeps their caches (brushes, strokes) until size/color change.
+    val discFraction = if (slideTracks) VinylLayout.PORTRAIT_DISC_FRACTION else TURNTABLE_DISC_FRACTION
+    val labelFraction = if (slideTracks) VinylLayout.PORTRAIT_LABEL_FRACTION else TURNTABLE_LABEL_FRACTION
+    val coverModifier = if (slideTracks) {
+        Modifier.fillMaxSize(VinylLayout.PORTRAIT_COVER_IN_LABEL).clip(CircleShape)
+    } else Modifier.fillMaxSize()
     val haloLayer = remember(surface, accent) { Modifier.turntableHalo(surface, accent) }
-    val vinylLayer = remember(surface, accent, slideTracks) { Modifier.turntableVinyl(surface, accent, vivid = slideTracks) }
-    val sheenLayer = remember(surface, accent, glint) { Modifier.turntableSheen(surface, accent, glint) }
+    val vinylLayer = remember(surface, accent, slideTracks) {
+        if (slideTracks) Modifier.portraitVinyl(accent) else Modifier.clip(CircleShape).turntableVinyl(surface, accent)
+    }
+    val sheenLayer = remember(surface, accent, glint, slideTracks) {
+        Modifier.turntableSheen(surface, accent, glint, portrait = slideTracks)
+    }
+    val currentArmOffset by rememberUpdatedState(armOffset)
+    val armLayer = remember(metal, armAngle) {
+        Modifier.portraitTonearm(metal) { armAngle.value + currentArmOffset() }
+    }
     val record: @Composable (String?) -> Unit = { artUri ->
         Box(Modifier.fillMaxSize().graphicsLayer {
             alpha = recordAlpha()
             compositingStrategy = CompositingStrategy.ModulateAlpha
         }) {
-            Box(Modifier.fillMaxSize().then(haloLayer))
+            if (!slideTracks) Box(Modifier.fillMaxSize().then(haloLayer))
             Box(
                 modifier =
                     Modifier
-                        .fillMaxSize(TURNTABLE_DISC_FRACTION)
+                        .fillMaxSize(discFraction)
                         .align(Alignment.CenterStart)
                         .graphicsLayer { rotationZ = rotationDegrees?.invoke(rotation.value) ?: rotation.value }
-                        .clip(CircleShape)
                         .then(vinylLayer),
                 contentAlignment = Alignment.Center,
             ) {
                 if (drawLabel) Box(
-                    modifier = Modifier.fillMaxSize(TURNTABLE_LABEL_FRACTION).clip(CircleShape).background(surface),
+                    modifier = Modifier.fillMaxSize(labelFraction).clip(CircleShape)
+                        .background(if (slideTracks) turntableLabelWhite else surface),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -193,7 +208,7 @@ internal fun TurntableDisc(
                         onSuccess = { lastCover = it.painter },
                         onError = { lastCover = null },
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize().cloudy(radius = blur, enabled = blur > 0),
+                        modifier = coverModifier.cloudy(radius = blur, enabled = blur > 0),
                     )
                 }
             }
@@ -201,7 +216,7 @@ internal fun TurntableDisc(
             Box(
                 modifier =
                     Modifier
-                        .fillMaxSize(TURNTABLE_DISC_FRACTION)
+                        .fillMaxSize(discFraction)
                         .align(Alignment.CenterStart)
                         .then(sheenLayer),
             )
@@ -234,8 +249,16 @@ internal fun TurntableDisc(
         } else {
             record(musicState.track.artUri)
         }
-        Canvas(Modifier.fillMaxSize().graphicsLayer { alpha = armAlpha() }) {
-            drawTurntableArm(armAngle.value + armOffset(), surface, metal, wide = slideTracks)
+        val armModifier = Modifier.fillMaxSize().graphicsLayer {
+            alpha = armAlpha()
+            if (slideTracks) compositingStrategy = CompositingStrategy.ModulateAlpha
+        }
+        if (slideTracks) {
+            Box(armModifier.then(armLayer))
+        } else {
+            Canvas(armModifier) {
+                drawTurntableArm(armAngle.value + armOffset(), surface, metal)
+            }
         }
     }
 }

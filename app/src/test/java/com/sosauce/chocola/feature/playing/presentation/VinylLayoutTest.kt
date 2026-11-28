@@ -9,6 +9,19 @@ import org.junit.Test
 class VinylLayoutTest {
 
     @Test
+    fun portraitDiscBleedsPastTheLeadingEdgeAndKeepsRoomForTheTonearm() {
+        val width = 360f
+        val diameter = width * VinylLayout.PORTRAIT_DISC_FRACTION
+        val left = VinylLayout.portraitDiscOffset(width, rtl = false)
+        assertTrue(diameter / width in .92f.. 0.95f)
+        assertTrue(-left / diameter in .06f.. 0.10f)
+        assertTrue(width - (left + diameter) >= width * .12f)
+        assertEquals(-left, VinylLayout.portraitDiscOffset(width, rtl = true), 0f)
+        assertEquals(.48f, VinylLayout.PORTRAIT_LABEL_FRACTION, 0f)
+        assertTrue(VinylLayout.PORTRAIT_COVER_IN_LABEL in .82f.. 0.88f)
+    }
+
+    @Test
     fun landscapeBarHasSevenIconsInThreeGroupsInTheDesignOrder() {
         assertEquals(
             listOf(

@@ -47,6 +47,17 @@ class VinylLyricsMathTest {
     }
 
     @Test
+    fun portraitFlightStartsAtTheVisibleRecordInBothLayoutDirections() {
+        for (rtl in listOf(false, true)) {
+            val cover = VinylExpandMath.labelRectFor(fullArt, rtl, portrait = true)
+            val disc = VinylLyricsMath.discAround(cover, VinylExpandMath.coverFraction(portrait = true))
+            assertRect(cover, VinylLyricsMath.coverRect(0f, cover, headerCover))
+            assertRect(VinylExpandMath.discRectFor(fullArt, rtl, portrait = true), disc)
+            assertRect(fullArt, VinylExpandMath.artBoxForDisc(disc, rtl, portrait = true))
+        }
+    }
+
+    @Test
     fun endFrameIsExactlyTheLyricsPage() {
         assertEquals(0f, VinylLyricsMath.pageAlpha(1f), 0f)
         assertEquals(0f, VinylLyricsMath.armAlpha(1f), 0f)
