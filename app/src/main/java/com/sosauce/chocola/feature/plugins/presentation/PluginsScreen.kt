@@ -380,19 +380,41 @@ private fun ImportSheet(sheet: ImportSheetState, viewModel: PluginsViewModel) {
                         modifier = Modifier.fillMaxWidth()
                     ) { Text(stringResource(R.string.plugins_pick_file)) }
 
-                    ImportTab.LINK -> Row(verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedTextField(
-                            value = sheet.url,
-                            onValueChange = viewModel::setUrl,
-                            label = { Text(stringResource(R.string.plugins_link_label)) },
-                            placeholder = { Text(stringResource(R.string.plugins_link_hint)) },
-                            singleLine = true,
-                            enabled = !sheet.isReading && !sheet.isInstalling,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Button(onClick = viewModel::readLink, enabled = !sheet.isReading && !sheet.isInstalling && sheet.url.isNotBlank()) {
-                            Text(stringResource(R.string.plugins_read))
+                    ImportTab.LINK -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            OutlinedTextField(
+                                value = sheet.url,
+                                onValueChange = viewModel::setUrl,
+                                label = { Text(stringResource(R.string.plugins_link_label)) },
+                                placeholder = { Text(stringResource(R.string.plugins_link_hint)) },
+                                singleLine = true,
+                                enabled = !sheet.isReading && !sheet.isInstalling,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Button(onClick = viewModel::readLink, enabled = !sheet.isReading && !sheet.isInstalling && sheet.url.isNotBlank()) {
+                                Text(stringResource(R.string.plugins_read))
+                            }
+                        }
+                        TextButton(
+                            onClick = { viewModel.addSubscription(sheet.url) },
+                            enabled = !sheet.isReading && !sheet.isInstalling && sheet.url.startsWith("https://", true)
+                        ) { Text(stringResource(R.string.plugins_subscription_save)) }
+                        if (sheet.subscriptions.isNotEmpty()) {
+                            Text(stringResource(R.string.plugins_subscriptions_title), style = MaterialTheme.typography.titleSmall)
+                            sheet.subscriptions.forEach { url ->
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    TextButton(
+                                        onClick = { viewModel.refreshSubscription(url) },
+                                        enabled = !sheet.isReading && !sheet.isInstalling,
+                                        modifier = Modifier.weight(1f)
+                                    ) { Text(url, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                                    TextButton(
+                                        onClick = { viewModel.removeSubscription(url) },
+                                        enabled = !sheet.isReading && !sheet.isInstalling
+                                    ) { Text(stringResource(R.string.plugins_subscription_remove)) }
+                                }
+                            }
                         }
                     }
                 }

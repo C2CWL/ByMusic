@@ -79,6 +79,7 @@ import com.sosauce.chocola.core.domain.model.CuteTrack
 import com.sosauce.chocola.core.domain.online.OnlineLyricsProvider
 import com.sosauce.chocola.core.domain.online.OnlineMediaId
 import com.sosauce.chocola.core.domain.online.QualityRequest
+import com.sosauce.chocola.core.domain.online.QualityTier
 import com.sosauce.chocola.core.domain.player.MusicState
 import com.sosauce.chocola.core.presentation.components.MiniPlayerBarHost
 import com.sosauce.chocola.feature.recognition.domain.RecognitionPluginInfo
@@ -461,6 +462,8 @@ private fun TrackDownloadButton(track: CuteTrack, id: OnlineMediaId, onlineLyric
     }
     val failed = work.any { it.state == WorkInfo.State.FAILED }
 
+    var selectedTier by remember(id) { mutableStateOf<QualityTier?>(null) }
+    var qualityMenuExpanded by remember(id) { mutableStateOf(false) }
     val label = when {
         active -> R.string.online_download_active
         saved -> R.string.online_download_saved
@@ -480,42 +483,73 @@ private fun TrackDownloadButton(track: CuteTrack, id: OnlineMediaId, onlineLyric
             color = MaterialTheme.colorScheme.error
         )
     }
-    IconButton(
-        enabled = !active && !saved,
-        onClick = {
-            enqueuing = true
-            scope.launch {
-                try {
-                    val lyrics = runCatching { onlineLyrics.lyrics(id)?.raw }.getOrNull()
-                    OnlineDownloadWorker.enqueue(
-                        context, id, track.title, track.durationMillis.takeIf { it > 0 },
-                        QualityRequest.autoFromTop(),
-                        artist = track.artist,
-                        album = track.album,
-                        artUri = track.artUri,
-                        lyrics = lyrics
-                    ).await()
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (_: Exception) {
-                    Toast.makeText(context, R.string.online_download_enqueue_failed, Toast.LENGTH_SHORT).show()
-                } finally {
-                    enqueuing = false
-                }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        TextButton(
+            onClick = { qualityMenuExpanded = true },
+            enabled = !active && !saved
+        ) {
+            Text(
+                stringResource(
+                    R.string.online_download_quality_value,
+                    selectedTier?.name ?: stringResource(R.string.online_download_quality_auto)
+                ),
+                style = MaterialTheme.typography.labelMedium
+            )
+        }
+        DropdownMenu(
+            expanded = qualityMenuExpanded,
+            onDismissRequest = { qualityMenuExpanded = false }
+        ) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.online_download_quality_auto)) },
+                onClick = { selectedTier = null; qualityMenuExpanded = false }
+            )
+            QualityTier.entries.filter { it != QualityTier.SPATIAL }.forEach { tier ->
+                DropdownMenuItem(
+                    text = { Text(tier.name) },
+                    onClick = { selectedTier = tier; qualityMenuExpanded = false }
+                )
             }
         }
-    ) {
-        if (active) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(18.dp).semantics { contentDescription = context.getString(label) },
-                strokeWidth = 2.dp
-            )
-        } else {
-            Icon(
-                painter = painterResource(if (saved) R.drawable.check_circle else R.drawable.down),
-                contentDescription = stringResource(label),
-                tint = if (failed && !saved) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        IconButton(
+            enabled = !active && !saved,
+            onClick = {
+                enqueuing = true
+                scope.launch {
+                    try {
+                        val lyrics = runCatching { onlineLyrics.lyrics(id)?.raw }.getOrNull()
+                        val request = selectedTier?.let { QualityRequest.preferred(it) }
+                            ?: QualityRequest.autoFromTop()
+                        OnlineDownloadWorker.enqueue(
+                            context, id, track.title, track.durationMillis.takeIf { it > 0 },
+                            request,
+                            artist = track.artist,
+                            album = track.album,
+                            artUri = track.artUri,
+                            lyrics = lyrics
+                        ).await()
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: Exception) {
+                        Toast.makeText(context, R.string.online_download_enqueue_failed, Toast.LENGTH_SHORT).show()
+                    } finally {
+                        enqueuing = false
+                    }
+                }
+            }
+        ) {
+            if (active) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp).semantics { contentDescription = context.getString(label) },
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Icon(
+                    painter = painterResource(if (saved) R.drawable.check_circle else R.drawable.down),
+                    contentDescription = stringResource(label),
+                    tint = if (failed && !saved) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }

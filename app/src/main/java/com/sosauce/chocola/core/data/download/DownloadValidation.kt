@@ -5,41 +5,44 @@ import com.sosauce.chocola.core.domain.online.QualityTier
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 
-/** Facts from a file that has already passed the decoder check. */
-internal data class DecodedDownload(
-    val codecMime: String,
-    val durationMs: Long,
-    val sampleRateHz: Int,
-    val bitsPerSample: Int?,
-    val averageKbps: Int?
+/** Lightweight facts from the saved bytes. No MediaCodec decode, no duration gate. */
+internal data class DownloadAudio(
+    val container: AudioContainer,
+    val bytes: Long,
+    val flac: FlacInfo?
 ) {
-    fun quality(): QualityTier? = when {
-        codecMime == "audio/eac3-joc" || codecMime == "audio/ac4" -> QualityTier.SPATIAL
-        codecMime == "audio/flac" || codecMime == "audio/alac" || codecMime == "audio/raw" -> {
-            if ((bitsPerSample ?: 0) >= 24 && sampleRateHz >= 48_000) QualityTier.HIRES
-            else QualityTier.LOSSLESS
-        }
-        !codecMime.startsWith("audio/") -> null
-        else -> when (averageKbps) {
-            null -> null
-            in Int.MIN_VALUE..0 -> null
-            in 1..112 -> QualityTier.LOSSY_LOW
-            in 113..159 -> QualityTier.LOSSY_128
-            in 160..255 -> QualityTier.LOSSY_192
-            else -> QualityTier.LOSSY_320
+    fun quality(expectedDurationMs: Long?): QualityTier = when (container) {
+        AudioContainer.FLAC ->
+            if ((flac?.bitsPerSample ?: 0) >= 24 && (flac?.sampleRate ?: 0) >= 48_000) {
+                QualityTier.HIRES
+            } else {
+                QualityTier.LOSSLESS
+            }
+        AudioContainer.OGG_OPUS, AudioContainer.AAC_ADTS, AudioContainer.MP4 -> QualityTier.LOSSY_192
+        AudioContainer.OGG_VORBIS -> QualityTier.LOSSY_128
+        else -> {
+            val kbps = if (expectedDurationMs != null && expectedDurationMs > 0) {
+                (bytes * 8 / expectedDurationMs).toInt()
+            } else {
+                0
+            }
+            when {
+                kbps >= 320 -> QualityTier.LOSSY_320
+                kbps >= 160 -> QualityTier.LOSSY_192
+                kbps >= 112 -> QualityTier.LOSSY_128
+                else -> QualityTier.LOSSY_LOW
+            }
         }
     }
 }
 
 internal sealed interface DownloadAttempt<out T> {
-    /** Returned only after decoding succeeds. The attempt owns cleanup of its temporary file. */
-    data class Decoded<T>(val audio: DecodedDownload, val value: T) : DownloadAttempt<T>
+    /** Downloaded bytes were recognized as audio. The caller owns the temporary file. */
+    data class Ready<T>(val audio: DownloadAudio, val value: T) : DownloadAttempt<T>
     data class Failed(val reason: DownloadRejection) : DownloadAttempt<Nothing>
 }
 
-internal enum class DownloadRejection {
-    UNAVAILABLE, INVALID_AUDIO, DURATION_MISMATCH, QUALITY_MISMATCH
-}
+internal enum class DownloadRejection { UNAVAILABLE, INVALID_AUDIO }
 
 internal data class DownloadFailure(val key: String, val reason: DownloadRejection)
 
@@ -57,32 +60,30 @@ internal sealed interface DownloadValidation<out T> {
     data class Rejected(val failures: List<DownloadFailure>) : DownloadValidation<Nothing>
 }
 
-/** One attempt per plugin key. Accept any requested tier represented by that key. */
+/**
+ * MusicFree-style tier selection: try each requested MusicFree key once and accept the
+ * first response that is recognizable audio. A lower measured tier is reported as a
+ * downgrade, but it is no longer a failure; a missing plugin or a non-audio body is.
+ */
 internal suspend fun <T> validateDownload(
     request: QualityRequest,
     expectedDurationMs: Long?,
-    discard: suspend (T) -> Unit,
     attempt: suspend (key: String) -> DownloadAttempt<T>
 ): DownloadValidation<T> {
     val failures = mutableListOf<DownloadFailure>()
-    for ((key, _) in request.chain.groupBy { it.musicFreeKey }) {
+    for (key in request.chain.map { it.musicFreeKey }.distinct()) {
         currentCoroutineContext().ensureActive()
-        val rejection = when (val result = attempt(key)) {
-            is DownloadAttempt.Failed -> result.reason
-            is DownloadAttempt.Decoded -> {
-                val measured = result.audio.quality()
-                val duration = result.audio.durationMs
-                val reason = when {
-                    measured == null || duration <= 0 -> DownloadRejection.INVALID_AUDIO
-                    else -> return DownloadValidation.Accepted(
-                        result.value, key, measured, failures.toList(), measured < request.requested
-                    )
-                }
-                discard(result.value)
-                reason
-            }
+        when (val result = attempt(key)) {
+            is DownloadAttempt.Failed -> failures += DownloadFailure(key, result.reason)
+            is DownloadAttempt.Ready ->
+                return DownloadValidation.Accepted(
+                    result.value,
+                    key,
+                    result.audio.quality(expectedDurationMs),
+                    failures.toList(),
+                    result.audio.quality(expectedDurationMs) < request.requested
+                )
         }
-        failures += DownloadFailure(key, rejection)
     }
     return DownloadValidation.Rejected(failures.toList())
 }

@@ -48,24 +48,27 @@ class DownloadTransferTest {
         assertEquals(listOf("source.example"), hosts)
     }
 
-    @Test fun rejectsPartialResponse() = runBlocking {
+    @Test fun acceptsPartialResponseLikeMusicFree() = runBlocking {
         val requests = mutableListOf<Request>()
         val transfer = transfer { request ->
             requests += request
             response(request, 206, body = "partial")
         }
-        assertFalse(transfer.fetch(source(), files.newFile()))
+        val file = files.newFile()
+        assertTrue(transfer.fetch(source(), file))
+        assertEquals("partial", file.readText())
         assertNull(requests.single().header("Range"))
     }
 
-    @Test fun acceptsOnlyCompleteRangeWithMatchingBody() = runBlocking {
-        for ((range, accepted) in listOf("bytes 0-4/5" to true, "bytes 1-5/6" to false,
-            "bytes 0-4/10" to false, "bytes 0-7/8" to false, "bytes 0-4/*" to false)) {
-            val transfer = transfer { request -> response(request, 206, body = "audio")
-                .newBuilder().header("Content-Range", range).build() }
+    @Test fun ignoresContentRangeChecks() = runBlocking {
+        for (range in listOf("bytes 0-4/5", "bytes 1-5/6", "bytes 0-4/10", "bytes 0-7/8", "bytes 0-4/*")) {
+            val transfer = transfer { request ->
+                response(request, 206, body = "audio")
+                    .newBuilder().header("Content-Range", range).build()
+            }
             val file = files.newFile()
-            assertEquals(range, accepted, transfer.fetch(source(), file))
-            if (accepted) assertEquals("audio", file.readText())
+            assertTrue(transfer.fetch(source(), file))
+            assertEquals("audio", file.readText())
         }
     }
 
