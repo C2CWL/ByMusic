@@ -6,10 +6,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.DropdownMenuPopup
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.IconButton
+import top.yukonga.miuix.kmp.theme.MiuixTheme
+import top.yukonga.miuix.kmp.basic.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,13 +44,13 @@ fun LibraryListToolbar(
             Icon(
                 painter = painterResource(R.drawable.shuffle),
                 contentDescription = stringResource(R.string.shuffle),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = MiuixTheme.colorScheme.onBackground,
             )
         }
         Text(
             text = trackCount.toString(),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MiuixTheme.textStyles.body2,
+            color = MiuixTheme.colorScheme.onBackground,
         )
         Spacer(modifier = Modifier.weight(1f))
         androidx.compose.foundation.layout.Box {
@@ -58,7 +58,7 @@ fun LibraryListToolbar(
                 Icon(
                     painter = painterResource(R.drawable.shapes),
                     contentDescription = stringResource(R.string.library_sort),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tint = MiuixTheme.colorScheme.onBackground,
                 )
             }
             DropdownMenuPopup(
@@ -72,7 +72,7 @@ fun LibraryListToolbar(
             Icon(
                 painter = painterResource(R.drawable.queue),
                 contentDescription = stringResource(R.string.queue),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = MiuixTheme.colorScheme.onBackground,
             )
         }
     }
