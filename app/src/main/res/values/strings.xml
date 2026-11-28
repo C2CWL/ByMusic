@@ -14,6 +14,16 @@
     <string name="size">大小</string>
     <string name="type">类型</string>
     <string name="bitrate">比特率</string>
+    <string name="bitrate_kbps">%1$d kbps</string>
+    <string name="sample_rate">采样率</string>
+    <string name="sample_rate_value">%1$s kHz</string>
+    <string name="bit_depth">位深</string>
+    <string name="audio_quality">音质</string>
+    <string name="quality_hi_res">Hi-Res</string>
+    <string name="quality_lossless">无损</string>
+    <string name="quality_hq">HQ</string>
+    <string name="quality_lq">LQ</string>
+    <string name="quality_unknown">未知</string>
     <string name="previous_song">上一首</string>
     <string name="play_pause_button">暂停/播放按钮</string>
     <string name="next_button">下一首</string>
@@ -449,4 +459,9 @@
     <string name="online_no_results">没有搜到结果</string>
     <string name="online_footer">内容全部来自你导入的插件</string>
     <string name="no_fav_tracks">暂无收藏曲目</string>
+    <string name="online_download_quality_value">音质：%1$s</string>
+    <string name="online_download_quality_auto">自动</string>
+    <string name="plugins_subscriptions_title">已保存的订阅</string>
+    <string name="plugins_subscription_save">保存为订阅</string>
+    <string name="plugins_subscription_remove">移除</string>
 </resources>
