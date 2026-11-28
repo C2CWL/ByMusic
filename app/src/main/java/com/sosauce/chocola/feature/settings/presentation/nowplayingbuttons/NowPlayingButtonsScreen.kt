@@ -159,7 +159,10 @@ private fun ButtonToggles(
     modifier: Modifier = Modifier
 ) {
     // The turntable page has no collapse button (swipe down / Back), so its toggle is not listed.
-    val buttons = VinylLayout.settingsToggles(turntableLayout = rememberTurntableEnabled())
+    val buttons = VinylLayout.settingsToggles(
+        turntableLayout = rememberTurntableEnabled(),
+        landscape = rememberIsLandscape()
+    )
 
     LazyColumn(
         modifier = modifier,

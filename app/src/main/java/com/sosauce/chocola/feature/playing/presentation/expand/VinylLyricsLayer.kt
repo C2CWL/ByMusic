@@ -56,6 +56,7 @@ internal fun VinylLyricsLayer(
     fullArt: Rect,
     windowOrigin: Offset,
     rtl: Boolean,
+    portraitVinyl: Boolean,
     turntable: TurntableSharedState,
     onClose: () -> Unit,
     onNavigate: (Screen) -> Unit,
@@ -97,6 +98,7 @@ internal fun VinylLyricsLayer(
                 fullArt = fullArt,
                 headerArt = headerArt,
                 rtl = rtl,
+                portraitVinyl = portraitVinyl,
                 turntable = turntable
             )
         }
@@ -111,12 +113,13 @@ private fun VinylLyricsFlight(
     fullArt: Rect,
     headerArt: Rect?,
     rtl: Boolean,
+    portraitVinyl: Boolean,
     turntable: TurntableSharedState
 ) {
     val density = LocalDensity.current
     val accent = MaterialTheme.colorScheme.primary
     val surface = MaterialTheme.colorScheme.surface
-    val metal = MaterialTheme.colorScheme.secondary
+    val metal = if (portraitVinyl) accent else MaterialTheme.colorScheme.secondary
 
     val startLabel = VinylExpandMath.labelRectFor(fullArt, rtl)
     val cover = VinylLyricsMath.coverRect(progress, startLabel, headerArt ?: startLabel)
@@ -155,7 +158,7 @@ private fun VinylLyricsFlight(
                         rotationZ = degrees
                     }
                     .clip(CircleShape)
-                    .turntableVinyl(surface, accent)
+                    .turntableVinyl(surface, accent, vivid = portraitVinyl)
             )
         }
         Box(
@@ -193,7 +196,7 @@ private fun VinylLyricsFlight(
                 Modifier
                     .placeRect(artBox)
                     .graphicsLayer { alpha = armAlpha }
-            ) { drawTurntableArm(armDegrees, surface, metal) }
+            ) { drawTurntableArm(armDegrees, surface, metal, wide = portraitVinyl) }
         }
     }
 }

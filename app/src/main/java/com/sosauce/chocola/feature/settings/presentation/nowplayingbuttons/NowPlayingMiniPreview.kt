@@ -120,7 +120,7 @@ private fun rememberFakeMusicState(): MusicState {
 
     return remember(title, artist, album) {
         val track = CuteTrack(
-            mediaId = "now_playing_preview",
+            mediaId = "1",
             title = title,
             artist = artist,
             album = album

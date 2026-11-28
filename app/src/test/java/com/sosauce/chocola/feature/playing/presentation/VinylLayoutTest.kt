@@ -9,7 +9,7 @@ import org.junit.Test
 class VinylLayoutTest {
 
     @Test
-    fun barHasSevenIconsInThreeGroupsInTheDesignOrder() {
+    fun landscapeBarHasSevenIconsInThreeGroupsInTheDesignOrder() {
         assertEquals(
             listOf(
                 listOf(NowPlayingButton.LYRICS, NowPlayingButton.QUEUE),
@@ -64,16 +64,28 @@ class VinylLayoutTest {
     }
 
     @Test
-    fun settingsHideTheCollapseToggleOnlyForTheTurntablePage() {
-        val turntable = VinylLayout.settingsToggles(turntableLayout = true)
-        val classic = VinylLayout.settingsToggles(turntableLayout = false)
-        assertFalse(NowPlayingButton.CLOSE in turntable)
-        assertTrue(NowPlayingButton.CLOSE in classic)
+    fun portraitActionsKeepEveryExistingControlAvailable() {
+        val bars = VinylLayout.PORTRAIT_TOP_ACTIONS + VinylLayout.PORTRAIT_QUICK_ACTIONS +
+            VinylLayout.PORTRAIT_REPEAT + VinylLayout.PORTRAIT_QUEUE
+        val individualControls = listOf(
+            NowPlayingButton.CLOSE,
+            NowPlayingButton.FAVORITE,
+            NowPlayingButton.PREVIOUS,
+            NowPlayingButton.PLAY_PAUSE,
+            NowPlayingButton.NEXT
+        )
+        val controls = bars.flatten() + individualControls
+        assertEquals(NowPlayingButton.entries.size, controls.size)
+        assertEquals(NowPlayingButton.entries.toSet(), controls.toSet())
+    }
+
+    @Test
+    fun settingsHideTheCollapseToggleOnlyForTheLandscapeTurntablePage() {
+        val portraitTurntable = VinylLayout.settingsToggles(turntableLayout = true, landscape = false)
+        val landscapeTurntable = VinylLayout.settingsToggles(turntableLayout = true, landscape = true)
+        val classic = VinylLayout.settingsToggles(turntableLayout = false, landscape = false)
+        assertEquals(NowPlayingButton.hideable, portraitTurntable)
+        assertEquals(NowPlayingButton.hideable - NowPlayingButton.CLOSE, landscapeTurntable)
         assertEquals(NowPlayingButton.hideable, classic)
-        assertEquals(NowPlayingButton.hideable - NowPlayingButton.CLOSE, turntable)
-        // The stored name is kept, so old backups that hid CLOSE still load.
-        assertEquals(setOf(NowPlayingButton.CLOSE), setOf("CLOSE").let { names ->
-            NowPlayingButton.hideable.filter { it.name in names }.toSet()
-        })
     }
 }
