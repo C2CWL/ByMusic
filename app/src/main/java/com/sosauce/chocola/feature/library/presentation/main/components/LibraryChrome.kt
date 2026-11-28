@@ -3,10 +3,12 @@
 package com.sosauce.chocola.feature.library.presentation.main.components
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,13 +17,13 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DropdownMenuPopup
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
+import top.yukonga.miuix.kmp.basic.HorizontalDivider
+import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.NavigationDrawerItem
-import androidx.compose.material3.Text
+import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import androidx.compose.runtime.Composable
@@ -36,6 +38,8 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -94,6 +98,32 @@ fun LibraryTopBar(
 }
 
 @Composable
+private fun DrawerRow(
+    label: String,
+    icon: Int,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
+    top.yukonga.miuix.kmp.basic.BasicComponent(
+        modifier = modifier
+            .padding(horizontal = 12.dp, vertical = 2.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (selected) colors.surfaceContainer else Color.Transparent),
+        title = label,
+        startAction = {
+            Icon(
+                painterResource(icon),
+                null,
+                Modifier.padding(end = 16.dp).size(22.dp)
+            )
+        },
+        onClick = onClick,
+    )
+}
+
+@Composable
 fun LibraryDrawerSheet(
     trackCount: Int,
     onShuffle: () -> Unit,
@@ -122,45 +152,36 @@ fun LibraryDrawerSheet(
                 style = MaterialTheme.typography.titleLarge,
             )
             library.forEach { item ->
-                NavigationDrawerItem(
-                    label = { Text(stringResource(item.label)) },
-                    icon = { Icon(painterResource(item.icon), null) },
+                DrawerRow(
+                    label = stringResource(item.label),
+                    icon = item.icon,
                     selected = item.screen == Screen.Main,
                     onClick = { onClose(); if (item.screen != Screen.Main) onNavigate(item.screen) },
-                    modifier = Modifier.padding(horizontal = 12.dp),
                 )
             }
             HorizontalDivider(Modifier.padding(horizontal = 28.dp, vertical = 8.dp))
-            NavigationDrawerItem(
-                label = { Text("${stringResource(R.string.shuffle)} · $trackCount") },
-                icon = { Icon(painterResource(R.drawable.shuffle), null) },
+            DrawerRow(
+                label = "${stringResource(R.string.shuffle)} · $trackCount",
+                icon = R.drawable.shuffle,
                 selected = false,
-                onClick = {
-                    if (trackCount > 0) {
-                        onClose()
-                        onShuffle()
-                    }
-                },
-                modifier = Modifier.padding(horizontal = 12.dp),
+                onClick = { if (trackCount > 0) { onClose(); onShuffle() } },
             )
-            NavigationDrawerItem(
-                label = { Text(stringResource(R.string.library_sort)) },
-                icon = { Icon(painterResource(R.drawable.shapes), null) },
+            DrawerRow(
+                label = stringResource(R.string.library_sort),
+                icon = R.drawable.shapes,
                 selected = sortExpanded,
                 onClick = { sortExpanded = true },
-                modifier = Modifier.padding(horizontal = 12.dp).heightIn(min = 48.dp),
             )
             DropdownMenuPopup(expanded = sortExpanded, onDismissRequest = { sortExpanded = false }) {
                 CuteSearchbarDefaults.TrackSortPopupContent()
             }
             HorizontalDivider(Modifier.padding(horizontal = 28.dp, vertical = 8.dp))
             tools.forEach { item ->
-                NavigationDrawerItem(
-                    label = { Text(stringResource(item.label)) },
-                    icon = { Icon(painterResource(item.icon), null) },
+                DrawerRow(
+                    label = stringResource(item.label),
+                    icon = item.icon,
                     selected = false,
                     onClick = { onClose(); onNavigate(item.screen) },
-                    modifier = Modifier.padding(horizontal = 12.dp),
                 )
             }
         }

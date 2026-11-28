@@ -80,6 +80,7 @@ import com.sosauce.chocola.feature.online.OnlineDisclaimerDialog
 import com.sosauce.chocola.feature.playing.presentation.aod.AlwaysOnDisplay
 import com.sosauce.chocola.feature.plugins.presentation.PluginsRoute
 import com.sosauce.chocola.feature.plugins.presentation.PluginsViewModel
+import com.sosauce.chocola.feature.settings.presentation.components.SettingsClickable
 import com.sosauce.chocola.feature.settings.presentation.components.SettingsScreen
 import com.sosauce.chocola.feature.settings.presentation.nowplayingbuttons.NowPlayingButtonsRoot
 import com.sosauce.nekobites.animations.AnimatedFab
@@ -419,12 +420,12 @@ private fun SettingsHome(
                 .clip(RoundedCornerShape(24.dp))
         ) {
             screens.forEach { screen ->
-                top.yukonga.miuix.kmp.basic.BasicComponent(
-                    modifier = Modifier.background(colors.surfaceContainerLow),
+                SettingsClickable(
                     title = screen.name,
-                    summary = screen.description,
-                    startAction = { Icon(painterResource(screen.icon), null, Modifier.padding(end = 16.dp)) },
-                    onClick = { screen.onClick() },
+                    description = screen.description,
+                    icon = screen.icon,
+                    baseShape = RoundedCornerShape(24.dp),
+                    onClick = screen.onClick,
                 )
             }
         }
@@ -437,7 +438,7 @@ private fun SettingsHome(
     }
 }
 
-//TODO: Import from Nekobites next release
+// MIUIX-style featured card; keeps the app's own icon and arrow resources.
 @Composable
 fun FeaturedCard(
     @DrawableRes icon: Int,
@@ -445,78 +446,38 @@ fun FeaturedCard(
     description: String,
     onClick: () -> Unit
 ) {
-    val colors = MaterialTheme.colorScheme
-    val interactionSource = rememberInteractionSource()
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.95f else 1f
-    )
-    val shape = rememberAnimatedShape(
-        condition = isPressed,
-        shapeA = MaterialShapes.Cookie9Sided,
-        shapeB = MaterialShapes.Circle
-    )
-
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(24.dp),
-        color = colors.surfaceContainerHigh,
-        contentColor = contentColorFor(colors.surfaceContainerHigh),
-        interactionSource = interactionSource,
+    val colors = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
+    top.yukonga.miuix.kmp.basic.BasicComponent(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, colors.outlineVariant, RoundedCornerShape(24.dp))
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(16.dp)
-        ) {
+            .clip(RoundedCornerShape(16.dp))
+            .background(colors.surfaceContainer),
+        title = title,
+        summary = description,
+        startAction = {
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(64.dp)
-                    .background(colors.secondaryContainer, shape)
-            ) {
-                Icon(
-                    painter = painterResource(icon),
-                    contentDescription = null,
-                    tint = colors.onSecondaryContainer,
-                    modifier = Modifier.size(32.dp)
-                )
-            }
-            Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLargeEmphasized
-                )
-                Text(
-                    text = description,
-                    style = MaterialTheme.typography.bodyMediumEmphasized.copy(
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                )
-            }
-            Spacer(Modifier.width(12.dp))
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
+                    .padding(end = 16.dp)
                     .size(40.dp)
-                    .background(colors.secondaryContainer, CircleShape)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(colors.secondaryContainer)
             ) {
                 Icon(
-                    painter = painterResource(com.sosauce.nekobites.R.drawable.arrow_right),
-                    contentDescription = null,
-                    tint = colors.onSecondaryContainer,
-                    modifier = Modifier.size(20.dp)
+                    painterResource(icon),
+                    null,
+                    Modifier.size(22.dp),
+                    tint = colors.onSecondaryContainer
                 )
             }
-        }
-    }
+        },
+        endActions = {
+            Icon(
+                painterResource(com.sosauce.nekobites.R.drawable.arrow_right),
+                null,
+                Modifier.size(20.dp)
+            )
+        },
+        onClick = onClick,
+    )
 }
-
-
