@@ -1,5 +1,6 @@
 package com.sosauce.chocola.feature.playing.presentation.expand
 
+import com.sosauce.chocola.feature.playing.presentation.VinylLayout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -28,8 +29,15 @@ class PlayerSheetGeometryTest {
     }
 
     @Test
-    fun coverStaysInsideTheCardAndEndsExactlyOnBothStyleSlots() {
-        for (full in listOf(classic, VinylExpandMath.labelSlot(classic, rtl = false))) {
+    fun coverStaysInsideTheCardAndEndsExactlyOnEachStyleSlot() {
+        val portraitArt = SheetRect(0f, 158f, viewport.width, 158f + viewport.width)
+            .offset(VinylLayout.portraitDiscOffset(viewport.width, rtl = false), 0f)
+        val slots = listOf(
+            classic,
+            VinylExpandMath.labelSlot(classic, rtl = false),
+            VinylExpandMath.labelSlot(portraitArt, rtl = false, portrait = true),
+        )
+        for (full in slots) {
             assertEquals(thumb.offset(dock.left, dock.top), cover(0f, full))
             assertEquals(full, cover(1f, full))
             for (frame in 0..1000) {

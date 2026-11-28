@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil3.imageLoader
@@ -198,4 +199,16 @@ fun TurntableTheme(
             content()
         }
     }
+}
+
+internal val turntableLabelWhite = Color.White
+internal val turntableSteelShadow = Color(0xFF38383D)
+internal val turntableSteelLight = Color(0xFFD3CED0)
+
+/** Bring out the artwork hue in the vinyl without changing the page palette. */
+internal fun portraitVinylTint(accent: Color): Color {
+    val hsv = FloatArray(3)
+    android.graphics.Color.colorToHSV(accent.toArgb(), hsv)
+    val hue = if (hsv[1] < .055f) 32f else hsv[0]
+    return Color.hsv(hue, (hsv[1] * 1.5f + .19f).coerceIn(.36f, .86f), hsv[2].coerceAtLeast(.84f))
 }

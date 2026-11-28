@@ -12,12 +12,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -34,10 +37,14 @@ import com.sosauce.chocola.core.presentation.navigation.Screen
 import com.sosauce.chocola.feature.lyrics.presentation.LyricsLayout
 import com.sosauce.chocola.feature.lyrics.presentation.LyricsPage
 import com.sosauce.chocola.feature.lyrics.presentation.LyricsPageReveal
+import com.sosauce.chocola.feature.playing.presentation.VinylLayout
 import com.sosauce.chocola.feature.playing.presentation.components.TurntableMotion
 import com.sosauce.chocola.feature.playing.presentation.components.TurntableSharedState
 import com.sosauce.chocola.feature.playing.presentation.components.drawTurntableArm
+import com.sosauce.chocola.feature.playing.presentation.components.portraitTonearm
+import com.sosauce.chocola.feature.playing.presentation.components.portraitVinyl
 import com.sosauce.chocola.feature.playing.presentation.components.turntableHalo
+import com.sosauce.chocola.feature.playing.presentation.components.turntableLabelWhite
 import com.sosauce.chocola.feature.playing.presentation.components.turntableSheen
 import com.sosauce.chocola.feature.playing.presentation.components.turntableVinyl
 import kotlin.math.roundToInt
@@ -121,10 +128,10 @@ private fun VinylLyricsFlight(
     val surface = MaterialTheme.colorScheme.surface
     val metal = if (portraitVinyl) accent else MaterialTheme.colorScheme.secondary
 
-    val startLabel = VinylExpandMath.labelRectFor(fullArt, rtl)
+    val startLabel = VinylExpandMath.labelRectFor(fullArt, rtl, portraitVinyl)
     val cover = VinylLyricsMath.coverRect(progress, startLabel, headerArt ?: startLabel)
-    val disc = VinylLyricsMath.discAround(cover)
-    val artBox = VinylExpandMath.artBoxForDisc(disc, rtl)
+    val disc = VinylLyricsMath.discAround(cover, VinylExpandMath.coverFraction(portraitVinyl))
+    val artBox = VinylExpandMath.artBoxForDisc(disc, rtl, portraitVinyl)
     val degrees = VinylLyricsMath.coverDegrees(progress, turntable.rotation.value)
     val cornerPx = VinylLyricsMath.coverCornerPx(
         p = progress,
@@ -140,8 +147,19 @@ private fun VinylLyricsFlight(
         restDegrees = TurntableMotion.ARM_REST_DEGREES
     )
 
+    val currentHaloAlpha by rememberUpdatedState(haloAlpha)
+    val currentArmDegrees by rememberUpdatedState(armDegrees)
+    val vinylLayer = remember(surface, accent, portraitVinyl) {
+        if (portraitVinyl) {
+            Modifier.portraitVinyl(accent) { currentHaloAlpha }
+        } else {
+            Modifier.clip(CircleShape).turntableVinyl(surface, accent)
+        }
+    }
+    val armLayer = remember(metal) { Modifier.portraitTonearm(metal) { currentArmDegrees } }
+
     Box(Modifier.fillMaxSize()) {
-        if (haloAlpha > 0f) {
+        if (!portraitVinyl && haloAlpha > 0f) {
             Box(
                 Modifier
                     .placeRect(artBox)
@@ -156,9 +174,18 @@ private fun VinylLyricsFlight(
                     .graphicsLayer {
                         alpha = discAlpha
                         rotationZ = degrees
+                        if (portraitVinyl) compositingStrategy = CompositingStrategy.ModulateAlpha
                     }
-                    .clip(CircleShape)
-                    .turntableVinyl(surface, accent, vivid = portraitVinyl)
+                    .then(vinylLayer)
+            )
+        }
+        if (portraitVinyl && discAlpha > 0f) {
+            val labelSide = disc.width * VinylLayout.PORTRAIT_LABEL_FRACTION
+            val label = Rect(disc.center - Offset(labelSide / 2f, labelSide / 2f), Size(labelSide, labelSide))
+            Box(
+                Modifier.placeRect(label)
+                    .graphicsLayer { alpha = discAlpha }
+                    .background(turntableLabelWhite, CircleShape)
             )
         }
         Box(
@@ -188,15 +215,19 @@ private fun VinylLyricsFlight(
                 Modifier
                     .placeRect(disc)
                     .graphicsLayer { alpha = discAlpha }
-                    .turntableSheen(surface, accent, turntable.glint)
+                    .turntableSheen(surface, accent, turntable.glint, portrait = portraitVinyl)
             )
         }
         if (armAlpha > 0f) {
-            Canvas(
-                Modifier
-                    .placeRect(artBox)
-                    .graphicsLayer { alpha = armAlpha }
-            ) { drawTurntableArm(armDegrees, surface, metal, wide = portraitVinyl) }
+            val modifier = Modifier.placeRect(artBox).graphicsLayer {
+                alpha = armAlpha
+                if (portraitVinyl) compositingStrategy = CompositingStrategy.ModulateAlpha
+            }
+            if (portraitVinyl) {
+                Box(modifier.then(armLayer))
+            } else {
+                Canvas(modifier) { drawTurntableArm(armDegrees, surface, metal) }
+            }
         }
     }
 }

@@ -112,6 +112,7 @@ import com.sosauce.chocola.core.presentation.preferences.rememberIsLandscape
 import com.sosauce.chocola.core.presentation.preferences.rememberUseTurntable
 import com.sosauce.chocola.feature.lyrics.presentation.LyricsList
 import com.sosauce.chocola.feature.playing.presentation.NowPlaying
+import com.sosauce.chocola.feature.playing.presentation.VinylLayout
 import com.sosauce.chocola.feature.playing.presentation.components.LocalArtworkSlot
 import com.sosauce.chocola.feature.playing.presentation.components.LocalOpenVinylLyrics
 import com.sosauce.chocola.feature.playing.presentation.components.LocalTurntableEnabledOverride
@@ -166,8 +167,7 @@ internal fun PlayerSheet(
     val measuredArt = if (window != null) fullArtInWindow?.offset(-window.left, -window.top) else null
     // Preserve an in-bounds layout slot while letting the portrait record bleed off the edge.
     val fullArt = measuredArt?.let {
-        val shift = if (rtl) .085f else -.085f
-        if (portraitVinyl) it.offset(it.width * shift, 0f) else it
+        if (portraitVinyl) it.offset(VinylLayout.portraitDiscOffset(it.width, rtl), 0f) else it
     }
     val ready = musicState.isPlayerReady && dockRect != null && measuredArt != null && viewport != null &&
         measuredArt.left >= 0f && measuredArt.top >= 0f &&
@@ -274,10 +274,10 @@ internal fun PlayerSheet(
         val miniArt = remember(startArtLeft, startArtTop, startArtSize) {
             SheetRect(startArtLeft, startArtTop, startArtLeft + startArtSize, startArtTop + startArtSize)
         }
-        val label = remember(fullArt, miniArt, dockRect, vinyl, rtl) {
+        val label = remember(fullArt, miniArt, dockRect, vinyl, rtl, portraitVinyl) {
             when {
                 fullArt == null -> miniArt.offset(dockRect.left, dockRect.top)
-                vinyl -> VinylExpandMath.labelSlot(fullArt, rtl)
+                vinyl -> VinylExpandMath.labelSlot(fullArt, rtl, portraitVinyl)
                 else -> fullArt
             }
         }
@@ -290,8 +290,8 @@ internal fun PlayerSheet(
                 PlayerExpandMath.coverRect(g, miniArt, label, surface, PlayerExpandMath.settleOffsetDp(g) * pixelsPerDp)
             }
         }
-        val record by remember(dockRect, viewport, miniArt, label, pixelsPerDp, rtl, state) {
-            derivedStateOf { VinylExpandMath.artAroundLabel(cover, rtl) }
+        val record by remember(dockRect, viewport, miniArt, label, pixelsPerDp, rtl, portraitVinyl, state) {
+            derivedStateOf { VinylExpandMath.artAroundLabel(cover, rtl, portraitVinyl) }
         }
         val topCorner = if (glass) MiniPlayerDefaults.CORNER_DP else 24f
         val scrim = colors.scrim

@@ -6,6 +6,15 @@ import com.sosauce.chocola.core.designsystem.NowPlayingButton
  * Layout rules shared by the portrait and landscape turntable pages.
  */
 internal object VinylLayout {
+    const val PORTRAIT_DISC_FRACTION = .94f
+    const val PORTRAIT_DISC_BLEED = .085f
+    const val PORTRAIT_LABEL_FRACTION = .48f
+    const val PORTRAIT_COVER_IN_LABEL = .86f
+    const val PORTRAIT_COVER_FRACTION = PORTRAIT_LABEL_FRACTION * PORTRAIT_COVER_IN_LABEL
+
+    fun portraitDiscOffset(side: Float, rtl: Boolean): Float =
+        side * PORTRAIT_DISC_BLEED * if (rtl) 1f else -1f
+
     /** Faint swipe-down hint at the top: not clickable, takes no layout space. */
     const val HANDLE_WIDTH_DP = 36
     const val HANDLE_HEIGHT_DP = 4

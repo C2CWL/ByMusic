@@ -27,6 +27,22 @@ class VinylExpandMathTest {
     }
 
     @Test
+    fun portraitSharedCoverMatchesTheInnerArtworkAndReconstructsTheRecordSlot() {
+        for (rtl in listOf(false, true)) {
+            val cover = VinylExpandMath.labelSlot(art, rtl, portrait = true)
+            val diameter = art.width * .94f
+            assertEquals(diameter * .48f * .86f, cover.width, .001f)
+            assertEquals(if (rtl) art.right - diameter / 2f else art.left + diameter / 2f, cover.centerX, .001f)
+            assertEquals(art.centerY, cover.centerY, .001f)
+            val restored = VinylExpandMath.artAroundLabel(cover, rtl, portrait = true)
+            assertEquals(art.left, restored.left, .001f)
+            assertEquals(art.top, restored.top, .001f)
+            assertEquals(art.right, restored.right, .001f)
+            assertEquals(art.bottom, restored.bottom, .001f)
+        }
+    }
+
+    @Test
     fun vinylBackdropDiscAndArmFollowTheirOwnProgressWindows() {
         assertEquals(0f, VinylExpandMath.backdropAlpha(.2f), 0f)
         assertEquals(1f, VinylExpandMath.backdropAlpha(.75f), 0f)
